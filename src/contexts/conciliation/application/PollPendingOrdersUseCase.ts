@@ -20,7 +20,7 @@ export class PollPendingOrdersUseCase {
       ? config.auth_token.trim()
       : null
     if (token) {
-      if (config.auth_type === 'api_key') headers['Api-Key'] = token
+      if (config.auth_type === 'api_key') headers['Authorization'] = `Api-Key ${token}`
       else headers['Authorization'] = `Bearer ${token}`
     }
 

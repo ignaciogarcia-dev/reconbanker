@@ -11,7 +11,7 @@ const sel_username_input = "#usernameUserInput";
 const sel_password_input = "#password";
 const sel_submit_button = "#sign-in-button";
 const sel_post_login_url = "**/app/**";
-const sel_empresas_card = ':is(button, div, a):has-text("midinero empresas")';
+const sel_empresas_card = '.ProductCard:has-text("MIDINERO EMPRESAS")';
 const sel_ingresos_button = 'button:has-text("Ingresos")';
 const sel_tx_row = ".MovementsTableSection__row";
 const sel_tx_detail_icon = ".Description__detailIcon";
@@ -73,9 +73,23 @@ try {
   await page.waitForSelector(sel_submit_button, { timeout: 5_000 });
   await page.click(sel_submit_button);
   await page.waitForURL(sel_post_login_url, { timeout: 25_000 });
-  // Hacer click obligatorio en la tarjeta "midinero empresas" para cargar la cuenta correcta
+  // Hacer click obligatorio en la tarjeta "midinero empresas" para cargar la cuenta correcta.
+  // Usamos evaluate() en lugar de page.click() porque la tarjeta EMPRESAS queda tapada visualmente
+  // por la tarjeta MIDINERO personal (overflow:hidden + z-index del carousel), por lo que
+  // Playwright no puede hacer click por coordenadas — el DOM click bypasea ese problema.
   await page.waitForSelector(sel_empresas_card, { timeout: 15_000 });
-  await page.click(sel_empresas_card);
+  await page.evaluate(() => {
+    const card = [...document.querySelectorAll(".ProductCard")].find(
+      (c) =>
+        c.querySelector(".ProductName")?.textContent?.trim() ===
+        "MIDINERO EMPRESAS",
+    );
+    if (!card)
+      throw new Error("tarjeta MIDINERO EMPRESAS no encontrada en el DOM");
+    card.click();
+  });
+  // Resetear movements capturados: el click dispara una nueva llamada getMovements para EMPRESAS
+  capturedMovements = null;
   // No usamos networkidle — la SPA tiene polling continuo que lo bloquea
   await page.waitForSelector(sel_ingresos_button, { timeout: 20_000 });
 } catch (e) {
