@@ -58,6 +58,12 @@ export class PlaywrightRunner {
       lastExternalId: context.lastExternalId,
     }
 
+    const TIMEOUT_MS = 6 * 60 * 1000 // 6 minutes
+
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Script execution timed out after ${TIMEOUT_MS / 1000}s`)), TIMEOUT_MS)
+    )
+
     try {
       const wrappedCode = `
         return (async function(page, context) {
@@ -65,7 +71,7 @@ export class PlaywrightRunner {
         })(page, context)
       `
       const fn = new Function('page', 'context', wrappedCode)
-      const transactions: ScrapedTransaction[] = await fn(page, scriptContext)
+      const transactions: ScrapedTransaction[] = await Promise.race([fn(page, scriptContext), timeout])
       return transactions ?? []
     } finally {
       await browser.close()
