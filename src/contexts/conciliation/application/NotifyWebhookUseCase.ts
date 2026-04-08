@@ -5,7 +5,7 @@ interface JobData { requestId: string }
 export class NotifyWebhookUseCase {
   async execute({ requestId }: JobData): Promise<void> {
     const { rows: [req] } = await db.query(
-      `SELECT cr.id, cr.external_id, cr.status, cr.expected_amount, cr.currency,
+      `SELECT cr.id, cr.external_id, cr.status, cr.expected_amount, cr.currency, cr.sender_name,
               ac.webhook_url, ac.webhook_auth_type, ac.webhook_auth_token
        FROM conciliation_requests cr
        JOIN account_config ac ON ac.account_id = cr.account_id
@@ -32,6 +32,7 @@ export class NotifyWebhookUseCase {
       external_id: req.external_id,
       amount:      Number(req.expected_amount),
       currency:    req.currency,
+      sender_name: req.sender_name ?? null,
     })
     console.log(`[webhook] POST ${req.webhook_url}`)
     console.log(`[webhook] headers:`, JSON.stringify(headers))
