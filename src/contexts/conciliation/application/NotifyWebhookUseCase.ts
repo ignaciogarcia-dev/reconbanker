@@ -28,19 +28,26 @@ export class NotifyWebhookUseCase {
       else headers['Authorization'] = `Bearer ${webhookToken}`
     }
 
+    const webhookBody = JSON.stringify({
+      external_id: req.external_id,
+      amount:      Number(req.expected_amount),
+      currency:    req.currency,
+    })
+    console.log(`[webhook] POST ${req.webhook_url}`)
+    console.log(`[webhook] headers:`, JSON.stringify(headers))
+    console.log(`[webhook] body:`, webhookBody)
+
     const response = await fetch(req.webhook_url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({
-        external_id: req.external_id,
-        amount:      Number(req.expected_amount),
-        currency:    req.currency,
-      })
+      body: webhookBody,
     })
 
+    const responseBody = await response.text().catch(() => '')
+    console.log(`[webhook] response: ${response.status} ${response.statusText} — ${responseBody}`)
+
     if (!response.ok) {
-      const body = await response.text().catch(() => '')
-      throw new Error(`Webhook failed: ${response.status} ${response.statusText}` + (body ? ` — ${body.slice(0, 300)}` : ''))
+      throw new Error(`Webhook failed: ${response.status} ${response.statusText}` + (responseBody ? ` — ${responseBody.slice(0, 300)}` : ''))
     }
 
     if (match) {
