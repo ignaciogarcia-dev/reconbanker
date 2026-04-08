@@ -49,6 +49,8 @@ accountsRouter.put('/:accountId/config', async (req, res) => {
   const {
     pending_orders_endpoint,
     webhook_url,
+    webhook_auth_type,
+    webhook_auth_token,
     retry_limit,
     polling_method,
     polling_body,
@@ -89,11 +91,15 @@ accountsRouter.put('/:accountId/config', async (req, res) => {
   const normalizedAuthToken =
     typeof auth_token === 'string' && auth_token.trim() ? auth_token.trim() : null
 
+  const normalizedWebhookAuthToken =
+    typeof webhook_auth_token === 'string' && webhook_auth_token.trim() ? webhook_auth_token.trim() : null
+
   const { rows: [config] } = await db.query(
     `INSERT INTO account_config
        (id, account_id, pending_orders_endpoint, webhook_url,
-        retry_limit, polling_method, polling_body, auth_type, auth_token)
-     VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8)
+        retry_limit, polling_method, polling_body, auth_type, auth_token,
+        webhook_auth_type, webhook_auth_token)
+     VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      ON CONFLICT (account_id) DO UPDATE SET
        pending_orders_endpoint = $2,
        webhook_url             = $3,
@@ -102,6 +108,8 @@ accountsRouter.put('/:accountId/config', async (req, res) => {
        polling_body            = $6,
        auth_type               = $7,
        auth_token              = $8,
+       webhook_auth_type       = $9,
+       webhook_auth_token      = $10,
        updated_at              = now()
      RETURNING *`,
     [
@@ -109,6 +117,7 @@ accountsRouter.put('/:accountId/config', async (req, res) => {
       retry_limit ?? 3,
       normalizedPollingMethod, normalizedPollingBody,
       auth_type ?? 'bearer', normalizedAuthToken,
+      webhook_auth_type ?? null, normalizedWebhookAuthToken,
     ]
   )
 
