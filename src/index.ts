@@ -16,7 +16,7 @@ EventBus.subscribe<TransactionIngestedEvent>('TransactionIngested', async (event
     `SELECT id FROM conciliation_requests
      WHERE account_id = $1
        AND status IN ('pending', 'not_found')
-       AND retry_count < 3`,
+       AND created_at > now() - interval '5 days'`,
     [event.accountId]
   )
 
