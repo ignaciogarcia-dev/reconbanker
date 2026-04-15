@@ -85,7 +85,7 @@ export class RunConciliationUseCase {
           accountId: request.accountId,
           requestId,
           attemptNumber,
-          status: result.status === 'ambiguous' ? 'ambiguous' : 'no_match',
+          status: result.status === 'ambiguous' ? 'ambiguous' : 'not_found',
           failureType: result.status === 'ambiguous' ? 'multiple_candidates' : 'rule_miss',
           candidateIds: result.candidateIds,
         })
