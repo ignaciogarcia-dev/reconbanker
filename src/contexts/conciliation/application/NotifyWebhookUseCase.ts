@@ -12,12 +12,14 @@ export class NotifyWebhookUseCase {
        WHERE cr.id = $1`,
       [requestId]
     )
-    if (!req?.webhook_url || req.status !== 'matched') return
+    if (!req?.webhook_url || !['matched', 'ambiguous'].includes(req.status)) return
 
-    const { rows: [match] } = await db.query(
-      `SELECT id FROM conciliated_transactions WHERE request_id = $1 AND is_primary = true`,
-      [requestId]
-    )
+    const match = req.status === 'matched'
+      ? (await db.query(
+          `SELECT id FROM conciliated_transactions WHERE request_id = $1 AND is_primary = true`,
+          [requestId]
+        )).rows[0]
+      : null
 
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     const webhookToken = typeof req.webhook_auth_token === 'string' && req.webhook_auth_token.trim()
@@ -30,6 +32,7 @@ export class NotifyWebhookUseCase {
 
     const webhookBody = JSON.stringify({
       external_id: req.external_id,
+      status:      req.status,
       amount:      Number(req.expected_amount),
       currency:    req.currency,
       sender_name: req.sender_name ?? null,
