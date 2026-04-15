@@ -7,6 +7,7 @@ import { IConciliatedTransactionRepository } from '../domain/IConciliatedTransac
 import { ConciliationRequestRepository } from '../infrastructure/ConciliationRequestRepository.js'
 import { ConciliationAttemptRepository } from '../infrastructure/ConciliationAttemptRepository.js'
 import { ConciliatedTransactionRepository } from '../infrastructure/ConciliatedTransactionRepository.js'
+import { Queues } from '../../../shared/infrastructure/queues/QueueRegistry.js'
 import crypto from 'crypto'
 
 interface JobData { requestId: string }
@@ -96,5 +97,13 @@ export class RunConciliationUseCase {
 
     await EventBus.publishAll(request.domainEvents)
     request.clearDomainEvents()
+
+    if (result.status === 'ambiguous') {
+      await Queues.webhook.add(
+        'notify',
+        { requestId },
+        { jobId: `webhook_ambiguous_${requestId}`, removeOnComplete: true }
+      )
+    }
   }
 }
