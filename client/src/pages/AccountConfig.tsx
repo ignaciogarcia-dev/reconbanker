@@ -186,7 +186,9 @@ export function AccountConfig() {
               <pre className="text-xs bg-background rounded p-2 font-mono whitespace-pre-wrap">{`{
   "external_id": "order-123",
   "amount": 1500.00,
-  "currency": "UYU"
+  "currency": "UYU",
+  "sender_name": "Juan Pérez",
+  "payment_method_id": 33  // solo si está en el body de polling
 }`}</pre>
             </div>
           </div>

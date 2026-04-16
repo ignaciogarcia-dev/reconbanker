@@ -132,7 +132,7 @@
     "body": "Body (JSON)",
     "webhooks": "Webhooks",
     "webhookPayload": "Payload you'll receive",
-    "webhookPayloadDesc": "When an order is successfully reconciled, a POST will be sent to this URL with:",
+    "webhookPayloadDesc": "When an order is successfully reconciled, a POST will be sent to this URL. If the polling body includes payment_method_id, it will also be forwarded in the payload:",
     "webhookUrl": "Webhook URL (notifications)",
     "intervals": "Intervals and retries",
     "interval": "Interval (seconds)",
