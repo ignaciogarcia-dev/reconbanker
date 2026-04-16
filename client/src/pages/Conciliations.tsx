@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useTranslation } from 'react-i18next'
+import { X } from 'lucide-react'
 
 const statusVariant: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
   matched:    'default',
@@ -115,12 +116,23 @@ export function Conciliations() {
           <h2 className="text-2xl font-semibold">{t('conciliations.title')}</h2>
           <p className="text-muted-foreground">{t('conciliations.subtitle')}</p>
         </div>
-        <Input
-          placeholder={t('conciliations.searchPlaceholder')}
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="max-w-xs"
-        />
+        <div className="relative max-w-xs w-full">
+          <Input
+            placeholder={t('conciliations.searchPlaceholder')}
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className={search ? 'pr-8' : ''}
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       {isLoading ? (
