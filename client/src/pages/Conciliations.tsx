@@ -202,40 +202,63 @@ export function Conciliations() {
                     <DialogTitle>{t('conciliations.filters')}</DialogTitle>
                   </DialogHeader>
 
-                  <div className="space-y-4">
+                  <div className="space-y-4 mt-2">
                     <div className="space-y-1.5">
                       <Label>{t('conciliations.colStatus')}</Label>
-                      <Select value={draft.status} onValueChange={v => setDraft(d => ({ ...d, status: v }))}>
-                        <SelectTrigger>
-                          <SelectValue placeholder={t('conciliations.allStatuses')}>
-                            {draft.status ? t(`enums.conciliationStatus.${draft.status}`) : t('conciliations.allStatuses')}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="">{t('conciliations.allStatuses')}</SelectItem>
-                          {STATUS_KEYS.map(s => (
-                            <SelectItem key={s} value={s}>{t(`enums.conciliationStatus.${s}`)}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="relative">
+                        <Select value={draft.status} onValueChange={v => setDraft(d => ({ ...d, status: v }))}>
+                          <SelectTrigger className={draft.status ? 'w-full [&>svg:last-child]:hidden pr-8' : 'w-full'}>
+                            <SelectValue placeholder={t('conciliations.allStatuses')}>
+                              {draft.status ? t(`enums.conciliationStatus.${draft.status}`) : t('conciliations.allStatuses')}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="">{t('conciliations.allStatuses')}</SelectItem>
+                            {STATUS_KEYS.map(s => (
+                              <SelectItem key={s} value={s}>{t(`enums.conciliationStatus.${s}`)}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {draft.status && (
+                          <button type="button" onClick={(e) => { e.stopPropagation(); setDraft(d => ({ ...d, status: '' })) }} className="absolute right-2 top-1/2 -translate-y-1/2 z-10 text-muted-foreground hover:text-foreground">
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="space-y-1.5">
                       <Label>{t('conciliations.dateFrom')}</Label>
-                      <Input
-                        type="date"
-                        value={draft.dateFrom}
-                        onChange={e => setDraft(d => ({ ...d, dateFrom: e.target.value }))}
-                      />
+                      <div className="relative">
+                        <Input
+                          type="date"
+                          value={draft.dateFrom}
+                          onChange={e => setDraft(d => ({ ...d, dateFrom: e.target.value }))}
+                          className={draft.dateFrom ? '[&::-webkit-calendar-picker-indicator]:!hidden pr-8' : ''}
+                        />
+                        {draft.dateFrom && (
+                          <button type="button" onClick={() => setDraft(d => ({ ...d, dateFrom: '' }))} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="space-y-1.5">
                       <Label>{t('conciliations.dateTo')}</Label>
-                      <Input
-                        type="date"
-                        value={draft.dateTo}
-                        onChange={e => setDraft(d => ({ ...d, dateTo: e.target.value }))}
-                      />
+                      <div className="relative">
+                        <Input
+                          type="date"
+                          value={draft.dateTo}
+                          onChange={e => setDraft(d => ({ ...d, dateTo: e.target.value }))}
+                          className={draft.dateTo ? '[&::-webkit-calendar-picker-indicator]:!hidden pr-8' : ''}
+                        />
+                        {draft.dateTo && (
+                          <button type="button" onClick={() => setDraft(d => ({ ...d, dateTo: '' }))} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
 
