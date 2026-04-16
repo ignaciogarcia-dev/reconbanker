@@ -13,6 +13,7 @@
     "activeAccounts": "Cuentas activas",
     "conciliations": "Conciliaciones",
     "reconciledToday": "Conciliadas hoy",
+    "reconciledByDay": "Conciliaciones a lo largo del tiempo",
     "unreconciled": "Sin conciliar"
   },
   "banks": {

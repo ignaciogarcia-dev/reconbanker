@@ -13,14 +13,30 @@ interface ConciliationRequest {
 
 function buildChartData(requests: ConciliationRequest[]) {
   const matched = requests.filter(r => r.status === 'matched')
+  if (matched.length === 0) return { data: [], groupedByMonth: false }
+
+  const dates = matched.map(r => new Date(r.created_at))
+  const minDate = new Date(Math.min(...dates.map(d => d.getTime())))
+  const maxDate = new Date(Math.max(...dates.map(d => d.getTime())))
+  const diffDays = (maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24)
+
+  const groupByMonth = diffDays > 90
   const counts: Record<string, number> = {}
+
   for (const r of matched) {
-    const day = new Date(r.created_at).toLocaleDateString('sv') // YYYY-MM-DD
-    counts[day] = (counts[day] ?? 0) + 1
+    const d = new Date(r.created_at)
+    const key = groupByMonth
+      ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      : d.toLocaleDateString('sv') // YYYY-MM-DD
+    counts[key] = (counts[key] ?? 0) + 1
   }
-  return Object.entries(counts)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, count]) => ({ date, count }))
+
+  return {
+    data: Object.entries(counts)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, count]) => ({ date, count })),
+    groupedByMonth: groupByMonth,
+  }
 }
 
 export function Dashboard() {
@@ -39,7 +55,7 @@ export function Dashboard() {
   const today = new Date().toLocaleDateString('sv')
   const reconciledToday = conciliations.filter(r => r.status === 'matched' && new Date(r.created_at).toLocaleDateString('sv') === today).length
   const unreconciled = conciliations.filter(r => r.status === 'pending' || r.status === 'processing').length
-  const chartData = buildChartData(conciliations)
+  const { data: chartData, groupedByMonth } = buildChartData(conciliations)
 
   const stats = [
     { label: t('dashboard.activeAccounts'),  value: accounts.length,    icon: Building2 },
@@ -70,7 +86,7 @@ export function Dashboard() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-medium">{t('dashboard.reconciledToday')}</CardTitle>
+          <CardTitle className="text-sm font-medium">{t('dashboard.reconciledByDay')}</CardTitle>
         </CardHeader>
         <CardContent>
           {chartData.length === 0 ? (
@@ -79,11 +95,31 @@ export function Dashboard() {
             <ResponsiveContainer width="100%" height={240}>
               <LineChart data={chartData} margin={{ top: 4, right: 16, left: -16, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis dataKey="date" tick={{ fontSize: 12 }} className="text-muted-foreground" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 12 }}
+                  className="text-muted-foreground"
+                  tickFormatter={(value: string) => {
+                    if (groupedByMonth) {
+                      const [y, m] = value.split('-')
+                      return `${m}/${y.slice(2)}`
+                    }
+                    const [, m, d] = value.split('-')
+                    return `${d}/${m}`
+                  }}
+                  interval="preserveStartEnd"
+                />
                 <YAxis allowDecimals={false} tick={{ fontSize: 12 }} className="text-muted-foreground" />
                 <Tooltip
                   contentStyle={{ fontSize: 12 }}
                   formatter={(v: number) => [v, t('dashboard.conciliations')]}
+                  labelFormatter={(label: string) => {
+                    if (groupedByMonth) {
+                      const [y, m] = label.split('-')
+                      return `${m}/${y}`
+                    }
+                    return label
+                  }}
                 />
                 <Line type="monotone" dataKey="count" strokeWidth={2} dot={false} className="stroke-primary" />
               </LineChart>
