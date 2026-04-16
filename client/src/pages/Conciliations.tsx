@@ -233,6 +233,7 @@ export function Conciliations() {
                         <Input
                           type="date"
                           value={draft.dateFrom}
+                          max={draft.dateTo || undefined}
                           onChange={e => setDraft(d => ({ ...d, dateFrom: e.target.value }))}
                           className={draft.dateFrom ? '[&::-webkit-calendar-picker-indicator]:!hidden pr-8' : ''}
                         />
@@ -250,6 +251,7 @@ export function Conciliations() {
                         <Input
                           type="date"
                           value={draft.dateTo}
+                          min={draft.dateFrom || undefined}
                           onChange={e => setDraft(d => ({ ...d, dateTo: e.target.value }))}
                           className={draft.dateTo ? '[&::-webkit-calendar-picker-indicator]:!hidden pr-8' : ''}
                         />
