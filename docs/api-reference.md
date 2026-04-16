@@ -113,8 +113,7 @@ Returns the account's reconciliation configuration.
   "pollingMethod": "GET",
   "authType": "bearer",
   "webhookAuthType": "bearer",
-  "webhookAuthToken": "...",
-  "retryLimit": 3
+  "webhookAuthToken": "..."
 }
 ```
 
