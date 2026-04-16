@@ -134,9 +134,6 @@
     "webhookPayload": "Payload que vas a recibir",
     "webhookPayloadDesc": "Cuando una orden sea conciliada exitosamente, se enviará un POST a esta URL. Si el body de polling incluye payment_method_id, también se incluirá en el payload:",
     "webhookUrl": "Webhook URL (notificaciones)",
-    "intervals": "Intervalos y reintentos",
-    "interval": "Intervalo (segundos)",
-    "retryLimit": "Límite de reintentos",
     "save": "Guardar configuración",
     "saving": "Guardando...",
     "saved": "¡Guardado!"

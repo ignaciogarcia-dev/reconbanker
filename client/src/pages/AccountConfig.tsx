@@ -17,8 +17,6 @@ interface AccountConfig {
   polling_body: string
   auth_type: 'bearer' | 'api_key'
   auth_token: string
-  polling_interval_seconds: number
-  retry_limit: number
   bank_username: string
   bank_password: string
 }
@@ -34,8 +32,6 @@ export function AccountConfig() {
     polling_body: '',
     auth_type: 'bearer',
     auth_token: '',
-    polling_interval_seconds: 60,
-    retry_limit: 3,
     bank_username: '',
     bank_password: '',
   })
@@ -195,34 +191,6 @@ export function AccountConfig() {
           <div className="space-y-2">
             <Label>{t('accountConfig.webhookUrl')}</Label>
             <Input placeholder="https://..." {...field('webhook_url')} />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Polling & retries */}
-      <Card>
-        <CardHeader><CardTitle>{t('accountConfig.intervals')}</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>{t('accountConfig.interval')}</Label>
-              <Input
-                type="number"
-                min={10}
-                value={form.polling_interval_seconds}
-                onChange={e => setForm(f => ({ ...f, polling_interval_seconds: Number(e.target.value) }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>{t('accountConfig.retryLimit')}</Label>
-              <Input
-                type="number"
-                min={0}
-                max={10}
-                value={form.retry_limit}
-                onChange={e => setForm(f => ({ ...f, retry_limit: Number(e.target.value) }))}
-              />
-            </div>
           </div>
         </CardContent>
       </Card>
