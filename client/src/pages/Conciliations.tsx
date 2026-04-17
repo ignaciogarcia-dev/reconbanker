@@ -11,17 +11,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useTranslation } from 'react-i18next'
-import { X, SlidersHorizontal, Bell } from 'lucide-react'
+import { X, SlidersHorizontal, Bell, CheckCircle2, Clock, Loader2, SearchX, HelpCircle, XCircle, History, Ban, type LucideIcon } from 'lucide-react'
 
-const STATUS_KEYS = ['matched', 'pending', 'processing', 'not_found', 'ambiguous', 'failed', 'expired'] as const
+const STATUS_KEYS = ['matched', 'pending', 'processing', 'not_found', 'ambiguous', 'failed', 'expired', 'cancelled'] as const
 
-const statusVariant: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-  matched:    'default',
-  pending:    'outline',
-  processing: 'secondary',
-  not_found:  'destructive',
-  ambiguous:  'destructive',
-  failed:     'destructive',
+const statusStyle: Record<string, { icon: LucideIcon; className: string }> = {
+  matched:    { icon: CheckCircle2, className: 'bg-green-500/10 text-green-700 dark:text-green-400 border-transparent' },
+  pending:    { icon: Clock,        className: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-transparent' },
+  processing: { icon: Loader2,      className: 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-transparent [&>svg]:animate-spin' },
+  not_found:  { icon: SearchX,      className: 'bg-orange-500/10 text-orange-700 dark:text-orange-400 border-transparent' },
+  ambiguous:  { icon: HelpCircle,   className: 'bg-purple-500/10 text-purple-700 dark:text-purple-400 border-transparent' },
+  failed:     { icon: XCircle,      className: 'bg-red-500/10 text-red-700 dark:text-red-400 border-transparent' },
+  expired:    { icon: History,      className: 'bg-gray-500/10 text-gray-700 dark:text-gray-400 border-transparent' },
+  cancelled:  { icon: Ban,          className: 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-transparent' },
 }
 
 interface ConciliationRequest {
@@ -86,7 +88,16 @@ function OrdersTable({ requests, accounts, showAccount }: { requests: Conciliati
             <TableCell>{r.currency}</TableCell>
             <TableCell>{r.sender_name ?? '—'}</TableCell>
             <TableCell>
-              <Badge variant={statusVariant[r.status] ?? 'outline'}>{t(`enums.conciliationStatus.${r.status}`)}</Badge>
+              {(() => {
+                const style = statusStyle[r.status]
+                const Icon = style?.icon
+                return (
+                  <Badge className={style?.className ?? ''}>
+                    {Icon && <Icon />}
+                    {t(`enums.conciliationStatus.${r.status}`)}
+                  </Badge>
+                )
+              })()}
             </TableCell>
             <TableCell className="text-muted-foreground text-xs">
               {new Date(r.created_at).toLocaleString()}
