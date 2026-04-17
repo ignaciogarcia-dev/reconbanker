@@ -1,9 +1,6 @@
-import { db, withTransaction } from '../../../shared/infrastructure/db/client.js'
+import { withTransaction } from '../../../shared/infrastructure/db/client.js'
 import { EventBus } from '../../../shared/events/EventBus.js'
 import { ConciliationEngine } from '../domain/ConciliationEngine.js'
-import { IConciliationRequestRepository } from '../domain/IConciliationRequestRepository.js'
-import { IConciliationAttemptRepository } from '../domain/IConciliationAttemptRepository.js'
-import { IConciliatedTransactionRepository } from '../domain/IConciliatedTransactionRepository.js'
 import { ConciliationRequestRepository } from '../infrastructure/ConciliationRequestRepository.js'
 import { ConciliationAttemptRepository } from '../infrastructure/ConciliationAttemptRepository.js'
 import { ConciliatedTransactionRepository } from '../infrastructure/ConciliatedTransactionRepository.js'
@@ -15,46 +12,44 @@ interface JobData { requestId: string }
 export class RunConciliationUseCase {
   private engine = new ConciliationEngine()
 
-  constructor(
-    private readonly requestRepo: IConciliationRequestRepository = new ConciliationRequestRepository(),
-    private readonly attemptRepo: IConciliationAttemptRepository = new ConciliationAttemptRepository(),
-    private readonly matchRepo: IConciliatedTransactionRepository = new ConciliatedTransactionRepository(),
-  ) {}
-
   async execute({ requestId }: JobData): Promise<void> {
-    const request = await this.requestRepo.findById(requestId)
-    if (!request || request.status === 'matched') return
+    const TERMINAL_STATUSES = ['matched', 'cancelled', 'expired']
 
-    const { rows: candidateRows } = await db.query(
-      `SELECT id, amount, currency, sender_name, received_at
-       FROM bank_transactions
-       WHERE account_id = $1 AND received_at >= now() - interval '7 days'`,
-      [request.accountId]
-    )
-
-    const result = this.engine.evaluate(
-      {
-        expectedAmount: request.expectedAmount,
-        currency: request.currency,
-        senderName: request.senderName,
-        createdAt: request.createdAt,
-      },
-      candidateRows.map(c => ({
-        id: c.id,
-        amount: Number(c.amount),
-        currency: c.currency,
-        senderName: c.sender_name,
-        receivedAt: c.received_at,
-      }))
-    )
-
-    const attemptId = crypto.randomUUID()
-    const attemptNumber = request.retryCount + 1
-
-    await withTransaction(async (client) => {
+    const outcome = await withTransaction(async (client) => {
       const txRequestRepo = new ConciliationRequestRepository(client)
       const txAttemptRepo = new ConciliationAttemptRepository(client)
       const txMatchRepo = new ConciliatedTransactionRepository(client)
+
+      // FOR UPDATE SKIP LOCKED: si polling tiene la row lockeada, retornamos null.
+      const request = await txRequestRepo.findById(requestId)
+      if (!request) return null
+      if (TERMINAL_STATUSES.includes(request.status)) return null
+
+      const { rows: candidateRows } = await client.query(
+        `SELECT id, amount, currency, sender_name, received_at
+         FROM bank_transactions
+         WHERE account_id = $1 AND received_at >= now() - interval '7 days'`,
+        [request.accountId]
+      )
+
+      const result = this.engine.evaluate(
+        {
+          expectedAmount: request.expectedAmount,
+          currency: request.currency,
+          senderName: request.senderName,
+          createdAt: request.createdAt,
+        },
+        candidateRows.map(c => ({
+          id: c.id,
+          amount: Number(c.amount),
+          currency: c.currency,
+          senderName: c.sender_name,
+          receivedAt: c.received_at,
+        }))
+      )
+
+      const attemptId = crypto.randomUUID()
+      const attemptNumber = request.retryCount + 1
 
       request.markProcessing()
 
@@ -93,12 +88,16 @@ export class RunConciliationUseCase {
       }
 
       await txRequestRepo.save(request)
+
+      return { request, resultStatus: result.status }
     })
 
-    await EventBus.publishAll(request.domainEvents)
-    request.clearDomainEvents()
+    if (!outcome) return
 
-    if (result.status === 'ambiguous') {
+    await EventBus.publishAll(outcome.request.domainEvents)
+    outcome.request.clearDomainEvents()
+
+    if (outcome.resultStatus === 'ambiguous') {
       await Queues.webhook.add(
         'notify',
         { requestId },

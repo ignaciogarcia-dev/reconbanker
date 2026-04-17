@@ -1,10 +1,13 @@
 import { db } from '../../../shared/infrastructure/db/client.js'
 import { Queues } from '../../../shared/infrastructure/queues/QueueRegistry.js'
+import { ConciliationRequestRepository } from '../infrastructure/ConciliationRequestRepository.js'
 import crypto from 'crypto'
 
 interface JobData { accountId: string }
 
 export class PollPendingOrdersUseCase {
+  private readonly requestRepo = new ConciliationRequestRepository()
+
   async execute({ accountId }: JobData): Promise<void> {
     const { rows } = await db.query(
       `SELECT * FROM account_config WHERE account_id = $1`,
@@ -59,15 +62,20 @@ export class PollPendingOrdersUseCase {
       throw new Error(`Polling response must be a JSON array of orders (got: ${JSON.stringify(raw).slice(0, 200)})`)
     }
 
+    const seenExternalIds: string[] = []
+
     for (const order of orders) {
       if (!order.external_id || order.amount == null || !order.currency || !order.sender_name) {
         console.warn(`[PollPendingOrders] Skipping order missing required fields (external_id, amount, currency, sender_name):`, order)
         continue
       }
 
+      const externalId = String(order.external_id)
+      seenExternalIds.push(externalId)
+
       const exists = await db.query(
         'SELECT 1 FROM conciliation_requests WHERE account_id = $1 AND external_id = $2',
-        [accountId, String(order.external_id)]
+        [accountId, externalId]
       )
       if (exists.rows.length > 0) continue
 
@@ -77,7 +85,7 @@ export class PollPendingOrdersUseCase {
            (id, account_id, external_id, expected_amount, currency, sender_name, status, retry_count, created_at)
          VALUES ($1,$2,$3,$4,$5,$6,'pending',0,now())`,
         [
-          requestId, accountId, String(order.external_id),
+          requestId, accountId, externalId,
           order.amount, order.currency, order.sender_name ?? null,
         ]
       )
@@ -88,6 +96,11 @@ export class PollPendingOrdersUseCase {
         { requestId },
         { jobId: `conciliation_${requestId}`, removeOnComplete: true }
       )
+    }
+
+    const cancelledCount = await this.requestRepo.cancelMissing(accountId, seenExternalIds)
+    if (cancelledCount > 0) {
+      console.log(`[PollPendingOrders] Cancelled ${cancelledCount} order(s) missing from source for account ${accountId}`)
     }
   }
 }

@@ -34,6 +34,18 @@ export class ConciliationRequestRepository implements IConciliationRequestReposi
     return reconstitute(rows[0])
   }
 
+  async cancelMissing(accountId: string, presentExternalIds: string[]): Promise<number> {
+    const { rowCount } = await this.executor.query(
+      `UPDATE conciliation_requests
+         SET status = 'cancelled'
+       WHERE account_id = $1
+         AND status IN ('pending', 'processing', 'not_found', 'ambiguous', 'failed')
+         AND NOT (external_id = ANY($2::text[]))`,
+      [accountId, presentExternalIds]
+    )
+    return rowCount ?? 0
+  }
+
   async save(request: ConciliationRequest): Promise<void> {
     await this.executor.query(
       `INSERT INTO conciliation_requests
