@@ -156,7 +156,8 @@
       "not_found": "No encontrado",
       "ambiguous": "Ambiguo",
       "failed": "Fallido",
-      "expired": "Expirado"
+      "expired": "Expirado",
+      "cancelled": "Cancelado"
     },
     "scriptStatus": {
       "draft": "Borrador",
