@@ -7,7 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { LayoutDashboard, Building2, Building, GitMerge, Code2, LogOut } from 'lucide-react'
+import { LayoutDashboard, Building2, Building, GitMerge, ArrowDownUp, Code2, LogOut } from 'lucide-react'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { LanguageSelector } from '@/components/LanguageSelector'
@@ -29,6 +29,7 @@ export function AppLayout() {
     { to: '/banks', label: t('nav.banks'), icon: Building },
     { to: '/accounts', label: t('nav.accounts'), icon: Building2 },
     { to: '/conciliations', label: t('nav.conciliations'), icon: GitMerge },
+    { to: '/movements', label: t('nav.movements'), icon: ArrowDownUp },
     { to: '/scripts', label: t('nav.scripts'), icon: Code2 },
   ]
 

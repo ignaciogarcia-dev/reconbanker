@@ -41,6 +41,7 @@ interface Account {
   id: string
   name: string
   bank: string
+  mode: 'reconcile' | 'passthrough'
 }
 
 interface Filters {
@@ -160,10 +161,12 @@ export function Conciliations() {
     queryFn: () => api.get('/conciliation').then(r => r.data),
   })
 
-  const { data: accounts = [], isLoading: loadingAccounts } = useQuery<Account[]>({
+  const { data: allAccounts = [], isLoading: loadingAccounts } = useQuery<Account[]>({
     queryKey: ['accounts'],
     queryFn: () => api.get('/accounts').then(r => r.data),
   })
+
+  const accounts = useMemo(() => allAccounts.filter(a => a.mode !== 'passthrough'), [allAccounts])
 
   const isLoading = loadingReqs || loadingAccounts
 
@@ -336,7 +339,7 @@ export function Conciliations() {
             <Card>
               <CardHeader><CardTitle>{t('conciliations.orders')}</CardTitle></CardHeader>
               <CardContent>
-                <OrdersTable requests={filtered} accounts={accounts} showAccount />
+                <OrdersTable requests={filtered} accounts={allAccounts} showAccount />
               </CardContent>
             </Card>
           </TabsContent>
@@ -348,7 +351,7 @@ export function Conciliations() {
                   <CardTitle>{account.name || account.bank}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <OrdersTable requests={filtered.filter(r => r.account_id === account.id)} accounts={accounts} />
+                  <OrdersTable requests={filtered.filter(r => r.account_id === account.id)} accounts={allAccounts} />
                 </CardContent>
               </Card>
             </TabsContent>
