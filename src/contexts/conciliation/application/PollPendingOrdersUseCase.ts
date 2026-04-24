@@ -62,8 +62,8 @@ export class PollPendingOrdersUseCase {
     const seenExternalIds: string[] = []
 
     for (const order of orders) {
-      if (!order.external_id || order.amount == null || !order.currency || !order.sender_name) {
-        console.warn(`[PollPendingOrders] Skipping order missing required fields (external_id, amount, currency, sender_name):`, order)
+      if (!order.external_id || order.amount == null || !order.currency || !order.name) {
+        console.warn(`[PollPendingOrders] Skipping order missing required fields (external_id, amount, currency, name):`, order)
         continue
       }
 
@@ -83,7 +83,7 @@ export class PollPendingOrdersUseCase {
          VALUES ($1,$2,$3,$4,$5,$6,'pending',0,now())`,
         [
           requestId, accountId, externalId,
-          order.amount, order.currency, order.sender_name ?? null,
+          order.amount, order.currency, order.name ?? null,
         ]
       )
 

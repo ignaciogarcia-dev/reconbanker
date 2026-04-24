@@ -35,7 +35,7 @@ export class NotifyWebhookUseCase {
       status:      req.status,
       amount:      Number(req.expected_amount),
       currency:    req.currency,
-      sender_name: req.sender_name ?? null,
+      name:        req.sender_name ?? null,
     }
 
     const extraFields = req.webhook_extra_fields

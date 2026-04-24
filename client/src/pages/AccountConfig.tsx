@@ -32,7 +32,7 @@ interface AccountConfig {
   mode: 'reconcile' | 'passthrough'
 }
 
-const RESERVED_WEBHOOK_KEYS = ['external_id', 'status', 'amount', 'currency', 'sender_name', 'id', 'received_at']
+const RESERVED_WEBHOOK_KEYS = ['external_id', 'status', 'amount', 'currency', 'name', 'id', 'received_at']
 
 export function AccountConfig() {
   const { accountId } = useParams<{ accountId: string }>()
@@ -238,7 +238,7 @@ export function AccountConfig() {
     "external_id": "order-123",
     "amount": 1500.00,
     "currency": "UYU",
-    "sender_name": "Juan Pérez"
+    "name": "Juan Pérez"
   }
 ]`}</pre>
             </div>
@@ -295,13 +295,13 @@ export function AccountConfig() {
   "external_id": "order-123",
   "amount": 1500.00,
   "currency": "UYU",
-  "sender_name": "Juan Pérez"
+  "name": "Juan Pérez"
 }`
                   : `{
   "id": "uuid-del-movimiento",
   "amount": 1500.00,
   "currency": "UYU",
-  "sender_name": "Juan Pérez",
+  "name": "Juan Pérez",
   "received_at": "2026-04-24T12:00:00.000Z"
 }`}
               </pre>
