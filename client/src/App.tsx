@@ -9,6 +9,7 @@ import { Banks } from '@/pages/Banks'
 import { Accounts } from '@/pages/Accounts'
 import { AccountConfig } from '@/pages/AccountConfig'
 import { Conciliations } from '@/pages/Conciliations'
+import { BankMovements } from '@/pages/BankMovements'
 import { Scripts } from '@/pages/Scripts'
 import { Register } from '@/pages/Register'
 
@@ -35,6 +36,7 @@ function AppRoutes() {
         <Route path="/accounts"                      element={<Accounts />} />
         <Route path="/accounts/:accountId/config"    element={<AccountConfig />} />
         <Route path="/conciliations"                 element={<Conciliations />} />
+        <Route path="/movements"                     element={<BankMovements />} />
         <Route path="/scripts"                       element={<Scripts />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

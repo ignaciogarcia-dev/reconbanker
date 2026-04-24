@@ -43,8 +43,20 @@ async function getBankUsername(accountId: string): Promise<string | null> {
 }
 
 accountsRouter.get('/', async (_req, res) => {
-  const accounts = await repo.findAll()
-  res.json(accounts.map(a => ({ id: a.id, bank: a.bank, name: a.name, status: a.status })))
+  const { rows } = await db.query(
+    `SELECT a.id, b.code AS bank, a.name, a.status, ac.mode
+       FROM accounts a
+       JOIN banks b ON b.id = a.bank_id
+       LEFT JOIN account_config ac ON ac.account_id = a.id
+      WHERE a.status = 'active'`
+  )
+  res.json(rows.map(r => ({
+    id: r.id,
+    bank: r.bank,
+    name: r.name,
+    status: r.status,
+    mode: r.mode ?? 'reconcile',
+  })))
 })
 
 accountsRouter.post('/', async (req, res) => {
@@ -220,4 +232,40 @@ accountsRouter.put('/:accountId/config', async (req, res) => {
   }
 
   res.json(toJson(config, await getBankUsername(accountId)))
+})
+
+accountsRouter.get('/:accountId/movements', async (req, res) => {
+  const limit = Math.min(Number(req.query.limit ?? 100), 500)
+  const offset = Number(req.query.offset ?? 0)
+  const { rows } = await db.query(
+    `SELECT id, external_id, amount, currency, sender_name, received_at, notified_at, excluded_at
+       FROM bank_transactions
+      WHERE account_id = $1
+      ORDER BY received_at DESC
+      LIMIT $2 OFFSET $3`,
+    [req.params.accountId, limit, offset]
+  )
+  res.json(rows)
+})
+
+accountsRouter.post('/:accountId/movements/:movementId/notify', async (req, res) => {
+  const { accountId, movementId } = req.params
+  const { rows } = await db.query(
+    `SELECT 1 FROM bank_transactions WHERE id = $1 AND account_id = $2`,
+    [movementId, accountId]
+  )
+  if (rows.length === 0) {
+    res.status(404).json({ error: 'Movement not found for this account' })
+    return
+  }
+
+  await bankTxRepo.releaseNotification(movementId)
+
+  const { Queues } = await import('../../shared/infrastructure/queues/QueueRegistry.js')
+  await Queues.bankMovementWebhook.add(
+    'notify',
+    { bankTransactionId: movementId },
+    { jobId: `bank-movement-webhook_${movementId}_${Date.now()}`, removeOnComplete: true }
+  )
+  res.status(202).json({ queued: true })
 })
