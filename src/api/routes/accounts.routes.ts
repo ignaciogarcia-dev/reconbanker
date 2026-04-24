@@ -12,7 +12,7 @@ const repo = new AccountRepository()
 const configRepo = new AccountConfigRepository()
 const bankTxRepo = new BankTransactionRepository()
 
-const RESERVED_WEBHOOK_KEYS = ['external_id', 'status', 'amount', 'currency', 'sender_name', 'payment_method_id', 'id', 'received_at']
+const RESERVED_WEBHOOK_KEYS = ['external_id', 'status', 'amount', 'currency', 'sender_name', 'id', 'received_at']
 
 function toJson(config: AccountConfig, bankUsername: string | null) {
   return {
