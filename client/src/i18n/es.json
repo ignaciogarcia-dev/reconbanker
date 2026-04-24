@@ -134,6 +134,11 @@
     "webhookPayload": "Payload que vas a recibir",
     "webhookPayloadDesc": "Cuando una orden sea conciliada exitosamente, se enviará un POST a esta URL. Si el body de polling incluye payment_method_id, también se incluirá en el payload:",
     "webhookUrl": "Webhook URL (notificaciones)",
+    "webhookExtraFields": "Campos adicionales (JSON)",
+    "webhookExtraFieldsDesc": "Objeto JSON con campos extra que se mergearán al payload del webhook (por ejemplo, un source o un tag fijo). No podés usar las claves reservadas: external_id, status, amount, currency, sender_name, payment_method_id.",
+    "webhookExtraFieldsInvalidJson": "El JSON no es válido",
+    "webhookExtraFieldsMustBeObject": "Debe ser un objeto JSON",
+    "webhookExtraFieldsReserved": "No podés usar estas claves reservadas: {{keys}}",
     "save": "Guardar configuración",
     "saving": "Guardando...",
     "saved": "¡Guardado!"
