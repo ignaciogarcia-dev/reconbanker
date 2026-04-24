@@ -1,41 +1,35 @@
 import { db } from '../../../shared/infrastructure/db/client.js'
 import { Queues } from '../../../shared/infrastructure/queues/QueueRegistry.js'
 import { ConciliationRequestRepository } from '../infrastructure/ConciliationRequestRepository.js'
+import { AccountConfigRepository } from '../../account/infrastructure/AccountConfigRepository.js'
 import crypto from 'crypto'
 
 interface JobData { accountId: string }
 
 export class PollPendingOrdersUseCase {
   private readonly requestRepo = new ConciliationRequestRepository()
+  private readonly configRepo = new AccountConfigRepository()
 
   async execute({ accountId }: JobData): Promise<void> {
-    const { rows } = await db.query(
-      `SELECT * FROM account_config WHERE account_id = $1`,
-      [accountId]
-    )
-    if (!rows[0]) throw new Error(`No config for account ${accountId}`)
-
-    const config = rows[0]
+    const config = await this.configRepo.findByAccountId(accountId)
+    if (!config) throw new Error(`No config for account ${accountId}`)
 
     if (config.mode === 'passthrough') return
-    if (!config.pending_orders_endpoint) return
+    if (!config.pendingOrdersEndpoint) return
 
     // Build auth header
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    const token = typeof config.auth_token === 'string' && config.auth_token.trim()
-      ? config.auth_token.trim()
-      : null
-    if (token) {
-      if (config.auth_type === 'api_key') headers['Authorization'] = `Api-Key ${token}`
-      else headers['Authorization'] = `Bearer ${token}`
+    if (config.authToken) {
+      if (config.authType === 'api_key') headers['Authorization'] = `Api-Key ${config.authToken}`
+      else headers['Authorization'] = `Bearer ${config.authToken}`
     }
 
     // Fetch orders
-    const isPost = config.polling_method === 'POST'
-    const response = await fetch(config.pending_orders_endpoint, {
-      method: config.polling_method,
+    const isPost = config.pollingMethod === 'POST'
+    const response = await fetch(config.pendingOrdersEndpoint, {
+      method: config.pollingMethod,
       headers,
-      body: isPost ? JSON.stringify(config.polling_body ?? {}) : undefined,
+      body: isPost ? JSON.stringify(config.pollingBody ?? {}) : undefined,
     })
 
     const contentType = response.headers.get('content-type') ?? ''

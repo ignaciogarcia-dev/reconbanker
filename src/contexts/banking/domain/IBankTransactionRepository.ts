@@ -7,4 +7,7 @@ export interface IBankTransactionRepository {
   save(tx: BankTransaction): Promise<void>
   markExcluded(id: string): Promise<void>
   isExcluded(id: string): Promise<boolean>
+  markNotified(id: string): Promise<void>
+  markAllNotified(accountId: string): Promise<void>
+  isNotified(id: string): Promise<boolean>
 }

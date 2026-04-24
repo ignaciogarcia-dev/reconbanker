@@ -1,41 +1,37 @@
-import { db } from '../../../shared/infrastructure/db/client.js'
 import { sendWebhook } from '../../../shared/infrastructure/webhooks/WebhookSender.js'
+import { AccountConfigRepository } from '../../account/infrastructure/AccountConfigRepository.js'
+import { BankTransactionRepository } from '../infrastructure/BankTransactionRepository.js'
 
 interface JobData { bankTransactionId: string }
 
 export class NotifyBankMovementUseCase {
+  private readonly bankTxRepo = new BankTransactionRepository()
+  private readonly configRepo = new AccountConfigRepository()
+
   async execute({ bankTransactionId }: JobData): Promise<void> {
-    const { rows: [row] } = await db.query(
-      `SELECT bt.id, bt.amount, bt.currency, bt.sender_name, bt.received_at, bt.notified_at,
-              ac.mode, ac.webhook_url, ac.webhook_auth_type, ac.webhook_auth_token,
-              ac.auth_type, ac.auth_token, ac.webhook_extra_fields
-         FROM bank_transactions bt
-         JOIN account_config ac ON ac.account_id = bt.account_id
-        WHERE bt.id = $1`,
-      [bankTransactionId]
-    )
+    const tx = await this.bankTxRepo.findById(bankTransactionId)
+    if (!tx) return
 
-    if (!row) return
-    if (row.mode !== 'passthrough') return
-    if (row.notified_at != null) return
-    if (!row.webhook_url) return
+    // notified_at no está en el dominio de BankTransaction; lo consultamos directo
+    if (await this.bankTxRepo.isNotified(bankTransactionId)) return
 
-    const token = typeof row.webhook_auth_token === 'string' && row.webhook_auth_token.trim()
-      ? row.webhook_auth_token.trim()
-      : typeof row.auth_token === 'string' && row.auth_token.trim()
-        ? row.auth_token.trim()
-        : null
-    const authType = (row.webhook_auth_type ?? row.auth_type ?? 'bearer') as 'bearer' | 'api_key'
+    const config = await this.configRepo.findByAccountId(tx.accountId)
+    if (!config) return
+    if (config.mode !== 'passthrough') return
+    if (!config.webhookUrl) return
+
+    const token = config.webhookAuthToken ?? config.authToken
+    const authType = config.webhookAuthType ?? config.authType
 
     const payload: Record<string, unknown> = {
-      id:          row.id,
-      amount:      Number(row.amount),
-      currency:    row.currency,
-      sender_name: row.sender_name ?? null,
-      received_at: row.received_at instanceof Date ? row.received_at.toISOString() : row.received_at,
+      id:          tx.id,
+      amount:      tx.amount,
+      currency:    tx.currency,
+      sender_name: tx.senderName ?? null,
+      received_at: tx.receivedAt instanceof Date ? tx.receivedAt.toISOString() : tx.receivedAt,
     }
 
-    const extra = row.webhook_extra_fields
+    const extra = config.webhookExtraFields
     if (extra && typeof extra === 'object' && !Array.isArray(extra)) {
       for (const [k, v] of Object.entries(extra)) {
         if (!(k in payload)) payload[k] = v
@@ -43,12 +39,12 @@ export class NotifyBankMovementUseCase {
     }
 
     await sendWebhook({
-      url: row.webhook_url,
+      url: config.webhookUrl,
       payload,
       authType,
       authToken: token,
     })
 
-    await db.query(`UPDATE bank_transactions SET notified_at = now() WHERE id = $1`, [bankTransactionId])
+    await this.bankTxRepo.markNotified(bankTransactionId)
   }
 }

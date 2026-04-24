@@ -1,10 +1,45 @@
 import { Router } from 'express'
 import { db } from '../../shared/infrastructure/db/client.js'
 import { AccountRepository } from '../../contexts/account/infrastructure/AccountRepository.js'
+import { AccountConfigRepository } from '../../contexts/account/infrastructure/AccountConfigRepository.js'
+import { BankTransactionRepository } from '../../contexts/banking/infrastructure/BankTransactionRepository.js'
 import { CreateAccountUseCase } from '../../contexts/account/application/CreateAccountUseCase.js'
+import { AccountConfig, AccountMode, AuthType, PollingMethod } from '../../contexts/account/domain/AccountConfig.js'
 
 export const accountsRouter = Router()
 const repo = new AccountRepository()
+const configRepo = new AccountConfigRepository()
+const bankTxRepo = new BankTransactionRepository()
+
+const RESERVED_WEBHOOK_KEYS = ['external_id', 'status', 'amount', 'currency', 'sender_name', 'payment_method_id', 'id', 'received_at']
+
+function toJson(config: AccountConfig, bankUsername: string | null) {
+  return {
+    id: config.id,
+    account_id: config.accountId,
+    mode: config.mode,
+    pending_orders_endpoint: config.pendingOrdersEndpoint,
+    webhook_url: config.webhookUrl,
+    retry_limit: config.retryLimit,
+    polling_method: config.pollingMethod,
+    polling_body: config.pollingBody,
+    auth_type: config.authType,
+    auth_token: config.authToken,
+    webhook_auth_type: config.webhookAuthType,
+    webhook_auth_token: config.webhookAuthToken,
+    notify_on_expired: config.notifyOnExpired,
+    webhook_extra_fields: config.webhookExtraFields,
+    bank_username: bankUsername,
+  }
+}
+
+async function getBankUsername(accountId: string): Promise<string | null> {
+  const { rows } = await db.query(
+    `SELECT username FROM bank_credentials WHERE account_id = $1 AND status = 'valid'`,
+    [accountId]
+  )
+  return rows[0]?.username ?? null
+}
 
 // Listar cuentas
 accountsRouter.get('/', async (_req, res) => {
@@ -26,14 +61,13 @@ accountsRouter.post('/', async (req, res) => {
 
 // Obtener config de una cuenta
 accountsRouter.get('/:accountId/config', async (req, res) => {
-  const { rows: [config] } = await db.query(
-    `SELECT ac.*, bc.username AS bank_username
-       FROM account_config ac
-       LEFT JOIN bank_credentials bc ON bc.account_id = ac.account_id AND bc.status = 'valid'
-      WHERE ac.account_id = $1`,
-    [req.params.accountId]
-  )
-  res.json(config ?? null)
+  const config = await configRepo.findByAccountId(req.params.accountId)
+  if (!config) {
+    res.json(null)
+    return
+  }
+  const bankUsername = await getBankUsername(req.params.accountId)
+  res.json(toJson(config, bankUsername))
 })
 
 // Disparar scrape manual
@@ -63,7 +97,7 @@ accountsRouter.put('/:accountId/config', async (req, res) => {
     mode,
   } = req.body
 
-  const normalizedMode = (mode === 'passthrough' ? 'passthrough' : 'reconcile') as 'reconcile' | 'passthrough'
+  const normalizedMode: AccountMode = mode === 'passthrough' ? 'passthrough' : 'reconcile'
   const normalizedPendingEndpoint =
     typeof pending_orders_endpoint === 'string' && pending_orders_endpoint.trim()
       ? pending_orders_endpoint.trim()
@@ -78,7 +112,6 @@ accountsRouter.put('/:accountId/config', async (req, res) => {
     return
   }
 
-  const RESERVED_WEBHOOK_KEYS = ['external_id', 'status', 'amount', 'currency', 'sender_name', 'payment_method_id', 'id', 'received_at']
   let normalizedWebhookExtraFields: Record<string, unknown> | null = null
   if (webhook_extra_fields != null && webhook_extra_fields !== '') {
     let parsed: unknown = webhook_extra_fields
@@ -102,26 +135,24 @@ accountsRouter.put('/:accountId/config', async (req, res) => {
     normalizedWebhookExtraFields = parsed as Record<string, unknown>
   }
 
-  const normalizedPollingMethod = (polling_method ?? 'GET') as 'GET' | 'POST'
+  const normalizedPollingMethod: PollingMethod = polling_method === 'POST' ? 'POST' : 'GET'
 
-  let normalizedPollingBody: unknown = null
+  let normalizedPollingBody: Record<string, unknown> | null = null
   if (normalizedPollingMethod === 'POST') {
-    if (polling_body == null) {
-      normalizedPollingBody = null
-    } else if (typeof polling_body === 'string') {
-      const trimmed = polling_body.trim()
-      if (!trimmed) {
-        normalizedPollingBody = null
-      } else {
-        try {
-          normalizedPollingBody = JSON.parse(trimmed)
-        } catch {
-          res.status(400).json({ error: 'polling_body must be valid JSON (or empty)' })
-          return
+    if (polling_body != null && polling_body !== '') {
+      if (typeof polling_body === 'string') {
+        const trimmed = polling_body.trim()
+        if (trimmed) {
+          try {
+            normalizedPollingBody = JSON.parse(trimmed)
+          } catch {
+            res.status(400).json({ error: 'polling_body must be valid JSON (or empty)' })
+            return
+          }
         }
+      } else if (typeof polling_body === 'object' && !Array.isArray(polling_body)) {
+        normalizedPollingBody = polling_body as Record<string, unknown>
       }
-    } else {
-      normalizedPollingBody = polling_body
     }
   }
 
@@ -131,52 +162,28 @@ accountsRouter.put('/:accountId/config', async (req, res) => {
   const normalizedWebhookAuthToken =
     typeof webhook_auth_token === 'string' && webhook_auth_token.trim() ? webhook_auth_token.trim() : null
 
-  const { rows: [previous] } = await db.query(
-    `SELECT mode FROM account_config WHERE account_id = $1`,
-    [accountId]
-  )
+  const previous = await configRepo.findByAccountId(accountId)
 
-  const { rows: [config] } = await db.query(
-    `INSERT INTO account_config
-       (id, account_id, pending_orders_endpoint, webhook_url,
-        retry_limit, polling_method, polling_body, auth_type, auth_token,
-        webhook_auth_type, webhook_auth_token, notify_on_expired, webhook_extra_fields, mode)
-     VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-     ON CONFLICT (account_id) DO UPDATE SET
-       pending_orders_endpoint = $2,
-       webhook_url             = $3,
-       retry_limit             = $4,
-       polling_method          = $5,
-       polling_body            = $6,
-       auth_type               = $7,
-       auth_token              = $8,
-       webhook_auth_type       = $9,
-       webhook_auth_token      = $10,
-       notify_on_expired       = $11,
-       webhook_extra_fields    = $12,
-       mode                    = $13,
-       updated_at              = now()
-     RETURNING *`,
-    [
-      accountId, normalizedPendingEndpoint, webhook_url,
-      retry_limit ?? 3,
-      normalizedPollingMethod, normalizedPollingBody,
-      auth_type ?? 'bearer', normalizedAuthToken,
-      webhook_auth_type ?? null, normalizedWebhookAuthToken,
-      notify_on_expired ?? false,
-      normalizedWebhookExtraFields,
-      normalizedMode,
-    ]
-  )
+  const config = await configRepo.upsert({
+    accountId,
+    mode: normalizedMode,
+    pendingOrdersEndpoint: normalizedPendingEndpoint,
+    webhookUrl: webhook_url,
+    retryLimit: retry_limit ?? 3,
+    pollingMethod: normalizedPollingMethod,
+    pollingBody: normalizedPollingBody,
+    authType: (auth_type ?? 'bearer') as AuthType,
+    authToken: normalizedAuthToken,
+    webhookAuthType: (webhook_auth_type ?? null) as AuthType | null,
+    webhookAuthToken: normalizedWebhookAuthToken,
+    notifyOnExpired: notify_on_expired ?? false,
+    webhookExtraFields: normalizedWebhookExtraFields,
+  })
 
   const switchingToPassthrough =
     normalizedMode === 'passthrough' && (!previous || previous.mode !== 'passthrough')
   if (switchingToPassthrough) {
-    await db.query(
-      `UPDATE bank_transactions SET notified_at = now()
-        WHERE account_id = $1 AND notified_at IS NULL`,
-      [accountId]
-    )
+    await bankTxRepo.markAllNotified(accountId)
   }
 
   if (bank_username && bank_password) {
@@ -192,5 +199,5 @@ accountsRouter.put('/:accountId/config', async (req, res) => {
     )
   }
 
-  res.json(config)
+  res.json(toJson(config, bank_username ?? (await getBankUsername(accountId))))
 })

@@ -67,6 +67,29 @@ export class BankTransactionRepository implements IBankTransactionRepository {
     return rows[0]?.excluded_at != null
   }
 
+  async markNotified(id: string): Promise<void> {
+    await this.executor.query(
+      `UPDATE bank_transactions SET notified_at = now() WHERE id = $1`,
+      [id]
+    )
+  }
+
+  async markAllNotified(accountId: string): Promise<void> {
+    await this.executor.query(
+      `UPDATE bank_transactions SET notified_at = now()
+        WHERE account_id = $1 AND notified_at IS NULL`,
+      [accountId]
+    )
+  }
+
+  async isNotified(id: string): Promise<boolean> {
+    const { rows } = await this.executor.query(
+      `SELECT notified_at FROM bank_transactions WHERE id = $1`,
+      [id]
+    )
+    return rows[0]?.notified_at != null
+  }
+
   async save(tx: BankTransaction): Promise<void> {
     await this.executor.query(
       `INSERT INTO bank_transactions
