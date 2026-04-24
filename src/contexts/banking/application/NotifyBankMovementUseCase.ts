@@ -28,7 +28,7 @@ export class NotifyBankMovementUseCase {
       id:          tx.id,
       amount:      tx.amount,
       currency:    tx.currency,
-      sender_name: tx.senderName ?? null,
+      name:        tx.senderName ?? null,
       received_at: tx.receivedAt instanceof Date ? tx.receivedAt.toISOString() : tx.receivedAt,
     }
 

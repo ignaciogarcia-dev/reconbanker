@@ -162,7 +162,7 @@
     "webhookPayloadDesc": "When an order is successfully reconciled, a POST will be sent to this URL with the following payload:",
     "webhookUrl": "Webhook URL (notifications)",
     "webhookExtraFields": "Extra fields (JSON)",
-    "webhookExtraFieldsDesc": "JSON object with extra fields that will be merged into the webhook payload (for example, a source or a fixed tag). You can't use these reserved keys: external_id, status, amount, currency, sender_name, id, received_at.",
+    "webhookExtraFieldsDesc": "JSON object with extra fields that will be merged into the webhook payload (for example, a source or a fixed tag). You can't use these reserved keys: external_id, status, amount, currency, name, id, received_at.",
     "webhookExtraFieldsInvalidJson": "Invalid JSON",
     "webhookExtraFieldsMustBeObject": "Must be a JSON object",
     "webhookExtraFieldsReserved": "These reserved keys can't be used: {{keys}}",
