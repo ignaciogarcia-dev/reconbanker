@@ -46,4 +46,8 @@ export class AccountRepository implements IAccountRepository {
       [account.id, account.bankId, account.bank, account.name, account.status]
     )
   }
+
+  async delete(id: string): Promise<void> {
+    await db.query(`DELETE FROM accounts WHERE id = $1`, [id])
+  }
 }

@@ -147,7 +147,25 @@
     "webhookExtraFieldsReserved": "These reserved keys can't be used: {{keys}}",
     "save": "Save configuration",
     "saving": "Saving...",
-    "saved": "Saved!"
+    "saved": "Saved!",
+    "danger": {
+      "title": "Danger zone",
+      "description": "Deleting this account is irreversible and will remove all associated data.",
+      "deleteButton": "Delete account",
+      "dialogTitle": "Delete account permanently",
+      "dialogIntro": "This action cannot be undone. Deleting this account will permanently remove:",
+      "itemMovements": "All recorded bank movements",
+      "itemCredentials": "Stored bank credentials",
+      "itemConciliations": "Reconciliation history and attempts",
+      "itemConfig": "Configuration (webhook, endpoint, auth)",
+      "itemScrapeLogs": "Scraping logs",
+      "typeToConfirm": "To confirm, type the exact account name:",
+      "nameLabel": "Account name",
+      "cancel": "Cancel",
+      "confirmDelete": "Delete permanently",
+      "deleting": "Deleting...",
+      "genericError": "Failed to delete account"
+    }
   },
   "enums": {
     "bankStatus": {
