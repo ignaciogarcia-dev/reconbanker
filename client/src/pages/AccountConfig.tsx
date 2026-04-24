@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,8 +8,16 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { ArrowLeft, Save, Info } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { ArrowLeft, Save, Info, Trash2, AlertTriangle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+interface AccountSummary {
+  id: string
+  bank: string
+  name: string
+  status: string
+}
 
 interface AccountConfig {
   pending_orders_endpoint: string
@@ -29,6 +37,7 @@ const RESERVED_WEBHOOK_KEYS = ['external_id', 'status', 'amount', 'currency', 's
 export function AccountConfig() {
   const { accountId } = useParams<{ accountId: string }>()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { t } = useTranslation()
   const [form, setForm] = useState<AccountConfig>({
     pending_orders_endpoint: '',
@@ -44,6 +53,15 @@ export function AccountConfig() {
   })
   const [saved, setSaved] = useState(false)
   const [extraFieldsError, setExtraFieldsError] = useState<string | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteConfirmName, setDeleteConfirmName] = useState('')
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  const { data: account } = useQuery<AccountSummary>({
+    queryKey: ['account', accountId],
+    queryFn: () => api.get(`/accounts/${accountId}`).then(r => r.data),
+    enabled: !!accountId,
+  })
 
   const { data, isLoading } = useQuery({
     queryKey: ['account-config', accountId],
@@ -88,6 +106,28 @@ export function AccountConfig() {
       setTimeout(() => setSaved(false), 2000)
     },
   })
+
+  const remove = useMutation({
+    mutationFn: () =>
+      api.delete(`/accounts/${accountId}`, { data: { confirmation_name: deleteConfirmName.trim() } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['accounts'] })
+      navigate('/accounts')
+    },
+    onError: (err: any) => {
+      setDeleteError(err?.response?.data?.error ?? t('accountConfig.danger.genericError'))
+    },
+  })
+
+  function openDeleteDialog(open: boolean) {
+    setDeleteOpen(open)
+    if (!open) {
+      setDeleteConfirmName('')
+      setDeleteError(null)
+    }
+  }
+
+  const confirmMatches = !!account && deleteConfirmName.trim() === account.name
 
   function handleSave() {
     const err = validateExtraFields()
@@ -295,6 +335,82 @@ export function AccountConfig() {
         <Save className="size-4" />
         {save.isPending ? t('accountConfig.saving') : saved ? t('accountConfig.saved') : t('accountConfig.save')}
       </Button>
+
+      {/* Danger zone */}
+      <Card className="border-destructive/40">
+        <CardHeader>
+          <CardTitle className="text-destructive flex items-center gap-2">
+            <AlertTriangle className="size-4" />
+            {t('accountConfig.danger.title')}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">{t('accountConfig.danger.description')}</p>
+          <Button
+            variant="destructive"
+            onClick={() => openDeleteDialog(true)}
+            disabled={!account}
+            className="gap-2"
+          >
+            <Trash2 className="size-4" />
+            {t('accountConfig.danger.deleteButton')}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Dialog open={deleteOpen} onOpenChange={openDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-destructive flex items-center gap-2">
+              <AlertTriangle className="size-4" />
+              {t('accountConfig.danger.dialogTitle')}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <p className="text-sm text-muted-foreground">
+              {t('accountConfig.danger.dialogIntro')}
+            </p>
+            <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
+              <li>{t('accountConfig.danger.itemMovements')}</li>
+              <li>{t('accountConfig.danger.itemCredentials')}</li>
+              <li>{t('accountConfig.danger.itemConciliations')}</li>
+              <li>{t('accountConfig.danger.itemConfig')}</li>
+              <li>{t('accountConfig.danger.itemScrapeLogs')}</li>
+            </ul>
+            <p className="text-sm">
+              {t('accountConfig.danger.typeToConfirm')}{' '}
+              <span className="font-mono font-medium text-foreground">{account?.name}</span>
+            </p>
+            <div className="space-y-2">
+              <Label>{t('accountConfig.danger.nameLabel')}</Label>
+              <Input
+                value={deleteConfirmName}
+                onChange={e => {
+                  setDeleteConfirmName(e.target.value)
+                  if (deleteError) setDeleteError(null)
+                }}
+                placeholder={account?.name ?? ''}
+                autoFocus
+              />
+            </div>
+            {deleteError && <p className="text-xs text-destructive">{deleteError}</p>}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => openDeleteDialog(false)} disabled={remove.isPending}>
+                {t('accountConfig.danger.cancel')}
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => remove.mutate()}
+                disabled={!confirmMatches || remove.isPending}
+                className="gap-2"
+              >
+                <Trash2 className="size-4" />
+                {remove.isPending ? t('accountConfig.danger.deleting') : t('accountConfig.danger.confirmDelete')}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

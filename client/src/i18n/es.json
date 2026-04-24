@@ -147,7 +147,25 @@
     "webhookExtraFieldsReserved": "No podés usar estas claves reservadas: {{keys}}",
     "save": "Guardar configuración",
     "saving": "Guardando...",
-    "saved": "¡Guardado!"
+    "saved": "¡Guardado!",
+    "danger": {
+      "title": "Zona de peligro",
+      "description": "Eliminar esta cuenta es irreversible y borrará todos sus datos asociados.",
+      "deleteButton": "Eliminar cuenta",
+      "dialogTitle": "Eliminar cuenta definitivamente",
+      "dialogIntro": "Esta acción no se puede deshacer. Al eliminar esta cuenta se borrarán de forma permanente:",
+      "itemMovements": "Todos los movimientos bancarios registrados",
+      "itemCredentials": "Las credenciales bancarias guardadas",
+      "itemConciliations": "El historial de conciliaciones e intentos",
+      "itemConfig": "La configuración (webhook, endpoint, auth)",
+      "itemScrapeLogs": "Los logs de scraping",
+      "typeToConfirm": "Para confirmar, escribí el nombre exacto de la cuenta:",
+      "nameLabel": "Nombre de la cuenta",
+      "cancel": "Cancelar",
+      "confirmDelete": "Eliminar definitivamente",
+      "deleting": "Eliminando...",
+      "genericError": "No se pudo eliminar la cuenta"
+    }
   },
   "enums": {
     "bankStatus": {

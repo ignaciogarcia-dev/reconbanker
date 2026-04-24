@@ -4,6 +4,7 @@ import { AccountRepository } from '../../contexts/account/infrastructure/Account
 import { AccountConfigRepository } from '../../contexts/account/infrastructure/AccountConfigRepository.js'
 import { BankTransactionRepository } from '../../contexts/banking/infrastructure/BankTransactionRepository.js'
 import { CreateAccountUseCase } from '../../contexts/account/application/CreateAccountUseCase.js'
+import { DeleteAccountUseCase } from '../../contexts/account/application/DeleteAccountUseCase.js'
 import { AccountConfig, AccountMode, AuthType, PollingMethod } from '../../contexts/account/domain/AccountConfig.js'
 
 export const accountsRouter = Router()
@@ -55,6 +56,30 @@ accountsRouter.post('/', async (req, res) => {
   const useCase = new CreateAccountUseCase(repo)
   const result = await useCase.execute({ bankId, name })
   res.status(201).json(result)
+})
+
+accountsRouter.get('/:accountId', async (req, res) => {
+  const account = await repo.findById(req.params.accountId)
+  if (!account) {
+    res.status(404).json({ error: 'Account not found' })
+    return
+  }
+  res.json({ id: account.id, bank: account.bank, name: account.name, status: account.status })
+})
+
+accountsRouter.delete('/:accountId', async (req, res) => {
+  const { confirmation_name } = req.body ?? {}
+  if (typeof confirmation_name !== 'string' || !confirmation_name.trim()) {
+    res.status(400).json({ error: 'confirmation_name is required' })
+    return
+  }
+  const useCase = new DeleteAccountUseCase(repo)
+  try {
+    await useCase.execute({ id: req.params.accountId, confirmationName: confirmation_name })
+    res.status(204).end()
+  } catch (e: any) {
+    res.status(e.status ?? 500).json({ error: e.message })
+  }
 })
 
 accountsRouter.get('/:accountId/config', async (req, res) => {
