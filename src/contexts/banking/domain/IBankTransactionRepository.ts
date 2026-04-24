@@ -10,9 +10,8 @@ export interface IBankTransactionRepository {
   markNotified(id: string): Promise<void>
   markAllNotified(accountId: string): Promise<void>
   isNotified(id: string): Promise<boolean>
-  // Atomically marca notified_at = now() si estaba NULL. Devuelve true si lo hizo, false si ya estaba notificada.
-  // Usar para evitar doble notificación en webhooks idempotentes ante reintentos concurrentes.
+  // Atomic CAS: returns true only if this call set notified_at. Prevents double-send under concurrent retries.
   claimNotification(id: string): Promise<boolean>
-  // Revierte notified_at a NULL. Usar para liberar el claim si el envío falla.
+  // Reverts a claim so the next retry can attempt again.
   releaseNotification(id: string): Promise<void>
 }

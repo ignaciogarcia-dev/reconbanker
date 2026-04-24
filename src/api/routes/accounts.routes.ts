@@ -41,13 +41,11 @@ async function getBankUsername(accountId: string): Promise<string | null> {
   return rows[0]?.username ?? null
 }
 
-// Listar cuentas
 accountsRouter.get('/', async (_req, res) => {
   const accounts = await repo.findAll()
   res.json(accounts.map(a => ({ id: a.id, bank: a.bank, name: a.name, status: a.status })))
 })
 
-// Crear cuenta — body: { bankId: string, name: string }
 accountsRouter.post('/', async (req, res) => {
   const { bankId, name } = req.body
   if (!bankId || !name) {
@@ -59,7 +57,6 @@ accountsRouter.post('/', async (req, res) => {
   res.status(201).json(result)
 })
 
-// Obtener config de una cuenta
 accountsRouter.get('/:accountId/config', async (req, res) => {
   const config = await configRepo.findByAccountId(req.params.accountId)
   if (!config) {
@@ -70,14 +67,12 @@ accountsRouter.get('/:accountId/config', async (req, res) => {
   res.json(toJson(config, bankUsername))
 })
 
-// Disparar scrape manual
 accountsRouter.post('/:accountId/scrape', async (req, res) => {
   const { Queues } = await import('../../shared/infrastructure/queues/QueueRegistry.js')
   await Queues.bankScrape.add('scrape', { accountId: req.params.accountId })
   res.status(202).json({ queued: true })
 })
 
-// Crear o actualizar config de una cuenta
 accountsRouter.put('/:accountId/config', async (req, res) => {
   const { accountId } = req.params
   const {

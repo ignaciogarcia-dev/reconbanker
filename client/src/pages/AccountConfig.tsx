@@ -195,10 +195,10 @@ export function AccountConfig() {
               <p className="text-xs text-muted-foreground mb-2">{t('accountConfig.endpointFormatDesc')}</p>
               <pre className="text-xs bg-background rounded p-2 font-mono whitespace-pre-wrap">{`[
   {
-    "external_id": "order-123",   // string, requerido
-    "amount": 1500.00,            // number, requerido
-    "currency": "UYU",            // string, requerido
-    "sender_name": "Juan Pérez"   // string, requerido
+    "external_id": "order-123",
+    "amount": 1500.00,
+    "currency": "UYU",
+    "sender_name": "Juan Pérez"
   }
 ]`}</pre>
             </div>
@@ -256,7 +256,7 @@ export function AccountConfig() {
   "amount": 1500.00,
   "currency": "UYU",
   "sender_name": "Juan Pérez",
-  "payment_method_id": 33  // solo si está en el body de polling
+  "payment_method_id": 33
 }`
                   : `{
   "id": "uuid-del-movimiento",

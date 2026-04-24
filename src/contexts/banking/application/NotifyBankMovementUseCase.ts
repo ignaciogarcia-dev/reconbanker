@@ -17,8 +17,7 @@ export class NotifyBankMovementUseCase {
     if (config.mode !== 'passthrough') return
     if (!config.webhookUrl) return
 
-    // Claim atómico antes de enviar: si otra ejecución ya lo notificó, salimos.
-    // Si el envío falla, liberamos el claim para que BullMQ pueda reintentar.
+    // Claim before send so concurrent retries can't double-notify; release on failure to allow BullMQ retry.
     const claimed = await this.bankTxRepo.claimNotification(bankTransactionId)
     if (!claimed) return
 

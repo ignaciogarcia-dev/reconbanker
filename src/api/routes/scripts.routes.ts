@@ -4,7 +4,6 @@ import { PromoteScriptUseCase } from '../../contexts/script-engine/application/P
 
 export const scriptsRouter = Router()
 
-// Listar todos los scripts
 scriptsRouter.get('/', async (_req, res) => {
   const { rows } = await db.query(
     `SELECT * FROM bank_scripts ORDER BY bank, flow_type, created_at DESC`
@@ -12,7 +11,6 @@ scriptsRouter.get('/', async (_req, res) => {
   res.json(rows)
 })
 
-// Detalle de un script
 scriptsRouter.get('/:scriptId', async (req, res) => {
   const { rows: [script] } = await db.query(
     `SELECT * FROM bank_scripts WHERE id = $1`,
@@ -22,7 +20,6 @@ scriptsRouter.get('/:scriptId', async (req, res) => {
   res.json(script)
 })
 
-// Promover script de review a active
 scriptsRouter.post('/:scriptId/promote', async (req, res) => {
   const useCase = new PromoteScriptUseCase()
   await useCase.execute({ scriptId: req.params.scriptId })

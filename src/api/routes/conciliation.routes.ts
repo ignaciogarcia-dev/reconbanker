@@ -4,7 +4,6 @@ import { Queues } from '../../shared/infrastructure/queues/QueueRegistry.js'
 
 export const conciliationRouter = Router()
 
-// Listar todas las requests con paginación
 conciliationRouter.get('/', async (req, res) => {
   const limit = Number(req.query.limit ?? 50)
   const offset = Number(req.query.offset ?? 0)
@@ -25,7 +24,6 @@ conciliationRouter.get('/', async (req, res) => {
   res.json(rows)
 })
 
-// Detalle de una request con sus intentos
 conciliationRouter.get('/:requestId', async (req, res) => {
   const { rows: [request] } = await db.query(
     `SELECT cr.*, a.bank, a.name as account_name
@@ -52,19 +50,16 @@ conciliationRouter.get('/:requestId', async (req, res) => {
   res.json({ ...request, attempts, match: match ?? null })
 })
 
-// Trigger manual de conciliación
 conciliationRouter.post('/:requestId/run', async (req, res) => {
   await Queues.conciliation.add('run', { requestId: req.params.requestId })
   res.status(202).json({ queued: true })
 })
 
-// Re-enviar webhook de notificación
 conciliationRouter.post('/:requestId/notify', async (req, res) => {
   await Queues.webhook.add('notify', { requestId: req.params.requestId })
   res.status(202).json({ queued: true })
 })
 
-// Trigger manual de polling por cuenta
 conciliationRouter.post('/poll/:accountId', async (req, res) => {
   await Queues.orderIngestion.add('poll', { accountId: req.params.accountId })
   res.status(202).json({ queued: true })

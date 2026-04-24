@@ -3,10 +3,9 @@ import { CandidateTransaction, RequestData } from '../ConciliationEngine.js'
 function normalize(s?: string): string {
   return (s ?? '')
     .toLowerCase()
-    .normalize('NFD')                        // descomponer acentos
-    .replace(/[\u0300-\u036f]/g, '')         // eliminar diacríticos
-    .replace(/[^a-z0-9\s]/g, '')            // eliminar puntuación y comas
-    .replace(/\s+/g, ' ')                    // colapsar espacios
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')    .replace(/[^a-z0-9\s]/g, '')
+    .replace(/\s+/g, ' ')
     .trim()
 }
 
@@ -38,16 +37,15 @@ export function applyFuzzySenderHeuristic(
       continue
     }
 
-    // Exact match después de normalizar
+    // Exact match after normalization.
     if (reqNorm === txNorm) {
       scores.set(t.id, 1.0)
       continue
     }
 
-    // Jaccard sobre tokens — robusto ante orden y puntuación
+    // Jaccard over tokens — robust to ordering and punctuation.
     const jaccard = jaccardScore(reqTokens, txTokens)
 
-    // Substring match como fallback
     const substring = txNorm.includes(reqNorm) || reqNorm.includes(txNorm) ? 0.8 : 0
 
     scores.set(t.id, Math.max(jaccard, substring))
