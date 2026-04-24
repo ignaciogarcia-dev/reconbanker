@@ -1,4 +1,5 @@
 import { db } from '../../../shared/infrastructure/db/client.js'
+import { sendWebhook } from '../../../shared/infrastructure/webhooks/WebhookSender.js'
 
 interface JobData { requestId: string }
 
@@ -22,17 +23,12 @@ export class NotifyWebhookUseCase {
         )).rows[0]
       : null
 
-    const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Accept': 'application/json' }
     const webhookToken = typeof req.webhook_auth_token === 'string' && req.webhook_auth_token.trim()
       ? req.webhook_auth_token.trim()
       : typeof req.auth_token === 'string' && req.auth_token.trim()
         ? req.auth_token.trim()
         : null
-    const webhookAuthType = req.webhook_auth_type ?? req.auth_type ?? 'bearer'
-    if (webhookToken) {
-      if (webhookAuthType === 'api_key') headers['Authorization'] = `Api-Key ${webhookToken}`
-      else headers['Authorization'] = `Bearer ${webhookToken}`
-    }
+    const webhookAuthType = (req.webhook_auth_type ?? req.auth_type ?? 'bearer') as 'bearer' | 'api_key'
 
     const payload: Record<string, unknown> = {
       external_id: req.external_id,
@@ -54,23 +50,12 @@ export class NotifyWebhookUseCase {
       payload.payment_method_id = pollingBody.payment_method_id
     }
 
-    const webhookBody = JSON.stringify(payload)
-    console.log(`[webhook] POST ${req.webhook_url}`)
-    console.log(`[webhook] headers:`, JSON.stringify(headers))
-    console.log(`[webhook] body:`, webhookBody)
-
-    const response = await fetch(req.webhook_url, {
-      method: 'POST',
-      headers,
-      body: webhookBody,
+    await sendWebhook({
+      url: req.webhook_url,
+      payload,
+      authType: webhookAuthType,
+      authToken: webhookToken,
     })
-
-    const responseBody = await response.text().catch(() => '')
-    console.log(`[webhook] response: ${response.status} ${response.statusText} — ${responseBody}`)
-
-    if (!response.ok) {
-      throw new Error(`Webhook failed: ${response.status} ${response.statusText}` + (responseBody ? ` — ${responseBody.slice(0, 300)}` : ''))
-    }
 
     if (match) {
       await db.query(`UPDATE conciliated_transactions SET is_notified=true WHERE id=$1`, [match.id])

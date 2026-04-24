@@ -20,4 +20,5 @@ export const Queues = {
   conciliation:   new Queue('conciliation',    { connection: redis, defaultJobOptions }),
   txConciliation: new Queue('tx-conciliation', { connection: redis, defaultJobOptions }),
   webhook:        new Queue('webhook',         { connection: redis, defaultJobOptions }),
+  bankMovementWebhook: new Queue('bank-movement-webhook', { connection: redis, defaultJobOptions }),
 }

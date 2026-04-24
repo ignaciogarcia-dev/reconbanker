@@ -17,6 +17,9 @@ export class PollPendingOrdersUseCase {
 
     const config = rows[0]
 
+    if (config.mode === 'passthrough') return
+    if (!config.pending_orders_endpoint) return
+
     // Build auth header
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     const token = typeof config.auth_token === 'string' && config.auth_token.trim()

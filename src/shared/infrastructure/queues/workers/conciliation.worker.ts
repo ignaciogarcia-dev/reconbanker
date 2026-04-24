@@ -51,3 +51,20 @@ webhookWorker.on('completed', job => {
 webhookWorker.on('failed', (job, err) => {
   console.error(`[webhook] job ${job?.id} failed (attempt ${job?.attemptsMade}):`, err.message)
 })
+
+export const bankMovementWebhookWorker = new Worker(
+  'bank-movement-webhook',
+  async job => {
+    const mod = await import('../../../../contexts/banking/application/NotifyBankMovementUseCase.js')
+    await new mod.NotifyBankMovementUseCase().execute(job.data)
+  },
+  { connection: redis }
+)
+
+bankMovementWebhookWorker.on('completed', job => {
+  console.log(`[bank-movement-webhook] job ${job.id} completed`)
+})
+
+bankMovementWebhookWorker.on('failed', (job, err) => {
+  console.error(`[bank-movement-webhook] job ${job?.id} failed (attempt ${job?.attemptsMade}):`, err.message)
+})

@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { ArrowLeft, Save, Info } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -20,9 +21,10 @@ interface AccountConfig {
   bank_username: string
   bank_password: string
   webhook_extra_fields: string
+  mode: 'reconcile' | 'passthrough'
 }
 
-const RESERVED_WEBHOOK_KEYS = ['external_id', 'status', 'amount', 'currency', 'sender_name', 'payment_method_id']
+const RESERVED_WEBHOOK_KEYS = ['external_id', 'status', 'amount', 'currency', 'sender_name', 'payment_method_id', 'id', 'received_at']
 
 export function AccountConfig() {
   const { accountId } = useParams<{ accountId: string }>()
@@ -38,6 +40,7 @@ export function AccountConfig() {
     bank_username: '',
     bank_password: '',
     webhook_extra_fields: '',
+    mode: 'reconcile',
   })
   const [saved, setSaved] = useState(false)
   const [extraFieldsError, setExtraFieldsError] = useState<string | null>(null)
@@ -116,6 +119,29 @@ export function AccountConfig() {
         </div>
       </div>
 
+      {/* Mode */}
+      <Card>
+        <CardHeader><CardTitle>{t('accountConfig.mode')}</CardTitle></CardHeader>
+        <CardContent>
+          <div className="flex items-start gap-4">
+            <Switch
+              checked={form.mode === 'reconcile'}
+              onCheckedChange={(checked: boolean) =>
+                setForm(f => ({ ...f, mode: checked ? 'reconcile' : 'passthrough' }))
+              }
+            />
+            <div className="flex-1">
+              <p className="font-medium text-sm">
+                {form.mode === 'reconcile' ? t('accountConfig.modeReconcile') : t('accountConfig.modePassthrough')}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {form.mode === 'reconcile' ? t('accountConfig.modeReconcileDesc') : t('accountConfig.modePassthroughDesc')}
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Bank credentials */}
       <Card>
         <CardHeader><CardTitle>{t('accountConfig.bankCredentials')}</CardTitle></CardHeader>
@@ -157,7 +183,8 @@ export function AccountConfig() {
         </CardContent>
       </Card>
 
-      {/* Order ingestion */}
+      {/* Order ingestion (reconcile mode only) */}
+      {form.mode === 'reconcile' && (
       <Card>
         <CardHeader><CardTitle>{t('accountConfig.orderIngestion')}</CardTitle></CardHeader>
         <CardContent className="space-y-4">
@@ -207,6 +234,7 @@ export function AccountConfig() {
           )}
         </CardContent>
       </Card>
+      )}
 
       {/* Webhooks */}
       <Card>
@@ -216,14 +244,28 @@ export function AccountConfig() {
             <Info className="size-4 mt-0.5 shrink-0" />
             <div>
               <p className="font-medium mb-1">{t('accountConfig.webhookPayload')}</p>
-              <p className="text-xs text-muted-foreground mb-2">{t('accountConfig.webhookPayloadDesc')}</p>
-              <pre className="text-xs bg-background rounded p-2 font-mono whitespace-pre-wrap">{`{
+              <p className="text-xs text-muted-foreground mb-2">
+                {form.mode === 'reconcile'
+                  ? t('accountConfig.webhookPayloadDesc')
+                  : t('accountConfig.webhookPayloadPassthroughDesc')}
+              </p>
+              <pre className="text-xs bg-background rounded p-2 font-mono whitespace-pre-wrap">
+                {form.mode === 'reconcile'
+                  ? `{
   "external_id": "order-123",
   "amount": 1500.00,
   "currency": "UYU",
   "sender_name": "Juan Pérez",
   "payment_method_id": 33  // solo si está en el body de polling
-}`}</pre>
+}`
+                  : `{
+  "id": "uuid-del-movimiento",
+  "amount": 1500.00,
+  "currency": "UYU",
+  "sender_name": "Juan Pérez",
+  "received_at": "2026-04-24T12:00:00.000Z"
+}`}
+              </pre>
             </div>
           </div>
           <div className="space-y-2">

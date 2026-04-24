@@ -60,14 +60,25 @@ accountsRouter.put('/:accountId/config', async (req, res) => {
     bank_password,
     notify_on_expired,
     webhook_extra_fields,
+    mode,
   } = req.body
 
-  if (!pending_orders_endpoint || !webhook_url) {
-    res.status(400).json({ error: 'pending_orders_endpoint and webhook_url are required' })
+  const normalizedMode = (mode === 'passthrough' ? 'passthrough' : 'reconcile') as 'reconcile' | 'passthrough'
+  const normalizedPendingEndpoint =
+    typeof pending_orders_endpoint === 'string' && pending_orders_endpoint.trim()
+      ? pending_orders_endpoint.trim()
+      : null
+
+  if (!webhook_url) {
+    res.status(400).json({ error: 'webhook_url is required' })
+    return
+  }
+  if (normalizedMode === 'reconcile' && !normalizedPendingEndpoint) {
+    res.status(400).json({ error: 'pending_orders_endpoint is required when mode is reconcile' })
     return
   }
 
-  const RESERVED_WEBHOOK_KEYS = ['external_id', 'status', 'amount', 'currency', 'sender_name', 'payment_method_id']
+  const RESERVED_WEBHOOK_KEYS = ['external_id', 'status', 'amount', 'currency', 'sender_name', 'payment_method_id', 'id', 'received_at']
   let normalizedWebhookExtraFields: Record<string, unknown> | null = null
   if (webhook_extra_fields != null && webhook_extra_fields !== '') {
     let parsed: unknown = webhook_extra_fields
@@ -120,12 +131,17 @@ accountsRouter.put('/:accountId/config', async (req, res) => {
   const normalizedWebhookAuthToken =
     typeof webhook_auth_token === 'string' && webhook_auth_token.trim() ? webhook_auth_token.trim() : null
 
+  const { rows: [previous] } = await db.query(
+    `SELECT mode FROM account_config WHERE account_id = $1`,
+    [accountId]
+  )
+
   const { rows: [config] } = await db.query(
     `INSERT INTO account_config
        (id, account_id, pending_orders_endpoint, webhook_url,
         retry_limit, polling_method, polling_body, auth_type, auth_token,
-        webhook_auth_type, webhook_auth_token, notify_on_expired, webhook_extra_fields)
-     VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        webhook_auth_type, webhook_auth_token, notify_on_expired, webhook_extra_fields, mode)
+     VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
      ON CONFLICT (account_id) DO UPDATE SET
        pending_orders_endpoint = $2,
        webhook_url             = $3,
@@ -138,18 +154,30 @@ accountsRouter.put('/:accountId/config', async (req, res) => {
        webhook_auth_token      = $10,
        notify_on_expired       = $11,
        webhook_extra_fields    = $12,
+       mode                    = $13,
        updated_at              = now()
      RETURNING *`,
     [
-      accountId, pending_orders_endpoint, webhook_url,
+      accountId, normalizedPendingEndpoint, webhook_url,
       retry_limit ?? 3,
       normalizedPollingMethod, normalizedPollingBody,
       auth_type ?? 'bearer', normalizedAuthToken,
       webhook_auth_type ?? null, normalizedWebhookAuthToken,
       notify_on_expired ?? false,
       normalizedWebhookExtraFields,
+      normalizedMode,
     ]
   )
+
+  const switchingToPassthrough =
+    normalizedMode === 'passthrough' && (!previous || previous.mode !== 'passthrough')
+  if (switchingToPassthrough) {
+    await db.query(
+      `UPDATE bank_transactions SET notified_at = now()
+        WHERE account_id = $1 AND notified_at IS NULL`,
+      [accountId]
+    )
+  }
 
   if (bank_username && bank_password) {
     await db.query(
