@@ -199,5 +199,5 @@ accountsRouter.put('/:accountId/config', async (req, res) => {
     )
   }
 
-  res.json(toJson(config, bank_username ?? (await getBankUsername(accountId))))
+  res.json(toJson(config, await getBankUsername(accountId)))
 })

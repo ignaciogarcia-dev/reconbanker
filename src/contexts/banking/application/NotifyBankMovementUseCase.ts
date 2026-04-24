@@ -12,13 +12,15 @@ export class NotifyBankMovementUseCase {
     const tx = await this.bankTxRepo.findById(bankTransactionId)
     if (!tx) return
 
-    // notified_at no está en el dominio de BankTransaction; lo consultamos directo
-    if (await this.bankTxRepo.isNotified(bankTransactionId)) return
-
     const config = await this.configRepo.findByAccountId(tx.accountId)
     if (!config) return
     if (config.mode !== 'passthrough') return
     if (!config.webhookUrl) return
+
+    // Claim atómico antes de enviar: si otra ejecución ya lo notificó, salimos.
+    // Si el envío falla, liberamos el claim para que BullMQ pueda reintentar.
+    const claimed = await this.bankTxRepo.claimNotification(bankTransactionId)
+    if (!claimed) return
 
     const token = config.webhookAuthToken ?? config.authToken
     const authType = config.webhookAuthType ?? config.authType
@@ -38,13 +40,16 @@ export class NotifyBankMovementUseCase {
       }
     }
 
-    await sendWebhook({
-      url: config.webhookUrl,
-      payload,
-      authType,
-      authToken: token,
-    })
-
-    await this.bankTxRepo.markNotified(bankTransactionId)
+    try {
+      await sendWebhook({
+        url: config.webhookUrl,
+        payload,
+        authType,
+        authToken: token,
+      })
+    } catch (err) {
+      await this.bankTxRepo.releaseNotification(bankTransactionId)
+      throw err
+    }
   }
 }

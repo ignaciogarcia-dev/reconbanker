@@ -90,6 +90,22 @@ export class BankTransactionRepository implements IBankTransactionRepository {
     return rows[0]?.notified_at != null
   }
 
+  async claimNotification(id: string): Promise<boolean> {
+    const result = await this.executor.query(
+      `UPDATE bank_transactions SET notified_at = now()
+        WHERE id = $1 AND notified_at IS NULL`,
+      [id]
+    )
+    return (result.rowCount ?? 0) > 0
+  }
+
+  async releaseNotification(id: string): Promise<void> {
+    await this.executor.query(
+      `UPDATE bank_transactions SET notified_at = NULL WHERE id = $1`,
+      [id]
+    )
+  }
+
   async save(tx: BankTransaction): Promise<void> {
     await this.executor.query(
       `INSERT INTO bank_transactions
