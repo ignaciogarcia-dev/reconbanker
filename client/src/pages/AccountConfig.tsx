@@ -19,7 +19,10 @@ interface AccountConfig {
   auth_token: string
   bank_username: string
   bank_password: string
+  webhook_extra_fields: string
 }
+
+const RESERVED_WEBHOOK_KEYS = ['external_id', 'status', 'amount', 'currency', 'sender_name', 'payment_method_id']
 
 export function AccountConfig() {
   const { accountId } = useParams<{ accountId: string }>()
@@ -34,8 +37,10 @@ export function AccountConfig() {
     auth_token: '',
     bank_username: '',
     bank_password: '',
+    webhook_extra_fields: '',
   })
   const [saved, setSaved] = useState(false)
+  const [extraFieldsError, setExtraFieldsError] = useState<string | null>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['account-config', accountId],
@@ -44,8 +49,34 @@ export function AccountConfig() {
   })
 
   useEffect(() => {
-    if (data) setForm(f => ({ ...f, ...data, bank_password: '' }))
+    if (data) setForm(f => ({
+      ...f,
+      ...data,
+      bank_password: '',
+      webhook_extra_fields: data.webhook_extra_fields
+        ? JSON.stringify(data.webhook_extra_fields, null, 2)
+        : '',
+    }))
   }, [data])
+
+  function validateExtraFields(): string | null {
+    const raw = form.webhook_extra_fields.trim()
+    if (!raw) return null
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      return t('accountConfig.webhookExtraFieldsInvalidJson')
+    }
+    if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return t('accountConfig.webhookExtraFieldsMustBeObject')
+    }
+    const conflicts = Object.keys(parsed as object).filter(k => RESERVED_WEBHOOK_KEYS.includes(k))
+    if (conflicts.length > 0) {
+      return t('accountConfig.webhookExtraFieldsReserved', { keys: conflicts.join(', ') })
+    }
+    return null
+  }
 
   const save = useMutation({
     mutationFn: () => api.put(`/accounts/${accountId}/config`, form),
@@ -54,6 +85,13 @@ export function AccountConfig() {
       setTimeout(() => setSaved(false), 2000)
     },
   })
+
+  function handleSave() {
+    const err = validateExtraFields()
+    setExtraFieldsError(err)
+    if (err) return
+    save.mutate()
+  }
 
   function field<K extends keyof AccountConfig>(key: K) {
     return {
@@ -192,10 +230,26 @@ export function AccountConfig() {
             <Label>{t('accountConfig.webhookUrl')}</Label>
             <Input placeholder="https://..." {...field('webhook_url')} />
           </div>
+          <div className="space-y-2">
+            <Label>{t('accountConfig.webhookExtraFields')}</Label>
+            <p className="text-xs text-muted-foreground">{t('accountConfig.webhookExtraFieldsDesc')}</p>
+            <textarea
+              className="w-full min-h-24 rounded-md border bg-transparent px-3 py-2 text-sm font-mono resize-y"
+              placeholder='{"source": "reconbanker"}'
+              value={form.webhook_extra_fields}
+              onChange={e => {
+                setForm(f => ({ ...f, webhook_extra_fields: e.target.value }))
+                if (extraFieldsError) setExtraFieldsError(null)
+              }}
+            />
+            {extraFieldsError && (
+              <p className="text-xs text-destructive">{extraFieldsError}</p>
+            )}
+          </div>
         </CardContent>
       </Card>
 
-      <Button onClick={() => save.mutate()} disabled={save.isPending} className="gap-2">
+      <Button onClick={handleSave} disabled={save.isPending} className="gap-2">
         <Save className="size-4" />
         {save.isPending ? t('accountConfig.saving') : saved ? t('accountConfig.saved') : t('accountConfig.save')}
       </Button>

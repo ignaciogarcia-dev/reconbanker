@@ -59,11 +59,36 @@ accountsRouter.put('/:accountId/config', async (req, res) => {
     bank_username,
     bank_password,
     notify_on_expired,
+    webhook_extra_fields,
   } = req.body
 
   if (!pending_orders_endpoint || !webhook_url) {
     res.status(400).json({ error: 'pending_orders_endpoint and webhook_url are required' })
     return
+  }
+
+  const RESERVED_WEBHOOK_KEYS = ['external_id', 'status', 'amount', 'currency', 'sender_name', 'payment_method_id']
+  let normalizedWebhookExtraFields: Record<string, unknown> | null = null
+  if (webhook_extra_fields != null && webhook_extra_fields !== '') {
+    let parsed: unknown = webhook_extra_fields
+    if (typeof webhook_extra_fields === 'string') {
+      try {
+        parsed = JSON.parse(webhook_extra_fields)
+      } catch {
+        res.status(400).json({ error: 'webhook_extra_fields must be valid JSON' })
+        return
+      }
+    }
+    if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      res.status(400).json({ error: 'webhook_extra_fields must be a JSON object' })
+      return
+    }
+    const conflicts = Object.keys(parsed as object).filter(k => RESERVED_WEBHOOK_KEYS.includes(k))
+    if (conflicts.length > 0) {
+      res.status(400).json({ error: `webhook_extra_fields cannot override reserved keys: ${conflicts.join(', ')}` })
+      return
+    }
+    normalizedWebhookExtraFields = parsed as Record<string, unknown>
   }
 
   const normalizedPollingMethod = (polling_method ?? 'GET') as 'GET' | 'POST'
@@ -99,8 +124,8 @@ accountsRouter.put('/:accountId/config', async (req, res) => {
     `INSERT INTO account_config
        (id, account_id, pending_orders_endpoint, webhook_url,
         retry_limit, polling_method, polling_body, auth_type, auth_token,
-        webhook_auth_type, webhook_auth_token, notify_on_expired)
-     VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        webhook_auth_type, webhook_auth_token, notify_on_expired, webhook_extra_fields)
+     VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
      ON CONFLICT (account_id) DO UPDATE SET
        pending_orders_endpoint = $2,
        webhook_url             = $3,
@@ -112,6 +137,7 @@ accountsRouter.put('/:accountId/config', async (req, res) => {
        webhook_auth_type       = $9,
        webhook_auth_token      = $10,
        notify_on_expired       = $11,
+       webhook_extra_fields    = $12,
        updated_at              = now()
      RETURNING *`,
     [
@@ -121,6 +147,7 @@ accountsRouter.put('/:accountId/config', async (req, res) => {
       auth_type ?? 'bearer', normalizedAuthToken,
       webhook_auth_type ?? null, normalizedWebhookAuthToken,
       notify_on_expired ?? false,
+      normalizedWebhookExtraFields,
     ]
   )
 

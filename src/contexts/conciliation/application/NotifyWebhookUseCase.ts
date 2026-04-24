@@ -7,7 +7,7 @@ export class NotifyWebhookUseCase {
     const { rows: [req] } = await db.query(
       `SELECT cr.id, cr.external_id, cr.status, cr.expected_amount, cr.currency, cr.sender_name,
               ac.webhook_url, ac.webhook_auth_type, ac.webhook_auth_token, ac.auth_type, ac.auth_token,
-              ac.polling_body
+              ac.polling_body, ac.webhook_extra_fields
        FROM conciliation_requests cr
        JOIN account_config ac ON ac.account_id = cr.account_id
        WHERE cr.id = $1`,
@@ -40,6 +40,13 @@ export class NotifyWebhookUseCase {
       amount:      Number(req.expected_amount),
       currency:    req.currency,
       sender_name: req.sender_name ?? null,
+    }
+
+    const extraFields = req.webhook_extra_fields
+    if (extraFields && typeof extraFields === 'object' && !Array.isArray(extraFields)) {
+      for (const [k, v] of Object.entries(extraFields)) {
+        if (!(k in payload)) payload[k] = v
+      }
     }
 
     const pollingBody = req.polling_body
