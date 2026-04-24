@@ -22,7 +22,7 @@ export class RunConciliationUseCase {
       const txMatchRepo = new ConciliatedTransactionRepository(client)
       const bankTxRepo = new BankTransactionRepository(client)
 
-      // FOR UPDATE SKIP LOCKED: si polling tiene la row lockeada, retornamos null.
+      // FOR UPDATE SKIP LOCKED: returns null if polling holds the row lock.
       const request = await txRequestRepo.findById(requestId)
       if (!request) return null
       if (TERMINAL_STATUSES.includes(request.status)) return null

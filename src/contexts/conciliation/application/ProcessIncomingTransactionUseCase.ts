@@ -22,7 +22,7 @@ export class ProcessIncomingTransactionUseCase {
 
       const tx = await txRepo.findById(transactionId, { forUpdate: true })
       if (!tx) return null
-      // Idempotencia: si ya fue excluida (match previo o no-match previo), no reprocesar.
+      // Idempotency: a previous match or no-match already excluded this tx.
       const excluded = await txRepo.isExcluded(transactionId)
       if (excluded) return null
 

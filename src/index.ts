@@ -12,12 +12,12 @@ import { OnTransactionIngestedUseCase } from './contexts/conciliation/applicatio
 
 const onTransactionIngested = new OnTransactionIngestedUseCase()
 
-// Cuando llega una transacción nueva → decidir si excluirla o encolar conciliación
+// Decide whether to exclude or enqueue conciliation.
 EventBus.subscribe<TransactionIngestedEvent>('TransactionIngested', async (event) => {
   await onTransactionIngested.execute(event)
 })
 
-// Cuando llega una transacción nueva → encolar notificación passthrough (el use case decide si corresponde)
+// Passthrough notification — use case decides if mode applies.
 EventBus.subscribe<TransactionIngestedEvent>('TransactionIngested', async (event) => {
   await Queues.bankMovementWebhook.add(
     'notify',
@@ -26,7 +26,7 @@ EventBus.subscribe<TransactionIngestedEvent>('TransactionIngested', async (event
   )
 })
 
-// Cuando hay un match → notificar webhook
+// Notify webhook on match.
 EventBus.subscribe<ConciliationMatchedEvent>('ConciliationMatched', async (event) => {
   await Queues.webhook.add(
     'notify',

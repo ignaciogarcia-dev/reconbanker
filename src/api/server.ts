@@ -20,11 +20,11 @@ export function createServer() {
 
   app.use(express.json());
 
-  // Público
+  // Public
   app.get("/health", (_req, res) => res.json({ ok: true }));
   app.use("/auth", authRouter);
 
-  // Protegido
+  // Protected
   app.use(authMiddleware);
   app.use("/accounts", accountsRouter);
   app.use("/banks", banksRouter);

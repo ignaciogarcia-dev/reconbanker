@@ -11,7 +11,7 @@ export class Scheduler {
     const scrapeInterval  = Number(process.env.SCRAPE_INTERVAL_SECONDS ?? 1200) * 1000
     const expireInterval  = Number(process.env.EXPIRE_STALE_REQUESTS_INTERVAL_SECONDS ?? 3600) * 1000
 
-    // Arranca inmediatamente y luego en loop
+    // Run once now, then loop.
     await this.enqueuePolling()
     await this.enqueueScraping()
     await this.expireStaleRequests()
@@ -59,7 +59,7 @@ export class Scheduler {
     )
 
     for (const account of accounts) {
-      // Verificar que no haya un job activo o en espera para esta cuenta
+      // Skip if a job for this account is already active or waiting.
       const active = await Queues.bankScrape.getActive()
       const waiting = await Queues.bankScrape.getWaiting()
 

@@ -87,7 +87,7 @@ export class PollPendingOrdersUseCase {
         ]
       )
 
-      // Encolar conciliación inmediatamente — las transacciones pueden ya estar en la DB
+      // Enqueue immediately — matching transactions may already be in the DB.
       await Queues.conciliation.add(
         'run',
         { requestId },
