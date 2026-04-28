@@ -55,18 +55,18 @@ ReconBanker is a self-hosted reconciliation engine that scrapes bank transaction
 
 ## Tech stack
 
-| Layer | Technology |
-|---|---|
-| Backend runtime | Node.js + TypeScript (tsx watch) |
-| Web framework | Express v5 |
-| Database | PostgreSQL 16 (pg driver, raw SQL migrations) |
-| Queue / cache | Redis 7 + BullMQ |
-| Browser automation | Playwright |
-| Authentication | JWT + bcrypt |
-| Frontend | React 19 + Vite 8 |
-| UI | Tailwind CSS v4, shadcn/ui |
-| HTTP client | Axios + TanStack Query |
-| i18n | i18next |
+| Layer              | Technology                                    |
+| ------------------ | --------------------------------------------- |
+| Backend runtime    | Node.js + TypeScript (tsx watch)              |
+| Web framework      | Express v5                                    |
+| Database           | PostgreSQL 16 (pg driver, raw SQL migrations) |
+| Queue / cache      | Redis 7 + BullMQ                              |
+| Browser automation | Playwright                                    |
+| Authentication     | JWT + bcrypt                                  |
+| Frontend           | React 19 + Vite 8                             |
+| UI                 | Tailwind CSS v4, shadcn/ui                    |
+| HTTP client        | Axios + TanStack Query                        |
+| i18n               | i18next                                       |
 
 ## Quick start
 
@@ -91,20 +91,21 @@ See [docs/getting-started.md](docs/getting-started.md) for manual setup and envi
 
 **Required:**
 
-| Variable | Description |
-|---|---|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `REDIS_URL` | Redis connection string |
-| `JWT_SECRET` | Secret for signing JWT tokens |
+| Variable       | Description                   |
+| -------------- | ----------------------------- |
+| `DATABASE_URL` | PostgreSQL connection string  |
+| `REDIS_URL`    | Redis connection string       |
+| `JWT_SECRET`   | Secret for signing JWT tokens |
 
 **Optional:**
 
-| Variable | Default | Description |
-|---|---|---|
-| `PORT` | `3000` | Backend API port |
-| `NODE_ENV` | `development` | Environment |
-| `POLLING_INTERVAL_SECONDS` | `60` | How often to poll customer order endpoints |
-| `SCRAPE_INTERVAL_SECONDS` | `600` | How often to run bank scraping |
+| Variable                   | Default       | Description                                                                            |
+| -------------------------- | ------------- | -------------------------------------------------------------------------------------- |
+| `PORT`                     | `3000`        | Backend API port                                                                       |
+| `NODE_ENV`                 | `development` | Environment                                                                            |
+| `POLLING_INTERVAL_SECONDS` | `60`          | How often to poll customer order endpoints                                             |
+| `SCRAPE_INTERVAL_SECONDS`  | `600`         | How often to run bank scraping                                                         |
+| `BANK_SCRAPE_CONCURRENCY`  | `2`           | Maximum number of bank scraping jobs, and Playwright browsers, to run at the same time |
 
 ## Development
 
@@ -131,12 +132,12 @@ For a detailed workflow see [docs/development.md](docs/development.md).
 
 ## Documentation
 
-| File | Purpose |
-|---|---|
-| [docs/getting-started.md](docs/getting-started.md) | Setup, env vars, manual run guide |
-| [docs/architecture.md](docs/architecture.md) | Bounded contexts, DDD patterns, job queues |
-| [docs/api-reference.md](docs/api-reference.md) | REST endpoints and request/response shapes |
-| [docs/repository-map.md](docs/repository-map.md) | Compact source tree reference |
+| File                                               | Purpose                                    |
+| -------------------------------------------------- | ------------------------------------------ |
+| [docs/getting-started.md](docs/getting-started.md) | Setup, env vars, manual run guide          |
+| [docs/architecture.md](docs/architecture.md)       | Bounded contexts, DDD patterns, job queues |
+| [docs/api-reference.md](docs/api-reference.md)     | REST endpoints and request/response shapes |
+| [docs/repository-map.md](docs/repository-map.md)   | Compact source tree reference              |
 
 ## License
 

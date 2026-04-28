@@ -62,6 +62,7 @@ JWT_SECRET=change_this_to_a_long_random_secret
 
 POLLING_INTERVAL_SECONDS=60
 SCRAPE_INTERVAL_SECONDS=600
+BANK_SCRAPE_CONCURRENCY=3
 ```
 
 ### 4. Run migrations
@@ -102,6 +103,7 @@ Vite dev server starts at `http://localhost:5173`. API calls are proxied to `htt
 | `NODE_ENV` | No | `development` | Set to `production` to disable stack traces in error responses |
 | `POLLING_INTERVAL_SECONDS` | No | `60` | Interval for polling customer order endpoints |
 | `SCRAPE_INTERVAL_SECONDS` | No | `600` | Interval for running bank scraping jobs |
+| `BANK_SCRAPE_CONCURRENCY` | No | `3` | Maximum number of bank scraping jobs, and Playwright browsers, to run at the same time |
 
 ## Production build
 

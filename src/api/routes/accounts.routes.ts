@@ -6,6 +6,7 @@ import { BankTransactionRepository } from '../../contexts/banking/infrastructure
 import { CreateAccountUseCase } from '../../contexts/account/application/CreateAccountUseCase.js'
 import { DeleteAccountUseCase } from '../../contexts/account/application/DeleteAccountUseCase.js'
 import { AccountConfig, AccountMode, AuthType, PollingMethod } from '../../contexts/account/domain/AccountConfig.js'
+import { enqueueBankScrape } from '../../shared/infrastructure/queues/BankScrapeQueue.js'
 
 export const accountsRouter = Router()
 const repo = new AccountRepository()
@@ -105,9 +106,8 @@ accountsRouter.get('/:accountId/config', async (req, res) => {
 })
 
 accountsRouter.post('/:accountId/scrape', async (req, res) => {
-  const { Queues } = await import('../../shared/infrastructure/queues/QueueRegistry.js')
-  await Queues.bankScrape.add('scrape', { accountId: req.params.accountId })
-  res.status(202).json({ queued: true })
+  const result = await enqueueBankScrape(req.params.accountId)
+  res.status(202).json(result)
 })
 
 accountsRouter.put('/:accountId/config', async (req, res) => {
