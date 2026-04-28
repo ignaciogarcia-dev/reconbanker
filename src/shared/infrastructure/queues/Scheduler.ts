@@ -1,4 +1,5 @@
 import { Queues } from './QueueRegistry.js'
+import { enqueueBankScrape } from './BankScrapeQueue.js'
 import { db } from '../db/client.js'
 import { ExpireStaleRequestsUseCase } from '../../../contexts/conciliation/application/ExpireStaleRequestsUseCase.js'
 
@@ -58,28 +59,21 @@ export class Scheduler {
       `SELECT id FROM accounts WHERE status = 'active'`
     )
 
+    let queued = 0
+    let skipped = 0
+
     for (const account of accounts) {
-      // Skip if a job for this account is already active or waiting.
-      const active = await Queues.bankScrape.getActive()
-      const waiting = await Queues.bankScrape.getWaiting()
+      const result = await enqueueBankScrape(account.id)
 
-      const alreadyRunning = [...active, ...waiting].some(
-        j => j.data.accountId === account.id
-      )
-
-      if (alreadyRunning) {
+      if (result.queued) {
+        queued += 1
+      } else {
+        skipped += 1
         console.log(`[Scheduler] Skipping scrape for ${account.id} — already queued`)
-        continue
       }
-
-      await Queues.bankScrape.add(
-        'scrape',
-        { accountId: account.id },
-        { removeOnComplete: true, removeOnFail: 10 }
-      )
     }
 
-    console.log(`[Scheduler] Enqueued scraping for ${accounts.length} account(s)`)
+    console.log(`[Scheduler] Enqueued scraping for ${queued} account(s), skipped ${skipped}`)
   }
 
   private async expireStaleRequests(): Promise<void> {
