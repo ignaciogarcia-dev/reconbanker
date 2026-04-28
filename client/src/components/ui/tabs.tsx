@@ -17,12 +17,12 @@ function Tabs({
 }
 
 const tabsListVariants = cva(
-  "inline-flex h-9 w-fit items-center justify-center rounded-lg p-[3px] text-muted-foreground",
+  "inline-flex h-9 w-fit items-center justify-center rounded-lg border border-border bg-background p-[3px] text-muted-foreground shadow-sm dark:border-input dark:bg-input/30",
   {
     variants: {
       variant: {
-        default: "bg-muted",
-        line: "gap-1 bg-transparent",
+        default: "",
+        line: "gap-1 border-transparent bg-transparent shadow-none dark:border-transparent dark:bg-transparent",
       },
     },
     defaultVariants: {
@@ -51,7 +51,7 @@ function TabsTrigger({ className, ...props }: TabsPrimitive.Tab.Props) {
       data-slot="tabs-trigger"
       className={cn(
         "inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-3 py-1 text-sm font-medium whitespace-nowrap transition-all text-foreground/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
-        "data-[selected]:bg-background data-[selected]:text-foreground data-[selected]:shadow-sm",
+        "data-[selected]:bg-muted data-[selected]:text-foreground data-[selected]:shadow-sm dark:data-[selected]:bg-input/50",
         className
       )}
       {...props}
