@@ -15,7 +15,14 @@
     "conciliations": "Conciliaciones",
     "reconciledToday": "Conciliadas hoy",
     "reconciledByDay": "Conciliaciones a lo largo del tiempo",
-    "unreconciled": "Sin conciliar"
+    "unreconciled": "Sin conciliar",
+    "reconciledSection": "Conciliación",
+    "passthroughSection": "Passthrough",
+    "movementsTotal": "Total movimientos",
+    "movementsToday": "Movimientos hoy",
+    "movementsNotified": "Notificados",
+    "movementsPending": "Pendientes de notificar",
+    "movementsByDay": "Movimientos a lo largo del tiempo"
   },
   "banks": {
     "title": "Bancos",
