@@ -59,7 +59,7 @@ export function Accounts() {
             <div className="space-y-4 pt-2">
               <div className="space-y-2">
                 <Label>{t('accounts.dialog.bank')}</Label>
-                <Select value={form.bankId} onValueChange={v => setForm(f => ({ ...f, bankId: v }))}>
+                <Select value={form.bankId} onValueChange={v => setForm(f => ({ ...f, bankId: v ?? '' }))}>
                   <SelectTrigger>
                     <SelectValue placeholder={t('accounts.dialog.selectBank')}>
                       {banks.find(b => b.id === form.bankId)?.name ?? null}

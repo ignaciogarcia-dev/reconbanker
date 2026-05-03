@@ -82,13 +82,14 @@ function TimeSeriesChart({
         <YAxis allowDecimals={false} tick={{ fontSize: 12 }} className="text-muted-foreground" />
         <Tooltip
           contentStyle={{ fontSize: 12 }}
-          formatter={(v: number) => [v, seriesLabel]}
-          labelFormatter={(label: string) => {
+          formatter={(v) => [v ?? 0, seriesLabel]}
+          labelFormatter={(label) => {
+            const str = String(label ?? '')
             if (groupedByMonth) {
-              const [y, m] = label.split('-')
+              const [y, m] = str.split('-')
               return `${m}/${y}`
             }
-            return label
+            return str
           }}
         />
         <Line type="monotone" dataKey="count" strokeWidth={2} dot={false} className="stroke-primary" />

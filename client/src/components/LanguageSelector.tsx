@@ -10,7 +10,8 @@ const LANGUAGES = [
 export function LanguageSelector() {
   const { i18n } = useTranslation()
 
-  function handleChange(code: string) {
+  function handleChange(code: string | null) {
+    if (!code) return
     i18n.changeLanguage(code)
     localStorage.setItem('lang', code)
   }

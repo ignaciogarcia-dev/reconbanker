@@ -260,7 +260,7 @@ export function Conciliations() {
                     <div className="space-y-1.5">
                       <Label>{t('conciliations.colStatus')}</Label>
                       <div className="relative">
-                        <Select value={draft.status} onValueChange={v => setDraft(d => ({ ...d, status: v }))}>
+                        <Select value={draft.status} onValueChange={v => setDraft(d => ({ ...d, status: v ?? '' }))}>
                           <SelectTrigger className={draft.status ? 'w-full [&>svg:last-child]:hidden pr-8' : 'w-full'}>
                             <SelectValue placeholder={t('conciliations.allStatuses')}>
                               {draft.status ? t(`enums.conciliationStatus.${draft.status}`) : t('conciliations.allStatuses')}
