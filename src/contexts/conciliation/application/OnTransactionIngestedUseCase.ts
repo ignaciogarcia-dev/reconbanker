@@ -3,6 +3,9 @@ import { Queues } from '../../../shared/infrastructure/queues/QueueRegistry.js'
 import { BankTransactionRepository } from '../../banking/infrastructure/BankTransactionRepository.js'
 import { IBankTransactionRepository } from '../../banking/domain/IBankTransactionRepository.js'
 import { TransactionIngestedEvent } from '../../../shared/events/events/TransactionIngested.event.js'
+import { logger } from '../../../shared/infrastructure/logger/index.js'
+
+const log = logger.child('[conciliation]')
 
 export class OnTransactionIngestedUseCase {
   constructor(
@@ -22,7 +25,7 @@ export class OnTransactionIngestedUseCase {
 
     if (rows.length === 0) {
       await this.txRepo.markExcluded(txId)
-      console.log(`[OnTransactionIngested] tx ${txId} excluded (no active requests)`)
+      log.info(`tx excluded — no active requests`, { txId })
       return
     }
 
@@ -31,6 +34,6 @@ export class OnTransactionIngestedUseCase {
       { transactionId: txId },
       { jobId: `tx_conciliation_${txId}`, removeOnComplete: true }
     )
-    console.log(`[OnTransactionIngested] tx ${txId} → enqueued tx-conciliation`)
+    log.info(`tx enqueued for tx-conciliation`, { txId })
   }
 }

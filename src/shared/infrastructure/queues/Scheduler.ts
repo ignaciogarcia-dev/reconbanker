@@ -2,6 +2,9 @@ import { Queues } from './QueueRegistry.js'
 import { enqueueBankScrape } from './BankScrapeQueue.js'
 import { db } from '../db/client.js'
 import { ExpireStaleRequestsUseCase } from '../../../contexts/conciliation/application/ExpireStaleRequestsUseCase.js'
+import { logger } from '../logger/index.js'
+
+const log = logger.child('[scheduler]')
 
 export class Scheduler {
   private timers: NodeJS.Timeout[] = []
@@ -23,15 +26,13 @@ export class Scheduler {
       setInterval(() => this.expireStaleRequests(), expireInterval),
     )
 
-    console.log(
-      `Scheduler started — polling every ${pollingInterval / 1000}s, scraping every ${scrapeInterval / 1000}s, expiring every ${expireInterval / 1000}s`
-    )
+    log.info('started', { pollingIntervalSec: pollingInterval / 1000, scrapeIntervalSec: scrapeInterval / 1000, expireIntervalSec: expireInterval / 1000 })
   }
 
   stop(): void {
     this.timers.forEach(t => clearInterval(t))
     this.timers = []
-    console.log('Scheduler stopped')
+    log.info('stopped')
   }
 
   private async enqueuePolling(): Promise<void> {
@@ -51,7 +52,7 @@ export class Scheduler {
       )
     }
 
-    console.log(`[Scheduler] Enqueued polling for ${accounts.length} account(s)`)
+    log.info(`enqueued polling`, { accountCount: accounts.length })
   }
 
   private async enqueueScraping(): Promise<void> {
@@ -69,11 +70,11 @@ export class Scheduler {
         queued += 1
       } else {
         skipped += 1
-        console.log(`[Scheduler] Skipping scrape for ${account.id} — already queued`)
+        log.debug(`skipping scrape — already queued`, { accountId: account.id })
       }
     }
 
-    console.log(`[Scheduler] Enqueued scraping for ${queued} account(s), skipped ${skipped}`)
+    log.info(`enqueued scraping`, { queued, skipped })
   }
 
   private async expireStaleRequests(): Promise<void> {

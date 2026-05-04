@@ -2,6 +2,9 @@ import { db } from '../../../shared/infrastructure/db/client.js'
 import { EventBus } from '../../../shared/events/EventBus.js'
 import { ConciliationRequestRepository } from '../infrastructure/ConciliationRequestRepository.js'
 import { Queues } from '../../../shared/infrastructure/queues/QueueRegistry.js'
+import { logger } from '../../../shared/infrastructure/logger/index.js'
+
+const log = logger.child('[conciliation]')
 
 export class ExpireStaleRequestsUseCase {
   private readonly requestRepo = new ConciliationRequestRepository()
@@ -35,7 +38,7 @@ export class ExpireStaleRequestsUseCase {
     }
 
     if (rows.length > 0) {
-      console.log(`[ExpireStaleRequests] Expired ${rows.length} request(s)`)
+      log.info(`expired stale requests`, { count: rows.length })
     }
   }
 }

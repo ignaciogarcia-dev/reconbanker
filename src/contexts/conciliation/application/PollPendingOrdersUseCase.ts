@@ -2,7 +2,10 @@ import { db } from '../../../shared/infrastructure/db/client.js'
 import { Queues } from '../../../shared/infrastructure/queues/QueueRegistry.js'
 import { ConciliationRequestRepository } from '../infrastructure/ConciliationRequestRepository.js'
 import { AccountConfigRepository } from '../../account/infrastructure/AccountConfigRepository.js'
+import { logger } from '../../../shared/infrastructure/logger/index.js'
 import crypto from 'crypto'
+
+const log = logger.child('[conciliation]')
 
 interface JobData { accountId: string }
 
@@ -63,7 +66,7 @@ export class PollPendingOrdersUseCase {
 
     for (const order of orders) {
       if (!order.external_id || order.amount == null || !order.currency || !order.name) {
-        console.warn(`[PollPendingOrders] Skipping order missing required fields (external_id, amount, currency, name):`, order)
+        log.warn(`skipping order missing required fields`, { order })
         continue
       }
 
@@ -97,7 +100,7 @@ export class PollPendingOrdersUseCase {
 
     const cancelledCount = await this.requestRepo.cancelMissing(accountId, seenExternalIds)
     if (cancelledCount > 0) {
-      console.log(`[PollPendingOrders] Cancelled ${cancelledCount} order(s) missing from source for account ${accountId}`)
+      log.info(`cancelled orders missing from source`, { accountId, cancelledCount })
     }
   }
 }

@@ -1,16 +1,19 @@
 import { Worker } from 'bullmq'
 import { redis } from '../QueueRegistry.js'
+import { logger } from '../../logger/index.js'
+
+const log = logger.child('[order-ingestion]')
 
 export const orderIngestionWorker = new Worker(
   'order-ingestion',
   async job => {
-    console.log(`[order-ingestion] starting job ${job.id}`, job.data)
+    log.info(`starting job ${job.id}`, { jobData: job.data })
     try {
       const mod = await import('../../../../contexts/conciliation/application/PollPendingOrdersUseCase.js')
       await new mod.PollPendingOrdersUseCase().execute(job.data)
-      console.log(`[order-ingestion] job ${job.id} completed`)
+      log.info(`job ${job.id} completed`)
     } catch (err) {
-      console.error(`[order-ingestion] job ${job.id} failed:`, err)
+      log.error(`job ${job.id} failed`, { error: err instanceof Error ? err.message : String(err) })
       throw err
     }
   },
@@ -18,5 +21,5 @@ export const orderIngestionWorker = new Worker(
 )
 
 orderIngestionWorker.on('failed', (job, err) => {
-  console.error(`[order-ingestion] worker failed event:`, job?.id, err.message)
+  log.error(`worker failed event`, { jobId: job?.id, error: err.message })
 })
