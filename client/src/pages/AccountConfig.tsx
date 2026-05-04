@@ -30,6 +30,7 @@ interface AccountConfig {
   bank_password: string
   webhook_extra_fields: string
   mode: 'reconcile' | 'passthrough'
+  silent_ingestion: boolean
 }
 
 const RESERVED_WEBHOOK_KEYS = ['external_id', 'status', 'amount', 'currency', 'name', 'id', 'received_at']
@@ -50,6 +51,7 @@ export function AccountConfig() {
     bank_password: '',
     webhook_extra_fields: '',
     mode: 'reconcile',
+    silent_ingestion: false,
   })
   const [saved, setSaved] = useState(false)
   const [extraFieldsError, setExtraFieldsError] = useState<string | null>(null)
@@ -310,6 +312,18 @@ export function AccountConfig() {
           <div className="space-y-2">
             <Label>{t('accountConfig.webhookUrl')}</Label>
             <Input placeholder="https://..." {...field('webhook_url')} />
+          </div>
+          <div className="rounded-md border border-border bg-muted/30 p-3 flex items-start gap-4">
+            <Switch
+              checked={form.silent_ingestion}
+              onCheckedChange={(checked: boolean) =>
+                setForm(f => ({ ...f, silent_ingestion: checked }))
+              }
+            />
+            <div className="flex-1">
+              <p className="font-medium text-sm">{t('accountConfig.silentIngestion')}</p>
+              <p className="text-xs text-muted-foreground mt-1">{t('accountConfig.silentIngestionDesc')}</p>
+            </div>
           </div>
           <div className="space-y-2">
             <Label>{t('accountConfig.webhookExtraFields')}</Label>

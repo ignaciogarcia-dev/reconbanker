@@ -173,6 +173,8 @@
     "webhookExtraFieldsInvalidJson": "Invalid JSON",
     "webhookExtraFieldsMustBeObject": "Must be a JSON object",
     "webhookExtraFieldsReserved": "These reserved keys can't be used: {{keys}}",
+    "silentIngestion": "Silent ingestion",
+    "silentIngestionDesc": "Ingest movements without sending notifications. Use it when starting the system for the first time so existing movements from the day do not trigger webhooks. Turn it off when you want to receive notifications normally.",
     "save": "Save configuration",
     "saving": "Saving...",
     "saved": "Saved!",
