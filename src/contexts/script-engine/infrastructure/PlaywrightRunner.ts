@@ -1,5 +1,7 @@
 import { BankScript } from '../domain/BankScript.js'
 import { db } from '../../../shared/infrastructure/db/client.js'
+import { appendFileSync, mkdirSync } from 'fs'
+import path from 'path'
 
 interface ScrapedTransaction {
   externalId: string
@@ -51,11 +53,17 @@ export class PlaywrightRunner {
       Object.defineProperty(navigator, 'webdriver', { get: () => undefined })
     })
 
+    const debugLogPath =
+      process.env.SCRIPT_DEBUG_LOG_PATH ?? `/tmp/reconbanker-script-debug-${context.accountId}.log`
+    mkdirSync(path.dirname(debugLogPath), { recursive: true })
+
     const scriptContext = {
       accountId: context.accountId,
       username: creds.username,
       password: creds.encrypted_password,
       lastExternalId: context.lastExternalId,
+      debugLogPath,
+      debugLog: (line: string) => appendFileSync(debugLogPath, `${line}\n`),
     }
 
     const TIMEOUT_MS = 6 * 60 * 1000 // 6 minutes
