@@ -173,6 +173,8 @@
     "webhookExtraFieldsInvalidJson": "El JSON no es válido",
     "webhookExtraFieldsMustBeObject": "Debe ser un objeto JSON",
     "webhookExtraFieldsReserved": "No podés usar estas claves reservadas: {{keys}}",
+    "silentIngestion": "Ingesta silenciosa",
+    "silentIngestionDesc": "Ingestá movimientos sin enviar notificaciones. Usalo al arrancar el sistema por primera vez para que los movimientos existentes del día no disparen webhooks. Desactivalo cuando quieras recibir notificaciones normalmente.",
     "save": "Guardar configuración",
     "saving": "Guardando...",
     "saved": "¡Guardado!",
