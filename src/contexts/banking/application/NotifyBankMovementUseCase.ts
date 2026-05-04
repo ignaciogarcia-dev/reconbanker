@@ -16,6 +16,7 @@ export class NotifyBankMovementUseCase {
     if (!config) return
     if (config.mode !== 'passthrough') return
     if (!config.webhookUrl) return
+    if (!tx.senderName) return
 
     // Claim before send so concurrent retries can't double-notify; release on failure to allow BullMQ retry.
     const claimed = await this.bankTxRepo.claimNotification(bankTransactionId)
