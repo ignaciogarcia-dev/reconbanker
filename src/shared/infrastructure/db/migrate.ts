@@ -3,6 +3,9 @@ import { db } from './client.js'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { logger } from '../logger/index.js'
+
+const log = logger.child('[migrate]')
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const migrationsDir = path.join(__dirname, 'migrations')
@@ -26,21 +29,21 @@ async function migrate() {
       [file]
     )
     if (rows.length > 0) {
-      console.log(`  skip  ${file}`)
+      log.info(`skip  ${file}`)
       continue
     }
 
     const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8')
     await db.query(sql)
     await db.query('INSERT INTO _migrations (filename) VALUES ($1)', [file])
-    console.log(`  apply ${file}`)
+    log.info(`apply ${file}`)
   }
 
-  console.log('\nDone.')
+  log.info('done')
   await db.end()
 }
 
 migrate().catch(err => {
-  console.error(err)
+  log.error('migration failed', { error: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : undefined })
   process.exit(1)
 })

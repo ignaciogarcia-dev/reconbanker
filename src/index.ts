@@ -9,6 +9,9 @@ import { TransactionIngestedEvent } from './shared/events/events/TransactionInge
 import { ConciliationMatchedEvent } from './shared/events/events/ConciliationMatched.event.js'
 import { Queues } from './shared/infrastructure/queues/QueueRegistry.js'
 import { OnTransactionIngestedUseCase } from './contexts/conciliation/application/OnTransactionIngestedUseCase.js'
+import { logger } from './shared/infrastructure/logger/index.js'
+
+const log = logger.child('[app]')
 
 const onTransactionIngested = new OnTransactionIngestedUseCase()
 
@@ -33,7 +36,7 @@ EventBus.subscribe<ConciliationMatchedEvent>('ConciliationMatched', async (event
     { requestId: event.aggregateId },
     { jobId: `webhook_${event.aggregateId}`, removeOnComplete: true }
   )
-  console.log(`[EventBus] ConciliationMatched → webhook enqueued for ${event.aggregateId}`)
+  log.info(`ConciliationMatched — webhook enqueued`, { aggregateId: event.aggregateId })
 })
 
 const PORT = process.env.PORT ?? 3000
@@ -42,17 +45,19 @@ const app = createServer()
 const scheduler = new Scheduler()
 
 app.listen(PORT, async () => {
-  console.log(`Server running on port ${PORT}`)
+  log.info(`server listening`, { port: PORT })
   await scheduler.start()
 })
 
-console.log('Workers started:', [
-  orderIngestionWorker.name,
-  bankScrapeWorker.name,
-  conciliationWorker.name,
-  webhookWorker.name,
-  bankMovementWebhookWorker.name,
-].join(', '))
+log.info('workers started', {
+  workers: [
+    orderIngestionWorker.name,
+    bankScrapeWorker.name,
+    conciliationWorker.name,
+    webhookWorker.name,
+    bankMovementWebhookWorker.name,
+  ].join(', ')
+})
 
 process.on('SIGTERM', async () => {
   scheduler.stop()

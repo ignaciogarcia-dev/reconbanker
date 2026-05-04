@@ -1,3 +1,7 @@
+import { logger } from '../logger/index.js'
+
+const log = logger.child('[webhook]')
+
 interface SendWebhookOptions {
   url: string
   payload: Record<string, unknown>
@@ -12,13 +16,13 @@ export async function sendWebhook({ url, payload, authType, authToken }: SendWeb
   }
 
   const body = JSON.stringify(payload)
-  console.log(`[webhook] POST ${url}`)
-  console.log(`[webhook] headers:`, JSON.stringify(headers))
-  console.log(`[webhook] body:`, body)
+  log.debug(`POST ${url}`)
+  log.debug(`headers`, { headers: { ...headers, Authorization: headers['Authorization'] ? '[REDACTED]' : undefined } })
+  log.debug(`body`, { body })
 
   const response = await fetch(url, { method: 'POST', headers, body })
   const responseBody = await response.text().catch(() => '')
-  console.log(`[webhook] response: ${response.status} ${response.statusText} — ${responseBody}`)
+  log.info(`response`, { status: response.status, statusText: response.statusText, body: responseBody })
 
   if (!response.ok) {
     throw new Error(

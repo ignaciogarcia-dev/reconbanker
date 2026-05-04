@@ -1,5 +1,11 @@
 import { Worker } from 'bullmq'
 import { redis } from '../QueueRegistry.js'
+import { logger } from '../../logger/index.js'
+
+const conciliationLog = logger.child('[conciliation]')
+const txConciliationLog = logger.child('[tx-conciliation]')
+const webhookLog = logger.child('[webhook]')
+const bankMovementWebhookLog = logger.child('[bank-movement-webhook]')
 
 export const conciliationWorker = new Worker(
   'conciliation',
@@ -11,11 +17,11 @@ export const conciliationWorker = new Worker(
 )
 
 conciliationWorker.on('completed', job => {
-  console.log(`[conciliation] job ${job.id} completed`)
+  conciliationLog.info(`job ${job.id} completed`)
 })
 
 conciliationWorker.on('failed', (job, err) => {
-  console.error(`[conciliation] job ${job?.id} failed (attempt ${job?.attemptsMade}):`, err.message)
+  conciliationLog.error(`job ${job?.id} failed (attempt ${job?.attemptsMade})`, { error: err.message })
 })
 
 export const txConciliationWorker = new Worker(
@@ -28,11 +34,11 @@ export const txConciliationWorker = new Worker(
 )
 
 txConciliationWorker.on('completed', job => {
-  console.log(`[tx-conciliation] job ${job.id} completed`)
+  txConciliationLog.info(`job ${job.id} completed`)
 })
 
 txConciliationWorker.on('failed', (job, err) => {
-  console.error(`[tx-conciliation] job ${job?.id} failed (attempt ${job?.attemptsMade}):`, err.message)
+  txConciliationLog.error(`job ${job?.id} failed (attempt ${job?.attemptsMade})`, { error: err.message })
 })
 
 export const webhookWorker = new Worker(
@@ -45,11 +51,11 @@ export const webhookWorker = new Worker(
 )
 
 webhookWorker.on('completed', job => {
-  console.log(`[webhook] job ${job.id} completed`)
+  webhookLog.info(`job ${job.id} completed`)
 })
 
 webhookWorker.on('failed', (job, err) => {
-  console.error(`[webhook] job ${job?.id} failed (attempt ${job?.attemptsMade}):`, err.message)
+  webhookLog.error(`job ${job?.id} failed (attempt ${job?.attemptsMade})`, { error: err.message })
 })
 
 export const bankMovementWebhookWorker = new Worker(
@@ -62,9 +68,9 @@ export const bankMovementWebhookWorker = new Worker(
 )
 
 bankMovementWebhookWorker.on('completed', job => {
-  console.log(`[bank-movement-webhook] job ${job.id} completed`)
+  bankMovementWebhookLog.info(`job ${job.id} completed`)
 })
 
 bankMovementWebhookWorker.on('failed', (job, err) => {
-  console.error(`[bank-movement-webhook] job ${job?.id} failed (attempt ${job?.attemptsMade}):`, err.message)
+  bankMovementWebhookLog.error(`job ${job?.id} failed (attempt ${job?.attemptsMade})`, { error: err.message })
 })

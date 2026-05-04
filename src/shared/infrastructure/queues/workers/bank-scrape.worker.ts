@@ -1,12 +1,15 @@
 import { Worker, Job } from "bullmq";
 import { redis } from "../QueueRegistry.js";
+import { logger } from "../../logger/index.js";
+
+const log = logger.child('[bank-scrape]')
 
 const bankScrapeConcurrency = Number(process.env.BANK_SCRAPE_CONCURRENCY ?? 2);
 
 export const bankScrapeWorker = new Worker(
   "bank-scrape",
   async (job: Job) => {
-    console.log(`[bank-scrape] starting job ${job.id}`, job.data);
+    log.info(`starting job ${job.id}`, { jobData: job.data });
 
     const keepAlive = setInterval(() => {
       job.extendLock(job.token!, 60_000).catch(() => {});
@@ -16,9 +19,9 @@ export const bankScrapeWorker = new Worker(
       const mod =
         await import("../../../../contexts/banking/application/RunBankScrapeUseCase.js");
       await new mod.RunBankScrapeUseCase().execute(job.data);
-      console.log(`[bank-scrape] job ${job.id} completed`);
+      log.info(`job ${job.id} completed`);
     } catch (err) {
-      console.error(`[bank-scrape] job ${job.id} failed:`, err);
+      log.error(`job ${job.id} failed`, { error: err instanceof Error ? err.message : String(err) });
       throw err;
     } finally {
       clearInterval(keepAlive);
@@ -36,5 +39,5 @@ export const bankScrapeWorker = new Worker(
 );
 
 bankScrapeWorker.on("failed", (job, err) => {
-  console.error(`[bank-scrape] worker failed event:`, job?.id, err.message);
+  log.error(`worker failed event`, { jobId: job?.id, error: err.message });
 });
