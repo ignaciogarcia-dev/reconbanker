@@ -17,6 +17,7 @@ export interface AccountConfig {
   webhookAuthToken: string | null
   notifyOnExpired: boolean
   webhookExtraFields: Record<string, unknown> | null
+  silentIngestion: boolean
 }
 
 export interface AccountConfigInput {
@@ -33,4 +34,5 @@ export interface AccountConfigInput {
   webhookAuthToken: string | null
   notifyOnExpired: boolean
   webhookExtraFields: Record<string, unknown> | null
+  silentIngestion: boolean
 }

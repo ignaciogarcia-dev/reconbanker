@@ -31,6 +31,7 @@ function toJson(config: AccountConfig, bankUsername: string | null) {
     webhook_auth_token: config.webhookAuthToken,
     notify_on_expired: config.notifyOnExpired,
     webhook_extra_fields: config.webhookExtraFields,
+    silent_ingestion: config.silentIngestion,
     bank_username: bankUsername,
   }
 }
@@ -127,6 +128,7 @@ accountsRouter.put('/:accountId/config', async (req, res) => {
     notify_on_expired,
     webhook_extra_fields,
     mode,
+    silent_ingestion,
   } = req.body
 
   const normalizedMode: AccountMode = mode === 'passthrough' ? 'passthrough' : 'reconcile'
@@ -210,6 +212,7 @@ accountsRouter.put('/:accountId/config', async (req, res) => {
     webhookAuthToken: normalizedWebhookAuthToken,
     notifyOnExpired: notify_on_expired ?? false,
     webhookExtraFields: normalizedWebhookExtraFields,
+    silentIngestion: silent_ingestion ?? false,
   })
 
   const switchingToPassthrough =

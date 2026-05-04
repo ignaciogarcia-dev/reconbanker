@@ -1,0 +1,2 @@
+ALTER TABLE account_config
+  ADD COLUMN IF NOT EXISTS silent_ingestion BOOLEAN NOT NULL DEFAULT FALSE;
