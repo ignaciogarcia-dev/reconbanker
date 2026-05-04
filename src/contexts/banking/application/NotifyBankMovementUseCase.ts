@@ -22,6 +22,8 @@ export class NotifyBankMovementUseCase {
     const claimed = await this.bankTxRepo.claimNotification(bankTransactionId)
     if (!claimed) return
 
+    if (config.silentIngestion) return
+
     const token = config.webhookAuthToken ?? config.authToken
     const authType = config.webhookAuthType ?? config.authType
 
