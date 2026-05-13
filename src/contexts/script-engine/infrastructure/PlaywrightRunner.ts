@@ -58,7 +58,7 @@ export class PlaywrightRunner {
       lastExternalId: context.lastExternalId,
     }
 
-    const TIMEOUT_MS = 6 * 60 * 1000 // 6 minutes
+    const TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
 
     const timeout = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error(`Script execution timed out after ${TIMEOUT_MS / 1000}s`)), TIMEOUT_MS)
