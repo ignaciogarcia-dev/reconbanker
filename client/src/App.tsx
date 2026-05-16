@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { Toaster } from '@/components/ui/sonner'
 import { AuthProvider, useAuth } from '@/lib/auth'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Login } from '@/pages/Login'
@@ -12,6 +13,7 @@ import { Conciliations } from '@/pages/Conciliations'
 import { BankMovements } from '@/pages/BankMovements'
 import { Scripts } from '@/pages/Scripts'
 import { Register } from '@/pages/Register'
+import { useUser, type OperationMode } from '@/lib/useUser'
 
 const queryClient = new QueryClient()
 
@@ -19,6 +21,15 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth()
   if (isLoading) return null
   if (!user) return <Navigate to="/login" replace />
+  return <>{children}</>
+}
+
+function ModeGuard({ requires, children }: { requires: OperationMode; children: React.ReactNode }) {
+  const { data: me, isLoading } = useUser()
+  if (isLoading || !me) return null
+  if (me.operation_mode != null && me.operation_mode !== requires) {
+    return <Navigate to="/" replace />
+  }
   return <>{children}</>
 }
 
@@ -35,8 +46,8 @@ function AppRoutes() {
         <Route path="/banks"                         element={<Banks />} />
         <Route path="/accounts"                      element={<Accounts />} />
         <Route path="/accounts/:accountId/config"    element={<AccountConfig />} />
-        <Route path="/conciliations"                 element={<Conciliations />} />
-        <Route path="/movements"                     element={<BankMovements />} />
+        <Route path="/conciliations"                 element={<ModeGuard requires="reconcile"><Conciliations /></ModeGuard>} />
+        <Route path="/movements"                     element={<ModeGuard requires="passthrough"><BankMovements /></ModeGuard>} />
         <Route path="/scripts"                       element={<Scripts />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
@@ -52,6 +63,7 @@ export default function App() {
           <BrowserRouter>
             <AppRoutes />
           </BrowserRouter>
+          <Toaster />
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>

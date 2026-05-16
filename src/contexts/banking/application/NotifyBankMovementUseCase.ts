@@ -1,5 +1,7 @@
 import { sendWebhook } from '../../../shared/infrastructure/webhooks/WebhookSender.js'
 import { AccountConfigRepository } from '../../account/infrastructure/AccountConfigRepository.js'
+import { AccountRepository } from '../../account/infrastructure/AccountRepository.js'
+import { UserRepository } from '../../user/infrastructure/UserRepository.js'
 import { BankTransactionRepository } from '../infrastructure/BankTransactionRepository.js'
 
 interface JobData { bankTransactionId: string }
@@ -7,6 +9,8 @@ interface JobData { bankTransactionId: string }
 export class NotifyBankMovementUseCase {
   private readonly bankTxRepo = new BankTransactionRepository()
   private readonly configRepo = new AccountConfigRepository()
+  private readonly accountRepo = new AccountRepository()
+  private readonly userRepo = new UserRepository()
 
   async execute({ bankTransactionId }: JobData): Promise<void> {
     const tx = await this.bankTxRepo.findById(bankTransactionId)
@@ -14,7 +18,11 @@ export class NotifyBankMovementUseCase {
 
     const config = await this.configRepo.findByAccountId(tx.accountId)
     if (!config) return
-    if (config.mode !== 'passthrough') return
+
+    const account = await this.accountRepo.findById(tx.accountId)
+    if (!account) return
+    const mode = await this.userRepo.getOperationMode(account.userId)
+    if (mode !== 'passthrough') return
     if (!config.webhookUrl) return
     if (!tx.senderName) return
 

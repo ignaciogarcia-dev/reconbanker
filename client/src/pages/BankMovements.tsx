@@ -1,6 +1,6 @@
-import { useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { useUser } from '@/lib/useUser'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -14,7 +14,6 @@ interface Account {
   id: string
   name: string
   bank: string
-  mode: 'reconcile' | 'passthrough'
 }
 
 interface BankMovement {
@@ -128,16 +127,15 @@ function MovementsTable({ accountId }: { accountId: string }) {
 
 export function BankMovements() {
   const { t } = useTranslation()
+  const { data: me, isLoading: loadingMe } = useUser()
 
-  const { data: allAccounts = [], isLoading } = useQuery<Account[]>({
+  const { data: accounts = [], isLoading: loadingAccounts } = useQuery<Account[]>({
     queryKey: ['accounts'],
     queryFn: () => api.get('/accounts').then(r => r.data),
   })
 
-  const accounts = useMemo(
-    () => allAccounts.filter(a => a.mode === 'passthrough'),
-    [allAccounts]
-  )
+  const isLoading = loadingMe || loadingAccounts
+  const wrongMode = !isLoading && me?.operation_mode !== 'passthrough'
 
   return (
     <div className="p-8 space-y-6">
@@ -148,6 +146,12 @@ export function BankMovements() {
 
       {isLoading ? (
         <p className="text-muted-foreground text-sm">{t('movements.loading')}</p>
+      ) : wrongMode ? (
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            {t('movements.emptyWrongMode')}
+          </CardContent>
+        </Card>
       ) : accounts.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">

@@ -6,6 +6,7 @@
     "conciliations": "Conciliations",
     "movements": "Movements",
     "scripts": "Scripts",
+    "settings": "Settings",
     "logout": "Log out"
   },
   "dashboard": {
@@ -71,6 +72,7 @@
     "colSender": "Sender",
     "colStatus": "Status",
     "colCreated": "Created",
+    "emptyWrongMode": "Your account operates in Direct notification mode. Conciliations are only available in Reconciliation mode. Change the mode from Settings to see them.",
     "searchPlaceholder": "Search by ID, sender, amount...",
     "filters": "Filters",
     "allStatuses": "All statuses",
@@ -89,6 +91,7 @@
     "subtitle": "Audit movements for direct notification accounts and re-send the webhook when needed.",
     "loading": "Loading...",
     "emptyNoAccounts": "You don't have any direct notification accounts. Set an account to direct notification to see its movements here.",
+    "emptyWrongMode": "Your account operates in Reconciliation mode. Bank movements are only available in Direct notification mode. Change the mode from Settings to see them.",
     "emptyTable": "No movements recorded for this account.",
     "colExternalId": "External ID",
     "colAmount": "Amount",
@@ -140,15 +143,53 @@
     "hasAccount": "Already have an account?",
     "login": "Sign in"
   },
+  "modeSelect": {
+    "title": "How should ReconBanker operate?",
+    "subtitle": "Choose the operation mode. You can change it later from Settings.",
+    "confirm": "Continue",
+    "reconcile": {
+      "title": "Reconciliation",
+      "desc": "The system polls pending orders from your endpoint, matches them against bank movements, and fires the webhook on reconciliation.",
+      "recommended": "Recommended"
+    },
+    "passthrough": {
+      "title": "Direct notification",
+      "desc": "The system does not poll orders. Each detected bank movement triggers a direct webhook with the movement data."
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Manage your profile and operation mode",
+    "loading": "Loading...",
+    "tabs": {
+      "general": "General",
+      "operation": "Operation"
+    },
+    "profile": {
+      "title": "Profile",
+      "name": "Name",
+      "email": "Email"
+    },
+    "mode": {
+      "title": "Operation mode",
+      "notSet": "Not set",
+      "current": "Current",
+      "change": "Change mode",
+      "cancel": "Cancel",
+      "save": "Save",
+      "saving": "Saving...",
+      "saved": "Operation mode updated",
+      "saveError": "Failed to update operation mode",
+      "confirmTitle": "Confirm mode change",
+      "confirmBody": "Changing the mode will permanently delete all movements and conciliations recorded so far. For security and compliance reasons, data processed under one mode cannot be carried over to the other. This action is irreversible.",
+      "confirmCancel": "Cancel",
+      "confirmConfirm": "Yes, change and delete data"
+    }
+  },
   "accountConfig": {
     "title": "Account configuration",
     "back": "Back",
     "loading": "Loading...",
-    "mode": "Operation mode",
-    "modeReconcile": "Reconciliation",
-    "modeReconcileDesc": "The system polls pending orders from your endpoint, matches them against bank movements, and fires the webhook on reconciliation.",
-    "modePassthrough": "Direct notification",
-    "modePassthroughDesc": "The system does not poll orders. Each detected bank movement triggers a direct webhook with the movement data.",
     "webhookPayloadPassthroughDesc": "For each detected bank movement, a POST will be sent to this URL with the following payload:",
     "bankCredentials": "Bank credentials",
     "username": "Username",
