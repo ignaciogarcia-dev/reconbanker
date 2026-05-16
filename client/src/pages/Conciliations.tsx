@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { useUser } from '@/lib/useUser'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -41,7 +42,6 @@ interface Account {
   id: string
   name: string
   bank: string
-  mode: 'reconcile' | 'passthrough'
 }
 
 interface Filters {
@@ -166,9 +166,12 @@ export function Conciliations() {
     queryFn: () => api.get('/accounts').then(r => r.data),
   })
 
-  const accounts = useMemo(() => allAccounts.filter(a => a.mode !== 'passthrough'), [allAccounts])
+  const { data: me, isLoading: loadingMe } = useUser()
 
-  const isLoading = loadingReqs || loadingAccounts
+  const accounts = allAccounts
+
+  const isLoading = loadingReqs || loadingAccounts || loadingMe
+  const wrongMode = !isLoading && me?.operation_mode !== 'reconcile'
 
   const filtered = useMemo(() => {
     let result = requests
@@ -210,6 +213,12 @@ export function Conciliations() {
 
       {isLoading ? (
         <p className="text-muted-foreground text-sm">{t('conciliations.loading')}</p>
+      ) : wrongMode ? (
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            {t('conciliations.emptyWrongMode')}
+          </CardContent>
+        </Card>
       ) : (
         <Tabs defaultValue="all">
           <div className="flex items-center justify-between gap-4">

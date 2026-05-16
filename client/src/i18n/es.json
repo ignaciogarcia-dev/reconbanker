@@ -6,6 +6,7 @@
     "conciliations": "Conciliaciones",
     "movements": "Movimientos",
     "scripts": "Scripts",
+    "settings": "Configuración",
     "logout": "Cerrar sesión"
   },
   "dashboard": {
@@ -71,6 +72,7 @@
     "colSender": "Remitente",
     "colStatus": "Estado",
     "colCreated": "Creada",
+    "emptyWrongMode": "Tu cuenta opera en modo Notificación directa. Las conciliaciones solo están disponibles en modo Conciliación. Cambiá el modo desde Configuración para verlas.",
     "searchPlaceholder": "Buscar por ID, remitente, monto...",
     "filters": "Filtros",
     "allStatuses": "Todos los estados",
@@ -89,6 +91,7 @@
     "subtitle": "Auditá los movimientos de cuentas con notificación directa y reenviá el webhook si es necesario.",
     "loading": "Cargando...",
     "emptyNoAccounts": "No tenés cuentas con notificación directa. Configurá una cuenta con notificación directa para ver sus movimientos acá.",
+    "emptyWrongMode": "Tu cuenta opera en modo Conciliación. Los movimientos bancarios solo están disponibles en modo Notificación directa. Cambiá el modo desde Configuración para verlos.",
     "emptyTable": "No hay movimientos registrados para esta cuenta.",
     "colExternalId": "ID externo",
     "colAmount": "Monto",
@@ -140,15 +143,53 @@
     "hasAccount": "¿Ya tenés cuenta?",
     "login": "Ingresar"
   },
+  "modeSelect": {
+    "title": "¿Cómo querés que opere ReconBanker?",
+    "subtitle": "Elegí el modo de operación. Vas a poder cambiarlo más adelante desde Configuración.",
+    "confirm": "Continuar",
+    "reconcile": {
+      "title": "Conciliación",
+      "desc": "El sistema pollea órdenes pendientes desde tu endpoint, las matchea contra los movimientos bancarios y dispara el webhook al conciliar.",
+      "recommended": "Recomendado"
+    },
+    "passthrough": {
+      "title": "Notificación directa",
+      "desc": "El sistema no consulta órdenes pendientes. Por cada movimiento bancario detectado se envía un webhook directo con los datos del movimiento."
+    }
+  },
+  "settings": {
+    "title": "Configuración",
+    "subtitle": "Gestioná tu perfil y el modo de operación",
+    "loading": "Cargando...",
+    "tabs": {
+      "general": "General",
+      "operation": "Operación"
+    },
+    "profile": {
+      "title": "Perfil",
+      "name": "Nombre",
+      "email": "Email"
+    },
+    "mode": {
+      "title": "Modo de operación",
+      "notSet": "Sin definir",
+      "current": "Actual",
+      "change": "Cambiar modo",
+      "cancel": "Cancelar",
+      "save": "Guardar",
+      "saving": "Guardando...",
+      "saved": "Modo de operación actualizado",
+      "saveError": "No se pudo actualizar el modo de operación",
+      "confirmTitle": "Confirmá el cambio de modo",
+      "confirmBody": "Al cambiar de modo se eliminarán de forma permanente todos los movimientos y conciliaciones registrados hasta ahora. Por motivos de seguridad y cumplimiento, los datos procesados bajo un modo no pueden conservarse al pasar al otro. Esta acción es irreversible.",
+      "confirmCancel": "Cancelar",
+      "confirmConfirm": "Sí, cambiar y borrar datos"
+    }
+  },
   "accountConfig": {
     "title": "Configuración de cuenta",
     "back": "Volver",
     "loading": "Cargando...",
-    "mode": "Modo de operación",
-    "modeReconcile": "Conciliación",
-    "modeReconcileDesc": "El sistema pollea órdenes pendientes desde tu endpoint, las matchea contra los movimientos bancarios y dispara el webhook al conciliar.",
-    "modePassthrough": "Notificación directa",
-    "modePassthroughDesc": "El sistema no consulta órdenes pendientes. Por cada movimiento bancario detectado se envía un webhook directo con los datos del movimiento.",
     "webhookPayloadPassthroughDesc": "Por cada movimiento bancario detectado se enviará un POST a esta URL con el siguiente payload:",
     "bankCredentials": "Credenciales bancarias",
     "username": "Usuario",

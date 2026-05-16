@@ -7,15 +7,30 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { LayoutDashboard, Building2, Building, GitMerge, ArrowDownUp, Code2, LogOut } from 'lucide-react'
+import { LayoutDashboard, Building2, Building, GitMerge, ArrowDownUp, Code2, LogOut, Settings } from 'lucide-react'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { LanguageSelector } from '@/components/LanguageSelector'
+import { ModeSelectDialog } from '@/components/ModeSelectDialog'
+import { Settings as SettingsDialog } from '@/pages/Settings'
+import { useUser, useSetOperationMode, type OperationMode } from '@/lib/useUser'
 
 export function AppLayout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const { t } = useTranslation()
+  const { data: me } = useUser()
+  const setMode = useSetOperationMode()
+  const modalOpen = !!me && me.operation_mode == null
+  const [settingsOpen, setSettingsOpen] = useState(false)
+
+  function handleModeConfirm(mode: OperationMode) {
+    setMode.mutate(mode, {
+      onSuccess: () => {
+        navigate(mode === 'passthrough' ? '/movements' : '/conciliations')
+      },
+    })
+  }
   const containerRef = useRef<HTMLDivElement>(null)
   const [displayedText, setDisplayedText] = useState('')
   const [bubbleWidth, setBubbleWidth] = useState('1.5rem')
@@ -28,10 +43,14 @@ export function AppLayout() {
     { to: '/', label: t('nav.dashboard'), icon: LayoutDashboard },
     { to: '/banks', label: t('nav.banks'), icon: Building },
     { to: '/accounts', label: t('nav.accounts'), icon: Building2 },
-    { to: '/conciliations', label: t('nav.conciliations'), icon: GitMerge },
-    { to: '/movements', label: t('nav.movements'), icon: ArrowDownUp },
+    me?.operation_mode !== 'passthrough' && {
+      to: '/conciliations', label: t('nav.conciliations'), icon: GitMerge,
+    },
+    me?.operation_mode !== 'reconcile' && {
+      to: '/movements', label: t('nav.movements'), icon: ArrowDownUp,
+    },
     { to: '/scripts', label: t('nav.scripts'), icon: Code2 },
-  ]
+  ].filter(Boolean) as { to: string; label: string; icon: typeof LayoutDashboard }[]
 
   const typePhrase = useCallback(() => {
     const phrases = t('mascot.phrases', { returnObjects: true }) as string[]
@@ -286,6 +305,10 @@ export function AppLayout() {
               </div>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
+                <Settings className="size-4 mr-2" />
+                {t('nav.settings')}
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={handleLogout} className="text-destructive">
                 <LogOut className="size-4 mr-2" />
                 {t('nav.logout')}
@@ -299,6 +322,14 @@ export function AppLayout() {
       <main className="relative z-10 flex-1 overflow-auto" style={{ color: 'oklch(0.9 0 0)' }}>
         <Outlet />
       </main>
+
+      <ModeSelectDialog
+        open={modalOpen}
+        onConfirm={handleModeConfirm}
+        isPending={setMode.isPending}
+      />
+
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>
   )
 }
