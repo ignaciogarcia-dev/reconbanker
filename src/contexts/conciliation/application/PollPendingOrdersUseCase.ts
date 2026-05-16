@@ -2,6 +2,8 @@ import { db } from '../../../shared/infrastructure/db/client.js'
 import { Queues } from '../../../shared/infrastructure/queues/QueueRegistry.js'
 import { ConciliationRequestRepository } from '../infrastructure/ConciliationRequestRepository.js'
 import { AccountConfigRepository } from '../../account/infrastructure/AccountConfigRepository.js'
+import { AccountRepository } from '../../account/infrastructure/AccountRepository.js'
+import { UserRepository } from '../../user/infrastructure/UserRepository.js'
 import { logger } from '../../../shared/infrastructure/logger/index.js'
 import crypto from 'crypto'
 
@@ -12,12 +14,18 @@ interface JobData { accountId: string }
 export class PollPendingOrdersUseCase {
   private readonly requestRepo = new ConciliationRequestRepository()
   private readonly configRepo = new AccountConfigRepository()
+  private readonly accountRepo = new AccountRepository()
+  private readonly userRepo = new UserRepository()
 
   async execute({ accountId }: JobData): Promise<void> {
     const config = await this.configRepo.findByAccountId(accountId)
     if (!config) throw new Error(`No config for account ${accountId}`)
 
-    if (config.mode === 'passthrough') return
+    const account = await this.accountRepo.findById(accountId)
+    if (!account) throw new Error(`No account ${accountId}`)
+    const mode = await this.userRepo.getOperationMode(account.userId)
+
+    if (mode !== 'reconcile') return
     if (!config.pendingOrdersEndpoint) return
 
     // Build auth header
