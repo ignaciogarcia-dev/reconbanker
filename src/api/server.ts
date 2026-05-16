@@ -8,6 +8,7 @@ import { accountsRouter } from "./routes/accounts.routes.js";
 import { banksRouter } from "./routes/banks.routes.js";
 import { conciliationRouter } from "./routes/conciliation.routes.js";
 import { scriptsRouter } from "./routes/scripts.routes.js";
+import { userRouter } from "./routes/user.routes.js";
 import { errorMiddleware } from "./middlewares/error.middleware.js";
 import { authMiddleware } from "./middlewares/auth.middleware.js";
 
@@ -37,6 +38,7 @@ export function createServer() {
 
   // Protected API
   app.use(authMiddleware);
+  app.use("/me", userRouter);
   app.use("/accounts", accountsRouter);
   app.use("/banks", banksRouter);
   app.use("/conciliation", conciliationRouter);

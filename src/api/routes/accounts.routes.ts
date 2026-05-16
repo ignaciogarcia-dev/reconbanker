@@ -1,17 +1,20 @@
-import { Router } from 'express'
+import { Router, Response } from 'express'
 import { db } from '../../shared/infrastructure/db/client.js'
 import { AccountRepository } from '../../contexts/account/infrastructure/AccountRepository.js'
 import { AccountConfigRepository } from '../../contexts/account/infrastructure/AccountConfigRepository.js'
 import { BankTransactionRepository } from '../../contexts/banking/infrastructure/BankTransactionRepository.js'
+import { UserRepository } from '../../contexts/user/infrastructure/UserRepository.js'
 import { CreateAccountUseCase } from '../../contexts/account/application/CreateAccountUseCase.js'
 import { DeleteAccountUseCase } from '../../contexts/account/application/DeleteAccountUseCase.js'
-import { AccountConfig, AccountMode, AuthType, PollingMethod } from '../../contexts/account/domain/AccountConfig.js'
+import { AccountConfig, AuthType, PollingMethod } from '../../contexts/account/domain/AccountConfig.js'
 import { enqueueBankScrape } from '../../shared/infrastructure/queues/BankScrapeQueue.js'
+import { AuthRequest } from '../middlewares/auth.middleware.js'
 
 export const accountsRouter = Router()
 const repo = new AccountRepository()
 const configRepo = new AccountConfigRepository()
 const bankTxRepo = new BankTransactionRepository()
+const userRepo = new UserRepository()
 
 const RESERVED_WEBHOOK_KEYS = ['external_id', 'status', 'amount', 'currency', 'name', 'id', 'received_at']
 
@@ -19,7 +22,6 @@ function toJson(config: AccountConfig, bankUsername: string | null) {
   return {
     id: config.id,
     account_id: config.accountId,
-    mode: config.mode,
     pending_orders_endpoint: config.pendingOrdersEndpoint,
     webhook_url: config.webhookUrl,
     retry_limit: config.retryLimit,
@@ -44,36 +46,56 @@ async function getBankUsername(accountId: string): Promise<string | null> {
   return rows[0]?.username ?? null
 }
 
-accountsRouter.get('/', async (_req, res) => {
+/** Resolves the account if it belongs to the authenticated user; otherwise writes the error response. */
+async function requireOwnedAccount(req: AuthRequest, res: Response): Promise<{ accountId: string } | null> {
+  const userId = req.userId
+  if (!userId) {
+    res.status(401).json({ error: 'Unauthorized' })
+    return null
+  }
+  const account = await repo.findByIdForUser(String(req.params.accountId), userId)
+  if (!account) {
+    res.status(404).json({ error: 'Account not found' })
+    return null
+  }
+  return { accountId: account.id }
+}
+
+accountsRouter.get('/', async (req: AuthRequest, res) => {
+  const userId = req.userId
+  if (!userId) { res.status(401).json({ error: 'Unauthorized' }); return }
   const { rows } = await db.query(
-    `SELECT a.id, b.code AS bank, a.name, a.status, ac.mode
+    `SELECT a.id, b.code AS bank, a.name, a.status
        FROM accounts a
        JOIN banks b ON b.id = a.bank_id
-       LEFT JOIN account_config ac ON ac.account_id = a.id
-      WHERE a.status = 'active'`
+      WHERE a.status = 'active' AND a.user_id = $1`,
+    [userId]
   )
   res.json(rows.map(r => ({
     id: r.id,
     bank: r.bank,
     name: r.name,
     status: r.status,
-    mode: r.mode ?? 'reconcile',
   })))
 })
 
-accountsRouter.post('/', async (req, res) => {
+accountsRouter.post('/', async (req: AuthRequest, res) => {
+  const userId = req.userId
+  if (!userId) { res.status(401).json({ error: 'Unauthorized' }); return }
   const { bankId, name } = req.body
   if (!bankId || !name) {
     res.status(400).json({ error: 'bankId and name are required' })
     return
   }
   const useCase = new CreateAccountUseCase(repo)
-  const result = await useCase.execute({ bankId, name })
+  const result = await useCase.execute({ userId, bankId, name })
   res.status(201).json(result)
 })
 
-accountsRouter.get('/:accountId', async (req, res) => {
-  const account = await repo.findById(req.params.accountId)
+accountsRouter.get('/:accountId', async (req: AuthRequest, res) => {
+  const userId = req.userId
+  if (!userId) { res.status(401).json({ error: 'Unauthorized' }); return }
+  const account = await repo.findByIdForUser(String(req.params.accountId), userId)
   if (!account) {
     res.status(404).json({ error: 'Account not found' })
     return
@@ -81,7 +103,9 @@ accountsRouter.get('/:accountId', async (req, res) => {
   res.json({ id: account.id, bank: account.bank, name: account.name, status: account.status })
 })
 
-accountsRouter.delete('/:accountId', async (req, res) => {
+accountsRouter.delete('/:accountId', async (req: AuthRequest, res) => {
+  const owned = await requireOwnedAccount(req, res)
+  if (!owned) return
   const { confirmation_name } = req.body ?? {}
   if (typeof confirmation_name !== 'string' || !confirmation_name.trim()) {
     res.status(400).json({ error: 'confirmation_name is required' })
@@ -89,30 +113,36 @@ accountsRouter.delete('/:accountId', async (req, res) => {
   }
   const useCase = new DeleteAccountUseCase(repo)
   try {
-    await useCase.execute({ id: req.params.accountId, confirmationName: confirmation_name })
+    await useCase.execute({ id: owned.accountId, confirmationName: confirmation_name })
     res.status(204).end()
   } catch (e: any) {
     res.status(e.status ?? 500).json({ error: e.message })
   }
 })
 
-accountsRouter.get('/:accountId/config', async (req, res) => {
-  const config = await configRepo.findByAccountId(req.params.accountId)
+accountsRouter.get('/:accountId/config', async (req: AuthRequest, res) => {
+  const owned = await requireOwnedAccount(req, res)
+  if (!owned) return
+  const config = await configRepo.findByAccountId(owned.accountId)
   if (!config) {
     res.json(null)
     return
   }
-  const bankUsername = await getBankUsername(req.params.accountId)
+  const bankUsername = await getBankUsername(owned.accountId)
   res.json(toJson(config, bankUsername))
 })
 
-accountsRouter.post('/:accountId/scrape', async (req, res) => {
-  const result = await enqueueBankScrape(req.params.accountId)
+accountsRouter.post('/:accountId/scrape', async (req: AuthRequest, res) => {
+  const owned = await requireOwnedAccount(req, res)
+  if (!owned) return
+  const result = await enqueueBankScrape(owned.accountId)
   res.status(202).json(result)
 })
 
-accountsRouter.put('/:accountId/config', async (req, res) => {
-  const { accountId } = req.params
+accountsRouter.put('/:accountId/config', async (req: AuthRequest, res) => {
+  const owned = await requireOwnedAccount(req, res)
+  if (!owned) return
+  const { accountId } = owned
   const {
     pending_orders_endpoint,
     webhook_url,
@@ -127,11 +157,10 @@ accountsRouter.put('/:accountId/config', async (req, res) => {
     bank_password,
     notify_on_expired,
     webhook_extra_fields,
-    mode,
     silent_ingestion,
   } = req.body
 
-  const normalizedMode: AccountMode = mode === 'passthrough' ? 'passthrough' : 'reconcile'
+  const mode = await userRepo.getOperationMode(req.userId!)
   const normalizedPendingEndpoint =
     typeof pending_orders_endpoint === 'string' && pending_orders_endpoint.trim()
       ? pending_orders_endpoint.trim()
@@ -141,8 +170,8 @@ accountsRouter.put('/:accountId/config', async (req, res) => {
     res.status(400).json({ error: 'webhook_url is required' })
     return
   }
-  if (normalizedMode === 'reconcile' && !normalizedPendingEndpoint) {
-    res.status(400).json({ error: 'pending_orders_endpoint is required when mode is reconcile' })
+  if (mode === 'reconcile' && !normalizedPendingEndpoint) {
+    res.status(400).json({ error: 'pending_orders_endpoint is required when operation mode is reconcile' })
     return
   }
 
@@ -196,11 +225,8 @@ accountsRouter.put('/:accountId/config', async (req, res) => {
   const normalizedWebhookAuthToken =
     typeof webhook_auth_token === 'string' && webhook_auth_token.trim() ? webhook_auth_token.trim() : null
 
-  const previous = await configRepo.findByAccountId(accountId)
-
   const config = await configRepo.upsert({
     accountId,
-    mode: normalizedMode,
     pendingOrdersEndpoint: normalizedPendingEndpoint,
     webhookUrl: webhook_url,
     retryLimit: retry_limit ?? 3,
@@ -214,12 +240,6 @@ accountsRouter.put('/:accountId/config', async (req, res) => {
     webhookExtraFields: normalizedWebhookExtraFields,
     silentIngestion: silent_ingestion ?? false,
   })
-
-  const switchingToPassthrough =
-    normalizedMode === 'passthrough' && (!previous || previous.mode !== 'passthrough')
-  if (switchingToPassthrough) {
-    await bankTxRepo.markAllNotified(accountId)
-  }
 
   if (bank_username && bank_password) {
     await db.query(
@@ -237,7 +257,9 @@ accountsRouter.put('/:accountId/config', async (req, res) => {
   res.json(toJson(config, await getBankUsername(accountId)))
 })
 
-accountsRouter.get('/:accountId/movements', async (req, res) => {
+accountsRouter.get('/:accountId/movements', async (req: AuthRequest, res) => {
+  const owned = await requireOwnedAccount(req, res)
+  if (!owned) return
   const limit = Math.min(Number(req.query.limit ?? 100), 500)
   const offset = Number(req.query.offset ?? 0)
   const { rows } = await db.query(
@@ -246,16 +268,18 @@ accountsRouter.get('/:accountId/movements', async (req, res) => {
       WHERE account_id = $1
       ORDER BY received_at DESC
       LIMIT $2 OFFSET $3`,
-    [req.params.accountId, limit, offset]
+    [owned.accountId, limit, offset]
   )
   res.json(rows)
 })
 
-accountsRouter.post('/:accountId/movements/:movementId/notify', async (req, res) => {
-  const { accountId, movementId } = req.params
+accountsRouter.post('/:accountId/movements/:movementId/notify', async (req: AuthRequest, res) => {
+  const owned = await requireOwnedAccount(req, res)
+  if (!owned) return
+  const movementId = String(req.params.movementId)
   const { rows } = await db.query(
     `SELECT 1 FROM bank_transactions WHERE id = $1 AND account_id = $2`,
-    [movementId, accountId]
+    [movementId, owned.accountId]
   )
   if (rows.length === 0) {
     res.status(404).json({ error: 'Movement not found for this account' })
