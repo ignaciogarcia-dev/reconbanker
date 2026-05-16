@@ -11,6 +11,7 @@ import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ArrowLeft, Save, Info, Trash2, AlertTriangle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useUser } from '@/lib/useUser'
 
 interface AccountSummary {
   id: string
@@ -29,7 +30,6 @@ interface AccountConfig {
   bank_username: string
   bank_password: string
   webhook_extra_fields: string
-  mode: 'reconcile' | 'passthrough'
   silent_ingestion: boolean
 }
 
@@ -40,6 +40,8 @@ export function AccountConfig() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { t } = useTranslation()
+  const { data: me } = useUser()
+  const mode = me?.operation_mode
   const [form, setForm] = useState<AccountConfig>({
     pending_orders_endpoint: '',
     webhook_url: '',
@@ -50,7 +52,6 @@ export function AccountConfig() {
     bank_username: '',
     bank_password: '',
     webhook_extra_fields: '',
-    mode: 'reconcile',
     silent_ingestion: false,
   })
   const [saved, setSaved] = useState(false)
@@ -161,29 +162,6 @@ export function AccountConfig() {
         </div>
       </div>
 
-      {/* Mode */}
-      <Card>
-        <CardHeader><CardTitle>{t('accountConfig.mode')}</CardTitle></CardHeader>
-        <CardContent>
-          <div className="flex items-start gap-4">
-            <Switch
-              checked={form.mode === 'reconcile'}
-              onCheckedChange={(checked: boolean) =>
-                setForm(f => ({ ...f, mode: checked ? 'reconcile' : 'passthrough' }))
-              }
-            />
-            <div className="flex-1">
-              <p className="font-medium text-sm">
-                {form.mode === 'reconcile' ? t('accountConfig.modeReconcile') : t('accountConfig.modePassthrough')}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {form.mode === 'reconcile' ? t('accountConfig.modeReconcileDesc') : t('accountConfig.modePassthroughDesc')}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Bank credentials */}
       <Card>
         <CardHeader><CardTitle>{t('accountConfig.bankCredentials')}</CardTitle></CardHeader>
@@ -226,7 +204,7 @@ export function AccountConfig() {
       </Card>
 
       {/* Order ingestion (reconcile mode only) */}
-      {form.mode === 'reconcile' && (
+      {mode === 'reconcile' && (
       <Card>
         <CardHeader><CardTitle>{t('accountConfig.orderIngestion')}</CardTitle></CardHeader>
         <CardContent className="space-y-4">
@@ -287,12 +265,12 @@ export function AccountConfig() {
             <div>
               <p className="font-medium mb-1">{t('accountConfig.webhookPayload')}</p>
               <p className="text-xs text-muted-foreground mb-2">
-                {form.mode === 'reconcile'
+                {mode === 'reconcile'
                   ? t('accountConfig.webhookPayloadDesc')
                   : t('accountConfig.webhookPayloadPassthroughDesc')}
               </p>
               <pre className="text-xs bg-background rounded p-2 font-mono whitespace-pre-wrap">
-                {form.mode === 'reconcile'
+                {mode === 'reconcile'
                   ? `{
   "external_id": "order-123",
   "amount": 1500.00,

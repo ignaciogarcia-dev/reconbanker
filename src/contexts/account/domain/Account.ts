@@ -4,6 +4,7 @@ import { AccountCreatedEvent } from '../../../shared/events/events/AccountCreate
 export type AccountStatus = 'active' | 'inactive'
 
 interface AccountProps {
+  userId: string
   bankId: string
   bank: string    // bank code, resolved from JOIN with banks table
   name?: string
@@ -19,8 +20,8 @@ export class Account extends AggregateRoot<string> {
     this.props = props
   }
 
-  static create(id: string, bankId: string, bankCode: string, name?: string): Account {
-    const account = new Account(id, { bankId, bank: bankCode, name, status: 'active', createdAt: new Date() })
+  static create(id: string, userId: string, bankId: string, bankCode: string, name?: string): Account {
+    const account = new Account(id, { userId, bankId, bank: bankCode, name, status: 'active', createdAt: new Date() })
     account.addDomainEvent(new AccountCreatedEvent(id, bankCode, name))
     return account
   }
@@ -29,6 +30,7 @@ export class Account extends AggregateRoot<string> {
     return new Account(id, props)
   }
 
+  get userId()  { return this.props.userId }
   get bankId()  { return this.props.bankId }
   get bank()    { return this.props.bank }
   get name()    { return this.props.name }

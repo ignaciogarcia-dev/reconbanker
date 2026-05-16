@@ -5,6 +5,7 @@ import { BankRepository } from '../infrastructure/BankRepository.js'
 import crypto from 'crypto'
 
 interface Input {
+  userId: string
   bankId: string
   name: string
 }
@@ -20,7 +21,7 @@ export class CreateAccountUseCase {
     if (!bank) throw Object.assign(new Error('Bank not found'), { status: 404 })
 
     const id = crypto.randomUUID()
-    const account = Account.create(id, bank.id, bank.code, input.name)
+    const account = Account.create(id, input.userId, bank.id, bank.code, input.name)
     await this.accountRepo.save(account)
     return { id }
   }
