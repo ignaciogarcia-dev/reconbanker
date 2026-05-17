@@ -7,7 +7,7 @@ import { BankRepository } from '../contexts/account/infrastructure/BankRepositor
 import { BankCredentialsRepository } from '../contexts/account/infrastructure/BankCredentialsRepository.js'
 import { BankScriptListReaderAdapter } from '../contexts/account/infrastructure/adapters/BankScriptListReaderAdapter.js'
 import { UserOperationModeReaderAdapter } from '../contexts/account/infrastructure/adapters/UserOperationModeReaderAdapter.js'
-import { UserRepository } from '../contexts/user/infrastructure/UserRepository.js'
+import type { UserModule } from './userModule.js'
 import { CreateAccountUseCase } from '../contexts/account/application/CreateAccountUseCase.js'
 import { DeleteAccountUseCase } from '../contexts/account/application/DeleteAccountUseCase.js'
 import { ListAccountsForUserUseCase } from '../contexts/account/application/ListAccountsForUserUseCase.js'
@@ -21,6 +21,7 @@ import { GetBankDetailUseCase } from '../contexts/account/application/GetBankDet
 interface ContainerBase {
   pool: pg.Pool
   logger: ILogger
+  user: UserModule
 }
 
 export interface AccountModule {
@@ -48,7 +49,7 @@ export function buildAccountModule(container: ContainerBase): AccountModule {
   const bankCredentialsRepository = new BankCredentialsRepository(exec)
 
   const scriptReader = new BankScriptListReaderAdapter(container.pool)
-  const userModeReader = new UserOperationModeReaderAdapter(new UserRepository())
+  const userModeReader = new UserOperationModeReaderAdapter(container.user.userRepository)
 
   return {
     accountRepository,

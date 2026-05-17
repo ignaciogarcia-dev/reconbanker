@@ -7,3 +7,6 @@ if (!process.env.DATABASE_URL) {
 if (!process.env.JWT_SECRET) {
   process.env.JWT_SECRET = 'test-secret'
 }
+if (!process.env.REDIS_URL) {
+  process.env.REDIS_URL = 'redis://localhost:6379'
+}

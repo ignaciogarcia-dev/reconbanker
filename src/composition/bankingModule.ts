@@ -9,8 +9,8 @@ import { ScriptEngineAdapter } from '../contexts/banking/infrastructure/ScriptEn
 import { AccountForBankingReaderAdapter } from '../contexts/banking/infrastructure/adapters/AccountForBankingReaderAdapter.js'
 import { NotificationConfigReaderAdapter } from '../contexts/banking/infrastructure/adapters/NotificationConfigReaderAdapter.js'
 import { UserOperationModeReaderAdapter } from '../contexts/banking/infrastructure/adapters/UserOperationModeReaderAdapter.js'
-import { UserRepository } from '../contexts/user/infrastructure/UserRepository.js'
 import type { AccountModule } from './accountModule.js'
+import type { UserModule } from './userModule.js'
 import { RunBankScrapeUseCase } from '../contexts/banking/application/RunBankScrapeUseCase.js'
 import { NotifyBankMovementUseCase } from '../contexts/banking/application/NotifyBankMovementUseCase.js'
 import { ListBankMovementsUseCase } from '../contexts/banking/application/ListBankMovementsUseCase.js'
@@ -22,6 +22,7 @@ interface ContainerBase {
   logger: ILogger
   eventBus: IEventBus
   account: AccountModule
+  user: UserModule
 }
 
 export interface BankingModule {
@@ -41,7 +42,7 @@ export function buildBankingModule(container: ContainerBase): BankingModule {
 
   const accountRepo = container.account.accountRepository
   const configRepo = container.account.accountConfigRepository
-  const userRepo = new UserRepository()
+  const userRepo = container.user.userRepository
 
   const accountReader = new AccountForBankingReaderAdapter(accountRepo)
   const configReader = new NotificationConfigReaderAdapter(configRepo)
