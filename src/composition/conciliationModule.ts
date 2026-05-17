@@ -2,6 +2,7 @@ import type pg from 'pg'
 import type { ILogger } from '../shared/logger/ILogger.js'
 import type { IEventBus } from '../shared/events/IEventBus.js'
 import type { IUnitOfWork } from '../shared/persistence/IUnitOfWork.js'
+import type { BankingModule } from './bankingModule.js'
 
 // Avoid circular import: depend only on the bits of Container we actually use.
 interface ContainerBase {
@@ -9,6 +10,7 @@ interface ContainerBase {
   logger: ILogger
   eventBus: IEventBus
   unitOfWork: IUnitOfWork
+  banking: BankingModule
 }
 import { ConciliationEngine } from '../contexts/conciliation/domain/ConciliationEngine.js'
 import { ConciliationRequestRepository } from '../contexts/conciliation/infrastructure/ConciliationRequestRepository.js'
@@ -22,7 +24,6 @@ import { AccountReaderAdapter } from '../contexts/conciliation/infrastructure/ad
 import { UserOperationModeReaderAdapter } from '../contexts/conciliation/infrastructure/adapters/UserOperationModeReaderAdapter.js'
 import { ConciliationOwnershipCheckerAdapter } from '../contexts/conciliation/infrastructure/adapters/ConciliationOwnershipCheckerAdapter.js'
 import { HttpOrderSource } from '../contexts/conciliation/infrastructure/adapters/HttpOrderSource.js'
-import { BankTransactionRepository } from '../contexts/banking/infrastructure/BankTransactionRepository.js'
 import { AccountRepository } from '../contexts/account/infrastructure/AccountRepository.js'
 import { UserRepository } from '../contexts/user/infrastructure/UserRepository.js'
 import { RunConciliationUseCase } from '../contexts/conciliation/application/RunConciliationUseCase.js'
@@ -55,7 +56,7 @@ export function buildConciliationModule(container: ContainerBase): ConciliationM
   const attemptRepo = new ConciliationAttemptRepository(exec)
   const readModel = new ConciliationReadModel(container.pool)
 
-  const bankTxRepo = new BankTransactionRepository()
+  const bankTxRepo = container.banking.bankTransactionRepository
   const accountRepo = new AccountRepository()
   const userRepo = new UserRepository()
 

@@ -1,7 +1,8 @@
 import type { Express } from 'express'
 import type { Container } from './container.js'
 import { authRouter } from '../api/routes/auth.routes.js'
-import { accountsRouter } from '../api/routes/accounts.routes.js'
+import { accountsRouter, accountRepoSingleton } from '../api/routes/accounts.routes.js'
+import { buildBankMovementsRouter } from '../api/routes/bank-movements.routes.js'
 import { banksRouter } from '../api/routes/banks.routes.js'
 import { buildConciliationRouter } from '../api/routes/conciliation.routes.js'
 import { scriptsRouter } from '../api/routes/scripts.routes.js'
@@ -21,6 +22,10 @@ export function bindRoutes(app: Express, container: Container): void {
   app.use(authMiddleware)
   app.use('/me', userRouter)
   app.use('/accounts', accountsRouter)
+  app.use(
+    '/accounts/:accountId/movements',
+    buildBankMovementsRouter({ banking: container.banking, accountRepo: accountRepoSingleton })
+  )
   app.use('/banks', banksRouter)
   app.use('/conciliation', buildConciliationRouter(container.conciliation))
   app.use('/scripts', scriptsRouter)
