@@ -1,62 +1,34 @@
 import { Router } from 'express'
-import bcrypt from 'bcrypt'
-import jwt from 'jsonwebtoken'
-import { db } from '../../shared/infrastructure/db/client.js'
-import crypto from 'crypto'
+import { z } from 'zod'
+import { controller } from '../http/controller.js'
+import { validateBody } from '../http/validate.js'
+import type { UserModule } from '../../composition/userModule.js'
 
-export const authRouter = Router()
-
-// Register
-authRouter.post('/register', async (req, res) => {
-  const { email, password, name } = req.body
-  if (!email || !password) {
-    res.status(400).json({ error: 'email and password required' })
-    return
-  }
-
-  const hash = await bcrypt.hash(password, 10)
-  const id = crypto.randomUUID()
-
-  try {
-    await db.query(
-      `INSERT INTO users (id, email, password_hash, name) VALUES ($1,$2,$3,$4)`,
-      [id, email, hash, name ?? null]
-    )
-    res.status(201).json({ id, email })
-  } catch {
-    res.status(409).json({ error: 'Email already exists' })
-  }
+const registerSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+  name: z.string().optional(),
 })
 
-// Login
-authRouter.post('/login', async (req, res) => {
-  const { email, password } = req.body
-  if (!email || !password) {
-    res.status(400).json({ error: 'email and password required' })
-    return
-  }
-
-  const { rows: [user] } = await db.query(
-    `SELECT * FROM users WHERE email = $1 AND status = 'active'`,
-    [email]
-  )
-
-  if (!user) {
-    res.status(401).json({ error: 'Invalid credentials' })
-    return
-  }
-
-  const valid = await bcrypt.compare(password, user.password_hash)
-  if (!valid) {
-    res.status(401).json({ error: 'Invalid credentials' })
-    return
-  }
-
-  const token = jwt.sign(
-    { sub: user.id, email: user.email },
-    process.env.JWT_SECRET!,
-    { expiresIn: '7d' }
-  )
-
-  res.json({ token, user: { id: user.id, email: user.email, name: user.name } })
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
 })
+
+export function buildAuthRouter(user: UserModule): Router {
+  const router = Router()
+
+  router.post('/register', controller(async (req, res) => {
+    const { email, password, name } = validateBody(req, registerSchema)
+    const result = await user.registerUser.execute({ email, password, name })
+    res.status(201).json(result)
+  }))
+
+  router.post('/login', controller(async (req, res) => {
+    const { email, password } = validateBody(req, loginSchema)
+    const result = await user.login.execute({ email, password })
+    res.json(result)
+  }))
+
+  return router
+}
