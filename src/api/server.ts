@@ -3,19 +3,14 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 import { existsSync } from "fs";
-import { authRouter } from "./routes/auth.routes.js";
-import { accountsRouter } from "./routes/accounts.routes.js";
-import { banksRouter } from "./routes/banks.routes.js";
-import { conciliationRouter } from "./routes/conciliation.routes.js";
-import { scriptsRouter } from "./routes/scripts.routes.js";
-import { userRouter } from "./routes/user.routes.js";
 import { errorMiddleware } from "./middlewares/error.middleware.js";
-import { authMiddleware } from "./middlewares/auth.middleware.js";
+import { bindRoutes } from "../composition/bindRoutes.js";
+import { buildContainer, type Container } from "../composition/container.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const clientDist = path.resolve(__dirname, "../../client/dist")
 
-export function createServer() {
+export function createServer(container: Container = buildContainer()) {
   const app = express();
 
   app.use(
@@ -27,26 +22,16 @@ export function createServer() {
 
   app.use(express.json());
 
-  // Public
   app.get("/health", (_req, res) => res.json({ ok: true }));
-  app.use("/auth", authRouter);
 
-  // Static files — no auth required
   if (existsSync(clientDist)) {
     app.use(express.static(clientDist));
   }
 
-  // Protected API
-  app.use(authMiddleware);
-  app.use("/me", userRouter);
-  app.use("/accounts", accountsRouter);
-  app.use("/banks", banksRouter);
-  app.use("/conciliation", conciliationRouter);
-  app.use("/scripts", scriptsRouter);
+  bindRoutes(app, container);
 
   app.use(errorMiddleware);
 
-  // SPA fallback — after API routes, no auth (React handles client-side auth)
   if (existsSync(clientDist)) {
     app.get("/{*splat}", (_req, res) => res.sendFile(path.join(clientDist, "index.html")));
   }
