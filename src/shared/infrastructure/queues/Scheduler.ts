@@ -1,21 +1,21 @@
 import { Queues } from './QueueRegistry.js'
 import { enqueueBankScrape } from './BankScrapeQueue.js'
 import { db } from '../db/client.js'
-import { ExpireStaleRequestsUseCase } from '../../../contexts/conciliation/application/ExpireStaleRequestsUseCase.js'
-import { logger } from '../logger/index.js'
-
-const log = logger.child('[scheduler]')
+import type { Container } from '../../../composition/container.js'
 
 export class Scheduler {
   private timers: NodeJS.Timeout[] = []
-  private expireUseCase = new ExpireStaleRequestsUseCase()
+  private readonly log
+
+  constructor(private readonly container: Container) {
+    this.log = container.logger.child('[scheduler]')
+  }
 
   async start(): Promise<void> {
     const pollingInterval = Number(process.env.POLLING_INTERVAL_SECONDS ?? 600) * 1000
     const scrapeInterval  = Number(process.env.SCRAPE_INTERVAL_SECONDS ?? 1200) * 1000
     const expireInterval  = Number(process.env.EXPIRE_STALE_REQUESTS_INTERVAL_SECONDS ?? 3600) * 1000
 
-    // Run once now, then loop.
     await this.enqueuePolling()
     await this.enqueueScraping()
     await this.expireStaleRequests()
@@ -26,13 +26,13 @@ export class Scheduler {
       setInterval(() => this.expireStaleRequests(), expireInterval),
     )
 
-    log.info('started', { pollingIntervalSec: pollingInterval / 1000, scrapeIntervalSec: scrapeInterval / 1000, expireIntervalSec: expireInterval / 1000 })
+    this.log.info('started', { pollingIntervalSec: pollingInterval / 1000, scrapeIntervalSec: scrapeInterval / 1000, expireIntervalSec: expireInterval / 1000 })
   }
 
   stop(): void {
     this.timers.forEach(t => clearInterval(t))
     this.timers = []
-    log.info('stopped')
+    this.log.info('stopped')
   }
 
   private async enqueuePolling(): Promise<void> {
@@ -44,15 +44,11 @@ export class Scheduler {
       await Queues.orderIngestion.add(
         'poll',
         { accountId: account.id },
-        {
-          jobId: `poll:${account.id}:${Date.now()}`,
-          removeOnComplete: true,
-          removeOnFail: 100,
-        }
+        { jobId: `poll:${account.id}:${Date.now()}`, removeOnComplete: true, removeOnFail: 100 }
       )
     }
 
-    log.info(`enqueued polling`, { accountCount: accounts.length })
+    this.log.info(`enqueued polling`, { accountCount: accounts.length })
   }
 
   private async enqueueScraping(): Promise<void> {
@@ -62,22 +58,19 @@ export class Scheduler {
 
     let queued = 0
     let skipped = 0
-
     for (const account of accounts) {
       const result = await enqueueBankScrape(account.id)
-
-      if (result.queued) {
-        queued += 1
-      } else {
+      if (result.queued) queued += 1
+      else {
         skipped += 1
-        log.debug(`skipping scrape — already queued`, { accountId: account.id })
+        this.log.debug(`skipping scrape — already queued`, { accountId: account.id })
       }
     }
 
-    log.info(`enqueued scraping`, { queued, skipped })
+    this.log.info(`enqueued scraping`, { queued, skipped })
   }
 
   private async expireStaleRequests(): Promise<void> {
-    await this.expireUseCase.execute()
+    await this.container.conciliation.expireStaleRequests.execute()
   }
 }
