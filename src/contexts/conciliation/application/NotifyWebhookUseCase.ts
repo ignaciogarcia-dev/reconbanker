@@ -1,59 +1,68 @@
-import { db } from '../../../shared/infrastructure/db/client.js'
+import { IAccountConfigReader } from '../domain/ports/IAccountConfigReader.js'
+import { IConciliationRequestRepository } from '../domain/IConciliationRequestRepository.js'
+import { IConciliatedTransactionRepository } from '../domain/IConciliatedTransactionRepository.js'
 import { sendWebhook } from '../../../shared/infrastructure/webhooks/WebhookSender.js'
 
 interface JobData { requestId: string }
 
-export class NotifyWebhookUseCase {
-  async execute({ requestId }: JobData): Promise<void> {
-    const { rows: [req] } = await db.query(
-      `SELECT cr.id, cr.external_id, cr.status, cr.expected_amount, cr.currency, cr.sender_name,
-              ac.webhook_url, ac.webhook_auth_type, ac.webhook_auth_token, ac.auth_type, ac.auth_token,
-              ac.webhook_extra_fields
-       FROM conciliation_requests cr
-       JOIN account_config ac ON ac.account_id = cr.account_id
-       WHERE cr.id = $1`,
-      [requestId]
-    )
-    if (!req?.webhook_url || !['matched', 'ambiguous', 'expired'].includes(req.status)) return
+const NOTIFIABLE_STATUSES = new Set(['matched', 'ambiguous', 'expired'])
 
-    const match = req.status === 'matched'
-      ? (await db.query(
-          `SELECT id FROM conciliated_transactions WHERE request_id = $1 AND is_primary = true`,
-          [requestId]
-        )).rows[0]
+export interface NotifyWebhookDeps {
+  requestRepo: IConciliationRequestRepository
+  matchRepo: IConciliatedTransactionRepository
+  configReader: IAccountConfigReader
+  sendWebhookFn?: typeof sendWebhook
+}
+
+export class NotifyWebhookUseCase {
+  constructor(private readonly deps: NotifyWebhookDeps) {}
+
+  async execute({ requestId }: JobData): Promise<void> {
+    const { requestRepo, matchRepo, configReader } = this.deps
+    const send = this.deps.sendWebhookFn ?? sendWebhook
+
+    const request = await requestRepo.findById(requestId)
+    if (!request) return
+    if (!NOTIFIABLE_STATUSES.has(request.status)) return
+
+    const config = await configReader.findWebhookConfigForRequest(requestId)
+    if (!config?.webhookUrl) return
+
+    const match = request.status === 'matched'
+      ? await matchRepo.findPrimaryByRequest(requestId)
       : null
 
-    const webhookToken = typeof req.webhook_auth_token === 'string' && req.webhook_auth_token.trim()
-      ? req.webhook_auth_token.trim()
-      : typeof req.auth_token === 'string' && req.auth_token.trim()
-        ? req.auth_token.trim()
-        : null
-    const webhookAuthType = (req.webhook_auth_type ?? req.auth_type ?? 'bearer') as 'bearer' | 'api_key'
+    const webhookToken = pickToken(config.webhookAuthToken, config.authToken)
+    const webhookAuthType = (config.webhookAuthType ?? config.authType ?? 'bearer') as 'bearer' | 'api_key'
 
     const payload: Record<string, unknown> = {
-      external_id: req.external_id,
-      status:      req.status,
-      amount:      Number(req.expected_amount),
-      currency:    req.currency,
-      name:        req.sender_name ?? null,
+      external_id: request.externalId,
+      status: request.status,
+      amount: request.expectedAmount,
+      currency: request.currency,
+      name: request.senderName ?? null,
     }
 
-    const extraFields = req.webhook_extra_fields
-    if (extraFields && typeof extraFields === 'object' && !Array.isArray(extraFields)) {
-      for (const [k, v] of Object.entries(extraFields)) {
+    const extras = config.webhookExtraFields
+    if (extras && typeof extras === 'object' && !Array.isArray(extras)) {
+      for (const [k, v] of Object.entries(extras as Record<string, unknown>)) {
         if (!(k in payload)) payload[k] = v
       }
     }
 
-    await sendWebhook({
-      url: req.webhook_url,
+    await send({
+      url: config.webhookUrl,
       payload,
       authType: webhookAuthType,
       authToken: webhookToken,
     })
 
-    if (match) {
-      await db.query(`UPDATE conciliated_transactions SET is_notified=true WHERE id=$1`, [match.id])
-    }
+    if (match) await matchRepo.markNotified(match.id)
   }
+}
+
+function pickToken(primary: string | null, fallback: string | null): string | null {
+  if (typeof primary === 'string' && primary.trim()) return primary.trim()
+  if (typeof fallback === 'string' && fallback.trim()) return fallback.trim()
+  return null
 }

@@ -1,53 +1,49 @@
-import { withTransaction } from '../../../shared/infrastructure/db/client.js'
-import { EventBus } from '../../../shared/events/EventBus.js'
+import crypto from 'crypto'
+import { IUnitOfWork } from '../../../shared/persistence/IUnitOfWork.js'
+import { IEventBus } from '../../../shared/events/IEventBus.js'
 import { ConciliationEngine } from '../domain/ConciliationEngine.js'
 import { ConciliationRequestRepository } from '../infrastructure/ConciliationRequestRepository.js'
 import { ConciliationAttemptRepository } from '../infrastructure/ConciliationAttemptRepository.js'
 import { ConciliatedTransactionRepository } from '../infrastructure/ConciliatedTransactionRepository.js'
-import { BankTransactionRepository } from '../../banking/infrastructure/BankTransactionRepository.js'
-import { Queues } from '../../../shared/infrastructure/queues/QueueRegistry.js'
-import crypto from 'crypto'
+import { IBankTransactionFinder } from '../domain/ports/IBankTransactionFinder.js'
 
 interface JobData { requestId: string }
 
+export interface RunConciliationDeps {
+  unitOfWork: IUnitOfWork
+  eventBus: IEventBus
+  requestRepo: ConciliationRequestRepository
+  attemptRepo: ConciliationAttemptRepository
+  matchRepo: ConciliatedTransactionRepository
+  bankTransactionFinder: IBankTransactionFinder
+  engine: ConciliationEngine
+}
+
 export class RunConciliationUseCase {
-  private engine = new ConciliationEngine()
+  constructor(private readonly deps: RunConciliationDeps) {}
 
   async execute({ requestId }: JobData): Promise<void> {
-    const TERMINAL_STATUSES = ['matched', 'cancelled', 'expired']
+    const { unitOfWork, eventBus, engine, requestRepo, attemptRepo, matchRepo, bankTransactionFinder } = this.deps
 
-    const outcome = await withTransaction(async (client) => {
-      const txRequestRepo = new ConciliationRequestRepository(client)
-      const txAttemptRepo = new ConciliationAttemptRepository(client)
-      const txMatchRepo = new ConciliatedTransactionRepository(client)
-      const bankTxRepo = new BankTransactionRepository(client)
+    const outcome = await unitOfWork.run(async (tx) => {
+      const txRequestRepo = requestRepo.withTx(tx)
+      const txAttemptRepo = attemptRepo.withTx(tx)
+      const txMatchRepo = matchRepo.withTx(tx)
 
-      // FOR UPDATE SKIP LOCKED: returns null if polling holds the row lock.
-      const request = await txRequestRepo.findById(requestId)
+      const request = await txRequestRepo.findByIdForUpdate(requestId)
       if (!request) return null
-      if (TERMINAL_STATUSES.includes(request.status)) return null
+      if (request.isTerminal()) return null
 
-      const { rows: candidateRows } = await client.query(
-        `SELECT id, amount, currency, sender_name, received_at
-         FROM bank_transactions
-         WHERE account_id = $1 AND excluded_at IS NULL`,
-        [request.accountId]
-      )
+      const candidates = await bankTransactionFinder.findCandidatesForAccount(request.accountId)
 
-      const result = this.engine.evaluate(
+      const result = engine.evaluate(
         {
           expectedAmount: request.expectedAmount,
           currency: request.currency,
           senderName: request.senderName,
           createdAt: request.createdAt,
         },
-        candidateRows.map(c => ({
-          id: c.id,
-          amount: Number(c.amount),
-          currency: c.currency,
-          senderName: c.sender_name,
-          receivedAt: c.received_at,
-        }))
+        candidates
       )
 
       const attemptId = crypto.randomUUID()
@@ -63,7 +59,7 @@ export class RunConciliationUseCase {
           requestId,
           bankTransactionId: result.transactionId!,
         })
-        await bankTxRepo.markExcluded(result.transactionId!)
+        await bankTransactionFinder.markExcluded(result.transactionId!)
         await txAttemptRepo.save({
           id: attemptId,
           accountId: request.accountId,
@@ -74,11 +70,8 @@ export class RunConciliationUseCase {
           selectedTransactionId: result.transactionId,
         })
       } else {
-        if (result.status === 'ambiguous') {
-          request.markAmbiguous()
-        } else {
-          request.markNotFound()
-        }
+        if (result.status === 'ambiguous') request.markAmbiguous()
+        else request.markNotFound()
         await txAttemptRepo.save({
           id: attemptId,
           accountId: request.accountId,
@@ -91,21 +84,12 @@ export class RunConciliationUseCase {
       }
 
       await txRequestRepo.save(request)
-
       return { request, resultStatus: result.status }
     })
 
     if (!outcome) return
 
-    await EventBus.publishAll(outcome.request.domainEvents)
+    await eventBus.publishAll(outcome.request.domainEvents)
     outcome.request.clearDomainEvents()
-
-    if (outcome.resultStatus === 'ambiguous') {
-      await Queues.webhook.add(
-        'notify',
-        { requestId },
-        { jobId: `webhook_ambiguous_${requestId}`, removeOnComplete: true }
-      )
-    }
   }
 }

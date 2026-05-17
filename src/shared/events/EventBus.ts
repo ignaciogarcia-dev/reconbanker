@@ -1,23 +1,10 @@
-import { DomainEvent } from './DomainEvent.js'
+import { InMemoryEventBus } from './InMemoryEventBus.js'
 
-type Handler<T extends DomainEvent> = (event: T) => Promise<void>
+export { InMemoryEventBus } from './InMemoryEventBus.js'
+export type { IEventBus, EventHandler } from './IEventBus.js'
 
-class EventBusImpl {
-  private handlers = new Map<string, Handler<any>[]>()
-
-  subscribe<T extends DomainEvent>(eventType: string, handler: Handler<T>): void {
-    const existing = this.handlers.get(eventType) ?? []
-    this.handlers.set(eventType, [...existing, handler])
-  }
-
-  async publish(event: DomainEvent): Promise<void> {
-    const handlers = this.handlers.get(event.eventType) ?? []
-    await Promise.all(handlers.map(h => h(event)))
-  }
-
-  async publishAll(events: DomainEvent[]): Promise<void> {
-    await Promise.all(events.map(e => this.publish(e)))
-  }
-}
-
-export const EventBus = new EventBusImpl()
+/**
+ * Singleton legacy. Prefer injecting `IEventBus` via the composition root.
+ * Kept to avoid breaking existing imports during the DDD migration.
+ */
+export const EventBus = new InMemoryEventBus()
