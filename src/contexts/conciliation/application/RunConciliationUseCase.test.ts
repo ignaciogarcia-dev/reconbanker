@@ -66,7 +66,7 @@ describe('RunConciliationUseCase', () => {
     await useCase.execute({ requestId: 'req-1' })
 
     expect(requestRepo.store.get('req-1')!.status).toBe('not_found')
-    expect(attemptRepo.attempts[0].status).toBe('not_found')
+    expect(attemptRepo.attempts[0].status).toBe('no_match')
   })
 
   it('is a no-op for terminal requests', async () => {
