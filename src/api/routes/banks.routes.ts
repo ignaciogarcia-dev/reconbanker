@@ -1,58 +1,36 @@
 import { Router } from 'express'
-import { db } from '../../shared/infrastructure/db/client.js'
-import { BankRepository } from '../../contexts/account/infrastructure/BankRepository.js'
-import { Bank } from '../../contexts/account/domain/Bank.js'
-import crypto from 'crypto'
+import { z } from 'zod'
+import { controller } from '../http/controller.js'
+import { validateBody, validateParams } from '../http/validate.js'
+import type { AccountModule } from '../../composition/accountModule.js'
 
-export const banksRouter = Router()
-const repo = new BankRepository()
+const bankIdParams = z.object({ bankId: z.string().uuid() })
 
-// List all banks
-banksRouter.get('/', async (_req, res) => {
-  const banks = await repo.findAll()
-  res.json(banks.map(b => ({
-    id: b.id,
-    code: b.code,
-    name: b.name,
-    loginUrl: b.loginUrl,
-    status: b.status,
-  })))
+const createBankSchema = z.object({
+  code: z.string().min(1),
+  name: z.string().min(1),
+  loginUrl: z.string().optional(),
 })
 
-// Create a bank
-banksRouter.post('/', async (req, res) => {
-  const { code, name, loginUrl } = req.body
-  if (!code || !name) {
-    res.status(400).json({ error: 'code and name are required' })
-    return
-  }
-  const bank = Bank.create(crypto.randomUUID(), code, name, loginUrl)
-  await repo.save(bank)
-  res.status(201).json({ id: bank.id })
-})
+export function buildBanksRouter(account: AccountModule): Router {
+  const router = Router()
 
-// Get a bank with its scripts
-banksRouter.get('/:bankId', async (req, res) => {
-  const bank = await repo.findById(req.params.bankId)
-  if (!bank) {
-    res.status(404).json({ error: 'Bank not found' })
-    return
-  }
+  router.get('/', controller(async (_req, res) => {
+    const banks = await account.listBanks.execute()
+    res.json(banks)
+  }))
 
-  const { rows: scripts } = await db.query(
-    `SELECT id, flow_type, version, status, origin, created_at
-       FROM bank_scripts
-      WHERE bank_id = $1
-      ORDER BY created_at DESC`,
-    [bank.id]
-  )
+  router.post('/', controller(async (req, res) => {
+    const { code, name, loginUrl } = validateBody(req, createBankSchema)
+    const result = await account.createBank.execute({ code, name, loginUrl })
+    res.status(201).json(result)
+  }))
 
-  res.json({
-    id: bank.id,
-    code: bank.code,
-    name: bank.name,
-    loginUrl: bank.loginUrl,
-    status: bank.status,
-    scripts,
-  })
-})
+  router.get('/:bankId', controller(async (req, res) => {
+    const { bankId } = validateParams(req, bankIdParams)
+    const detail = await account.getBankDetail.execute(bankId)
+    res.json(detail)
+  }))
+
+  return router
+}

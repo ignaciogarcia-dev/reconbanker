@@ -1,43 +1,45 @@
-import { EventBus } from '../../../shared/events/EventBus.js'
+import crypto from 'crypto'
+import { IEventBus } from '../../../shared/events/IEventBus.js'
+import { NotFoundError } from '../../../shared/errors/index.js'
 import { ScrapeRunFailedEvent } from '../../../shared/events/events/ScrapeRunFailed.event.js'
-import { IAccountRepository } from '../../account/domain/IAccountRepository.js'
-import { AccountRepository } from '../../account/infrastructure/AccountRepository.js'
 import { BankTransaction } from '../domain/BankTransaction.js'
 import { IBankTransactionRepository } from '../domain/IBankTransactionRepository.js'
 import { IScriptEnginePort } from '../domain/IScriptEnginePort.js'
 import { IScrapeRunRepository } from '../domain/IScrapeRunRepository.js'
-import { BankTransactionRepository } from '../infrastructure/BankTransactionRepository.js'
-import { ScriptEngineAdapter } from '../infrastructure/ScriptEngineAdapter.js'
-import { ScrapeRunRepository } from '../infrastructure/ScrapeRunRepository.js'
-import crypto from 'crypto'
+import { IAccountForBankingReader } from '../domain/ports/IAccountForBankingReader.js'
 
 interface JobData { accountId: string }
 
+export interface RunBankScrapeDeps {
+  accountReader: IAccountForBankingReader
+  txRepo: IBankTransactionRepository
+  scrapeRunRepo: IScrapeRunRepository
+  scriptEngine: IScriptEnginePort
+  eventBus: IEventBus
+}
+
 export class RunBankScrapeUseCase {
-  constructor(
-    private readonly accountRepo: IAccountRepository = new AccountRepository(),
-    private readonly txRepo: IBankTransactionRepository = new BankTransactionRepository(),
-    private readonly scrapeRunRepo: IScrapeRunRepository = new ScrapeRunRepository(),
-    private readonly scriptEngine: IScriptEnginePort = new ScriptEngineAdapter(),
-  ) {}
+  constructor(private readonly deps: RunBankScrapeDeps) {}
 
   async execute({ accountId }: JobData): Promise<void> {
-    const account = await this.accountRepo.findById(accountId)
-    if (!account) throw new Error(`Account ${accountId} not found`)
+    const { accountReader, txRepo, scrapeRunRepo, scriptEngine, eventBus } = this.deps
 
-    const lastExternalId = await this.txRepo.findLatestExternalId(accountId)
+    const account = await accountReader.findById(accountId)
+    if (!account) throw new NotFoundError(`Account ${accountId} not found`)
 
-    const script = await this.scriptEngine.loadActiveScript(account.bank, 'extract_transactions')
-    if (!script) throw new Error(`No active script for ${account.bank}:extract_transactions`)
+    const lastExternalId = await txRepo.findLatestExternalId(accountId)
+
+    const script = await scriptEngine.loadActiveScript(account.bank, 'extract_transactions')
+    if (!script) throw new NotFoundError(`No active script for ${account.bank}:extract_transactions`)
 
     const runId = crypto.randomUUID()
-    await this.scrapeRunRepo.create(runId, accountId, script.id)
+    await scrapeRunRepo.create(runId, accountId, script.id)
 
     try {
-      const transactions = await this.scriptEngine.runScript(script, { accountId, lastExternalId })
+      const transactions = await scriptEngine.runScript(script, { accountId, lastExternalId })
 
       for (const tx of transactions) {
-        const exists = await this.txRepo.findByExternalId(accountId, tx.externalId)
+        const exists = await txRepo.findByExternalId(accountId, tx.externalId)
         if (exists) continue
 
         const bankTx = BankTransaction.create(crypto.randomUUID(), {
@@ -51,16 +53,17 @@ export class RunBankScrapeUseCase {
           scriptId: script.id,
           rawPayload: tx.raw,
         })
-        await this.txRepo.save(bankTx)
-        await EventBus.publishAll(bankTx.domainEvents)
+        await txRepo.save(bankTx)
+        await eventBus.publishAll(bankTx.domainEvents)
         bankTx.clearDomainEvents()
       }
 
-      await this.scrapeRunRepo.markSuccess(runId, transactions.length)
-    } catch (err: any) {
-      await this.scrapeRunRepo.markFailed(runId, err.message)
-      await EventBus.publish(
-        new ScrapeRunFailedEvent(runId, accountId, script.id, 'unknown', err.message)
+      await scrapeRunRepo.markSuccess(runId, transactions.length)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      await scrapeRunRepo.markFailed(runId, message)
+      await eventBus.publish(
+        new ScrapeRunFailedEvent(runId, accountId, script.id, 'unknown', message)
       )
       throw err
     }

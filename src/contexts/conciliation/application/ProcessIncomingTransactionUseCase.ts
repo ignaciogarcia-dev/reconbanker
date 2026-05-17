@@ -1,69 +1,62 @@
 import crypto from 'crypto'
-import { withTransaction } from '../../../shared/infrastructure/db/client.js'
-import { EventBus } from '../../../shared/events/EventBus.js'
-import { ConciliationEngine, CandidateTransaction, RequestData } from '../domain/ConciliationEngine.js'
-import { ConciliationRequest } from '../domain/ConciliationRequest.js'
+import { IUnitOfWork } from '../../../shared/persistence/IUnitOfWork.js'
+import { IEventBus } from '../../../shared/events/IEventBus.js'
+import {
+  ConciliationEngine,
+  CandidateTransaction,
+  RequestData,
+} from '../domain/ConciliationEngine.js'
 import { ConciliationRequestRepository } from '../infrastructure/ConciliationRequestRepository.js'
 import { ConciliationAttemptRepository } from '../infrastructure/ConciliationAttemptRepository.js'
 import { ConciliatedTransactionRepository } from '../infrastructure/ConciliatedTransactionRepository.js'
-import { BankTransactionRepository } from '../../banking/infrastructure/BankTransactionRepository.js'
+import { IBankTransactionFinder } from '../domain/ports/IBankTransactionFinder.js'
 
 interface JobData { transactionId: string }
 
+export interface ProcessIncomingTransactionDeps {
+  unitOfWork: IUnitOfWork
+  eventBus: IEventBus
+  requestRepo: ConciliationRequestRepository
+  attemptRepo: ConciliationAttemptRepository
+  matchRepo: ConciliatedTransactionRepository
+  bankTransactionFinder: IBankTransactionFinder
+  engine: ConciliationEngine
+}
+
 export class ProcessIncomingTransactionUseCase {
-  private engine = new ConciliationEngine()
+  constructor(private readonly deps: ProcessIncomingTransactionDeps) {}
 
   async execute({ transactionId }: JobData): Promise<void> {
-    const matchedRequest = await withTransaction(async (client) => {
-      const txRepo = new BankTransactionRepository(client)
-      const requestRepo = new ConciliationRequestRepository(client)
-      const attemptRepo = new ConciliationAttemptRepository(client)
-      const matchRepo = new ConciliatedTransactionRepository(client)
+    const { unitOfWork, eventBus, engine, requestRepo, attemptRepo, matchRepo, bankTransactionFinder } = this.deps
 
-      const tx = await txRepo.findById(transactionId, { forUpdate: true })
-      if (!tx) return null
-      // Idempotency: a previous match or no-match already excluded this tx.
-      const excluded = await txRepo.isExcluded(transactionId)
-      if (excluded) return null
+    const matchedRequest = await unitOfWork.run(async (tx) => {
+      const txRequestRepo = requestRepo.withTx(tx)
+      const txAttemptRepo = attemptRepo.withTx(tx)
+      const txMatchRepo = matchRepo.withTx(tx)
+
+      const view = await bankTransactionFinder.findById(transactionId, { forUpdate: true })
+      if (!view) return null
+      if (await bankTransactionFinder.isExcluded(transactionId)) return null
 
       const candidate: CandidateTransaction = {
-        id: tx.id,
-        amount: tx.amount,
-        currency: tx.currency,
-        senderName: tx.senderName,
-        receivedAt: tx.receivedAt,
+        id: view.id,
+        amount: view.amount,
+        currency: view.currency,
+        senderName: view.senderName,
+        receivedAt: view.receivedAt,
       }
 
-      const { rows: requestRows } = await client.query(
-        `SELECT * FROM conciliation_requests
-         WHERE account_id = $1
-           AND status IN ('pending', 'not_found')
-         ORDER BY created_at ASC
-         FOR UPDATE SKIP LOCKED`,
-        [tx.accountId]
-      )
+      const requests = await txRequestRepo.findPendingByAccount(view.accountId)
 
-      let winner: ConciliationRequest | null = null
-      for (const row of requestRows) {
-        const req = ConciliationRequest.reconstitute(row.id, {
-          accountId: row.account_id,
-          externalId: row.external_id,
-          expectedAmount: Number(row.expected_amount),
-          currency: row.currency,
-          senderName: row.sender_name ?? undefined,
-          status: row.status,
-          idempotencyKey: row.idempotency_key ?? undefined,
-          retryCount: row.retry_count,
-          lastCheckedAt: row.last_checked_at ?? undefined,
-          createdAt: row.created_at,
-        })
+      let winner = null
+      for (const req of requests) {
         const reqData: RequestData = {
           expectedAmount: req.expectedAmount,
           currency: req.currency,
           senderName: req.senderName,
           createdAt: req.createdAt,
         }
-        const result = this.engine.evaluate(reqData, [candidate])
+        const result = engine.evaluate(reqData, [candidate])
         if (result.status === 'matched') {
           winner = req
           break
@@ -71,21 +64,21 @@ export class ProcessIncomingTransactionUseCase {
       }
 
       if (!winner) {
-        await txRepo.markExcluded(transactionId)
+        await bankTransactionFinder.markExcluded(transactionId)
         return null
       }
 
       winner.markProcessing()
       winner.markMatched(transactionId)
 
-      await matchRepo.save({
+      await txMatchRepo.save({
         id: crypto.randomUUID(),
         accountId: winner.accountId,
         requestId: winner.id,
         bankTransactionId: transactionId,
       })
 
-      await attemptRepo.save({
+      await txAttemptRepo.save({
         id: crypto.randomUUID(),
         accountId: winner.accountId,
         requestId: winner.id,
@@ -95,15 +88,14 @@ export class ProcessIncomingTransactionUseCase {
         selectedTransactionId: transactionId,
       })
 
-      await requestRepo.save(winner)
-      await txRepo.markExcluded(transactionId)
-
+      await txRequestRepo.save(winner)
+      await bankTransactionFinder.markExcluded(transactionId)
       return winner
     })
 
     if (!matchedRequest) return
 
-    await EventBus.publishAll(matchedRequest.domainEvents)
+    await eventBus.publishAll(matchedRequest.domainEvents)
     matchedRequest.clearDomainEvents()
   }
 }

@@ -1,4 +1,5 @@
 import { AggregateRoot } from '../../../shared/domain/AggregateRoot.js'
+import { ValidationError } from '../../../shared/errors/index.js'
 import { AccountCreatedEvent } from '../../../shared/events/events/AccountCreated.event.js'
 
 export type AccountStatus = 'active' | 'inactive'
@@ -21,8 +22,18 @@ export class Account extends AggregateRoot<string> {
   }
 
   static create(id: string, userId: string, bankId: string, bankCode: string, name?: string): Account {
-    const account = new Account(id, { userId, bankId, bank: bankCode, name, status: 'active', createdAt: new Date() })
-    account.addDomainEvent(new AccountCreatedEvent(id, bankCode, name))
+    if (!userId) throw new ValidationError('userId is required')
+    if (!bankId) throw new ValidationError('bankId is required')
+    if (!bankCode) throw new ValidationError('bankCode is required')
+    if (name !== undefined && !name.trim()) {
+      throw new ValidationError('name cannot be blank when provided')
+    }
+    const account = new Account(id, {
+      userId, bankId, bank: bankCode,
+      name: name?.trim(),
+      status: 'active', createdAt: new Date(),
+    })
+    account.addDomainEvent(new AccountCreatedEvent(id, bankCode, account.name))
     return account
   }
 
@@ -35,4 +46,9 @@ export class Account extends AggregateRoot<string> {
   get bank()    { return this.props.bank }
   get name()    { return this.props.name }
   get status()  { return this.props.status }
+  get createdAt() { return this.props.createdAt }
+
+  belongsTo(userId: string): boolean {
+    return this.props.userId === userId
+  }
 }

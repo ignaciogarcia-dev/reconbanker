@@ -1,39 +1,30 @@
-import { db } from '../../../shared/infrastructure/db/client.js'
-import { Queues } from '../../../shared/infrastructure/queues/QueueRegistry.js'
-import { BankTransactionRepository } from '../../banking/infrastructure/BankTransactionRepository.js'
-import { IBankTransactionRepository } from '../../banking/domain/IBankTransactionRepository.js'
+import { IConciliationRequestRepository } from '../domain/IConciliationRequestRepository.js'
+import { IBankTransactionFinder } from '../domain/ports/IBankTransactionFinder.js'
 import { TransactionIngestedEvent } from '../../../shared/events/events/TransactionIngested.event.js'
-import { logger } from '../../../shared/infrastructure/logger/index.js'
+import type { ILogger } from '../../../shared/logger/ILogger.js'
 
-const log = logger.child('[conciliation]')
+export interface OnTransactionIngestedDeps {
+  requestRepo: IConciliationRequestRepository
+  bankTransactionFinder: IBankTransactionFinder
+  enqueueProcess: (transactionId: string) => Promise<void>
+  logger?: ILogger
+}
 
 export class OnTransactionIngestedUseCase {
-  constructor(
-    private readonly txRepo: IBankTransactionRepository = new BankTransactionRepository(),
-  ) {}
+  constructor(private readonly deps: OnTransactionIngestedDeps) {}
 
   async execute(event: TransactionIngestedEvent): Promise<void> {
+    const { requestRepo, bankTransactionFinder, enqueueProcess, logger } = this.deps
     const txId = event.aggregateId
 
-    const { rows } = await db.query(
-      `SELECT 1 FROM conciliation_requests
-       WHERE account_id = $1
-         AND status IN ('pending', 'not_found')
-       LIMIT 1`,
-      [event.accountId]
-    )
-
-    if (rows.length === 0) {
-      await this.txRepo.markExcluded(txId)
-      log.info(`tx excluded — no active requests`, { txId })
+    const hasActive = await requestRepo.hasActiveRequests(event.accountId)
+    if (!hasActive) {
+      await bankTransactionFinder.markExcluded(txId)
+      logger?.info('tx excluded — no active requests', { txId })
       return
     }
 
-    await Queues.txConciliation.add(
-      'process',
-      { transactionId: txId },
-      { jobId: `tx_conciliation_${txId}`, removeOnComplete: true }
-    )
-    log.info(`tx enqueued for tx-conciliation`, { txId })
+    await enqueueProcess(txId)
+    logger?.info('tx enqueued for tx-conciliation', { txId })
   }
 }

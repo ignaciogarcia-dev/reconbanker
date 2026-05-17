@@ -1,12 +1,11 @@
-import { PoolClient } from 'pg'
-import { db } from '../../../shared/infrastructure/db/client.js'
 import { ConciliationAttemptData, IConciliationAttemptRepository } from '../domain/IConciliationAttemptRepository.js'
+import { Executor } from './Executor.js'
 
 export class ConciliationAttemptRepository implements IConciliationAttemptRepository {
-  constructor(private readonly client?: PoolClient) {}
+  constructor(private readonly executor: Executor) {}
 
-  private get executor() {
-    return this.client ?? db
+  withTx(tx: Executor): ConciliationAttemptRepository {
+    return new ConciliationAttemptRepository(tx)
   }
 
   async save(attempt: ConciliationAttemptData): Promise<void> {

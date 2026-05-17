@@ -1,114 +1,64 @@
-import { db } from '../../../shared/infrastructure/db/client.js'
-import { Queues } from '../../../shared/infrastructure/queues/QueueRegistry.js'
-import { ConciliationRequestRepository } from '../infrastructure/ConciliationRequestRepository.js'
-import { AccountConfigRepository } from '../../account/infrastructure/AccountConfigRepository.js'
-import { AccountRepository } from '../../account/infrastructure/AccountRepository.js'
-import { UserRepository } from '../../user/infrastructure/UserRepository.js'
-import { logger } from '../../../shared/infrastructure/logger/index.js'
 import crypto from 'crypto'
-
-const log = logger.child('[conciliation]')
+import { ConciliationRequest } from '../domain/ConciliationRequest.js'
+import { IConciliationRequestRepository } from '../domain/IConciliationRequestRepository.js'
+import { IAccountConfigReader } from '../domain/ports/IAccountConfigReader.js'
+import { IAccountReader } from '../domain/ports/IAccountReader.js'
+import { IUserOperationModeReader } from '../domain/ports/IUserOperationModeReader.js'
+import { IOrderSource } from '../domain/ports/IOrderSource.js'
+import { NotFoundError } from '../../../shared/errors/index.js'
+import type { ILogger } from '../../../shared/logger/ILogger.js'
 
 interface JobData { accountId: string }
 
+export interface PollPendingOrdersDeps {
+  requestRepo: IConciliationRequestRepository
+  configReader: IAccountConfigReader
+  accountReader: IAccountReader
+  userModeReader: IUserOperationModeReader
+  orderSource: IOrderSource
+  enqueueRun: (requestId: string) => Promise<void>
+  logger?: ILogger
+}
+
 export class PollPendingOrdersUseCase {
-  private readonly requestRepo = new ConciliationRequestRepository()
-  private readonly configRepo = new AccountConfigRepository()
-  private readonly accountRepo = new AccountRepository()
-  private readonly userRepo = new UserRepository()
+  constructor(private readonly deps: PollPendingOrdersDeps) {}
 
   async execute({ accountId }: JobData): Promise<void> {
-    const config = await this.configRepo.findByAccountId(accountId)
-    if (!config) throw new Error(`No config for account ${accountId}`)
+    const { requestRepo, configReader, accountReader, userModeReader, orderSource, enqueueRun, logger } = this.deps
 
-    const account = await this.accountRepo.findById(accountId)
-    if (!account) throw new Error(`No account ${accountId}`)
-    const mode = await this.userRepo.getOperationMode(account.userId)
+    const config = await configReader.findPollingConfig(accountId)
+    if (!config) throw new NotFoundError(`No config for account ${accountId}`)
 
+    const account = await accountReader.findById(accountId)
+    if (!account) throw new NotFoundError(`No account ${accountId}`)
+
+    const mode = await userModeReader.getOperationMode(account.userId)
     if (mode !== 'reconcile') return
     if (!config.pendingOrdersEndpoint) return
 
-    // Build auth header
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (config.authToken) {
-      if (config.authType === 'api_key') headers['Authorization'] = `Api-Key ${config.authToken}`
-      else headers['Authorization'] = `Bearer ${config.authToken}`
-    }
+    const orders = await orderSource.fetch(config)
 
-    // Fetch orders
-    const isPost = config.pollingMethod === 'POST'
-    const response = await fetch(config.pendingOrdersEndpoint, {
-      method: config.pollingMethod,
-      headers,
-      body: isPost ? JSON.stringify(config.pollingBody ?? {}) : undefined,
-    })
-
-    const contentType = response.headers.get('content-type') ?? ''
-    if (!response.ok) {
-      const bodySnippet = await response.text().catch(() => '')
-      throw new Error(
-        `Polling failed: ${response.status} ${response.statusText} (content-type: ${contentType})` +
-        (bodySnippet ? ` body: ${bodySnippet.slice(0, 300)}` : '')
-      )
-    }
-
-    if (!contentType.toLowerCase().includes('application/json')) {
-      const bodySnippet = await response.text().catch(() => '')
-      throw new Error(
-        `Polling returned non-JSON response (content-type: ${contentType})` +
-        (bodySnippet ? ` body: ${bodySnippet.slice(0, 300)}` : '')
-      )
-    }
-
-    const raw: any = await response.json()
-    const orders: any = Array.isArray(raw)
-      ? raw
-      : Array.isArray(raw?.data)
-        ? raw.data
-        : null
-    if (!orders) {
-      throw new Error(`Polling response must be a JSON array of orders (got: ${JSON.stringify(raw).slice(0, 200)})`)
-    }
-
+    const existing = await requestRepo.findActiveExternalIds(accountId)
     const seenExternalIds: string[] = []
 
     for (const order of orders) {
-      if (!order.external_id || order.amount == null || !order.currency || !order.name) {
-        log.warn(`skipping order missing required fields`, { order })
-        continue
-      }
+      seenExternalIds.push(order.externalId)
+      if (existing.has(order.externalId)) continue
 
-      const externalId = String(order.external_id)
-      seenExternalIds.push(externalId)
-
-      const exists = await db.query(
-        'SELECT 1 FROM conciliation_requests WHERE account_id = $1 AND external_id = $2',
-        [accountId, externalId]
-      )
-      if (exists.rows.length > 0) continue
-
-      const requestId = crypto.randomUUID()
-      await db.query(
-        `INSERT INTO conciliation_requests
-           (id, account_id, external_id, expected_amount, currency, sender_name, status, retry_count, created_at)
-         VALUES ($1,$2,$3,$4,$5,$6,'pending',0,now())`,
-        [
-          requestId, accountId, externalId,
-          order.amount, order.currency, order.name ?? null,
-        ]
-      )
-
-      // Enqueue immediately — matching transactions may already be in the DB.
-      await Queues.conciliation.add(
-        'run',
-        { requestId },
-        { jobId: `conciliation_${requestId}`, removeOnComplete: true }
-      )
+      const request = ConciliationRequest.create(crypto.randomUUID(), {
+        accountId,
+        externalId: order.externalId,
+        expectedAmount: order.amount,
+        currency: order.currency,
+        senderName: order.senderName,
+      })
+      await requestRepo.save(request)
+      await enqueueRun(request.id)
     }
 
-    const cancelledCount = await this.requestRepo.cancelMissing(accountId, seenExternalIds)
+    const cancelledCount = await requestRepo.cancelMissing(accountId, seenExternalIds)
     if (cancelledCount > 0) {
-      log.info(`cancelled orders missing from source`, { accountId, cancelledCount })
+      logger?.info('cancelled orders missing from source', { accountId, cancelledCount })
     }
   }
 }

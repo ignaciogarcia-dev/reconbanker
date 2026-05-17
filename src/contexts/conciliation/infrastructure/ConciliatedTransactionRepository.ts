@@ -1,12 +1,15 @@
-import { PoolClient } from 'pg'
-import { db } from '../../../shared/infrastructure/db/client.js'
-import { ConciliatedTransactionData, IConciliatedTransactionRepository } from '../domain/IConciliatedTransactionRepository.js'
+import {
+  ConciliatedTransactionData,
+  IConciliatedTransactionRepository,
+  PrimaryMatchRef,
+} from '../domain/IConciliatedTransactionRepository.js'
+import { Executor } from './Executor.js'
 
 export class ConciliatedTransactionRepository implements IConciliatedTransactionRepository {
-  constructor(private readonly client?: PoolClient) {}
+  constructor(private readonly executor: Executor) {}
 
-  private get executor() {
-    return this.client ?? db
+  withTx(tx: Executor): ConciliatedTransactionRepository {
+    return new ConciliatedTransactionRepository(tx)
   }
 
   async save(match: ConciliatedTransactionData): Promise<void> {
@@ -14,12 +17,22 @@ export class ConciliatedTransactionRepository implements IConciliatedTransaction
       `INSERT INTO conciliated_transactions
          (id, account_id, request_id, bank_transaction_id, matched_by, is_primary, matched_at, created_at, is_notified)
        VALUES ($1,$2,$3,$4,'engine',true,now(),now(),false)`,
-      [
-        match.id,
-        match.accountId,
-        match.requestId,
-        match.bankTransactionId,
-      ]
+      [match.id, match.accountId, match.requestId, match.bankTransactionId]
+    )
+  }
+
+  async findPrimaryByRequest(requestId: string): Promise<PrimaryMatchRef | null> {
+    const { rows } = await this.executor.query<{ id: string }>(
+      `SELECT id FROM conciliated_transactions WHERE request_id = $1 AND is_primary = true`,
+      [requestId]
+    )
+    return rows[0] ? { id: rows[0].id } : null
+  }
+
+  async markNotified(matchId: string): Promise<void> {
+    await this.executor.query(
+      `UPDATE conciliated_transactions SET is_notified = true WHERE id = $1`,
+      [matchId]
     )
   }
 }

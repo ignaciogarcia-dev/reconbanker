@@ -1,4 +1,5 @@
 import { IAccountRepository } from '../domain/IAccountRepository.js'
+import { NotFoundError, ValidationError } from '../../../shared/errors/index.js'
 
 interface Input {
   id: string
@@ -10,9 +11,9 @@ export class DeleteAccountUseCase {
 
   async execute(input: Input): Promise<void> {
     const account = await this.accountRepo.findById(input.id)
-    if (!account) throw Object.assign(new Error('Account not found'), { status: 404 })
-    if (account.name !== input.confirmationName) {
-      throw Object.assign(new Error('Confirmation name does not match'), { status: 400 })
+    if (!account) throw new NotFoundError('Account not found')
+    if (account.name !== input.confirmationName.trim()) {
+      throw new ValidationError('Confirmation name does not match')
     }
     await this.accountRepo.delete(input.id)
   }

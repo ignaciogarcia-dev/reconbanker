@@ -73,7 +73,10 @@ export function AccountConfig() {
   })
 
   useEffect(() => {
-    if (data) setForm(f => ({
+    if (!data) return
+    // Hydrate the editable form from the loaded config snapshot.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setForm(f => ({
       ...f,
       ...data,
       bank_password: '',
@@ -117,8 +120,9 @@ export function AccountConfig() {
       queryClient.invalidateQueries({ queryKey: ['accounts'] })
       navigate('/accounts')
     },
-    onError: (err: any) => {
-      setDeleteError(err?.response?.data?.error ?? t('accountConfig.danger.genericError'))
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+      setDeleteError(message ?? t('accountConfig.danger.genericError'))
     },
   })
 

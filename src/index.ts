@@ -1,27 +1,22 @@
 import 'dotenv/config'
 import { createServer } from './api/server.js'
-import { orderIngestionWorker } from './shared/infrastructure/queues/workers/order-ingestion.worker.js'
-import { bankScrapeWorker } from './shared/infrastructure/queues/workers/bank-scrape.worker.js'
-import { conciliationWorker, webhookWorker, bankMovementWebhookWorker } from './shared/infrastructure/queues/workers/conciliation.worker.js'
+import { buildContainer } from './composition/container.js'
+import { createBankScrapeWorker } from './shared/infrastructure/queues/workers/bank-scrape.worker.js'
+import { createConciliationWorkers } from './shared/infrastructure/queues/workers/conciliation.worker.js'
+import { createOrderIngestionWorker } from './shared/infrastructure/queues/workers/order-ingestion.worker.js'
 import { Scheduler } from './shared/infrastructure/queues/Scheduler.js'
-import { EventBus } from './shared/events/EventBus.js'
 import { TransactionIngestedEvent } from './shared/events/events/TransactionIngested.event.js'
 import { ConciliationMatchedEvent } from './shared/events/events/ConciliationMatched.event.js'
 import { Queues } from './shared/infrastructure/queues/QueueRegistry.js'
-import { OnTransactionIngestedUseCase } from './contexts/conciliation/application/OnTransactionIngestedUseCase.js'
-import { logger } from './shared/infrastructure/logger/index.js'
 
-const log = logger.child('[app]')
+const container = buildContainer()
+const log = container.logger.child('[app]')
 
-const onTransactionIngested = new OnTransactionIngestedUseCase()
+container.eventBus.subscribe<TransactionIngestedEvent>('TransactionIngested', (event) =>
+  container.conciliation.onTransactionIngested.execute(event)
+)
 
-// Decide whether to exclude or enqueue conciliation.
-EventBus.subscribe<TransactionIngestedEvent>('TransactionIngested', async (event) => {
-  await onTransactionIngested.execute(event)
-})
-
-// Passthrough notification — use case decides if mode applies.
-EventBus.subscribe<TransactionIngestedEvent>('TransactionIngested', async (event) => {
+container.eventBus.subscribe<TransactionIngestedEvent>('TransactionIngested', async (event) => {
   await Queues.bankMovementWebhook.add(
     'notify',
     { bankTransactionId: event.aggregateId },
@@ -29,8 +24,7 @@ EventBus.subscribe<TransactionIngestedEvent>('TransactionIngested', async (event
   )
 })
 
-// Notify webhook on match.
-EventBus.subscribe<ConciliationMatchedEvent>('ConciliationMatched', async (event) => {
+container.eventBus.subscribe<ConciliationMatchedEvent>('ConciliationMatched', async (event) => {
   await Queues.webhook.add(
     'notify',
     { requestId: event.aggregateId },
@@ -39,10 +33,15 @@ EventBus.subscribe<ConciliationMatchedEvent>('ConciliationMatched', async (event
   log.info(`ConciliationMatched — webhook enqueued`, { aggregateId: event.aggregateId })
 })
 
-const PORT = process.env.PORT ?? 3000
+const orderIngestionWorker = createOrderIngestionWorker(container)
+const bankScrapeWorker = createBankScrapeWorker(container)
+const {
+  conciliationWorker, txConciliationWorker, webhookWorker, bankMovementWebhookWorker,
+} = createConciliationWorkers(container)
 
-const app = createServer()
-const scheduler = new Scheduler()
+const PORT = process.env.PORT ?? 3000
+const app = createServer(container)
+const scheduler = new Scheduler(container)
 
 app.listen(PORT, async () => {
   log.info(`server listening`, { port: PORT })
@@ -54,6 +53,7 @@ log.info('workers started', {
     orderIngestionWorker.name,
     bankScrapeWorker.name,
     conciliationWorker.name,
+    txConciliationWorker.name,
     webhookWorker.name,
     bankMovementWebhookWorker.name,
   ].join(', ')
@@ -65,6 +65,7 @@ process.on('SIGTERM', async () => {
     orderIngestionWorker.close(),
     bankScrapeWorker.close(),
     conciliationWorker.close(),
+    txConciliationWorker.close(),
     webhookWorker.close(),
     bankMovementWebhookWorker.close(),
   ])

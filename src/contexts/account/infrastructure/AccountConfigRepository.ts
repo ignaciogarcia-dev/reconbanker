@@ -1,37 +1,25 @@
-import { db } from '../../../shared/infrastructure/db/client.js'
-import { AccountConfig, AccountConfigInput, AuthType, PollingMethod } from '../domain/AccountConfig.js'
+import { AccountConfig, AccountConfigInput } from '../domain/AccountConfig.js'
 import { IAccountConfigRepository } from '../domain/IAccountConfigRepository.js'
-
-function reconstitute(row: any): AccountConfig {
-  return {
-    id: row.id,
-    accountId: row.account_id,
-    pendingOrdersEndpoint: row.pending_orders_endpoint,
-    webhookUrl: row.webhook_url,
-    retryLimit: row.retry_limit,
-    pollingMethod: row.polling_method as PollingMethod,
-    pollingBody: row.polling_body,
-    authType: row.auth_type as AuthType,
-    authToken: row.auth_token,
-    webhookAuthType: row.webhook_auth_type as AuthType | null,
-    webhookAuthToken: row.webhook_auth_token,
-    notifyOnExpired: row.notify_on_expired,
-    webhookExtraFields: row.webhook_extra_fields,
-    silentIngestion: row.silent_ingestion ?? false,
-  }
-}
+import { Executor } from './Executor.js'
+import { AccountConfigRowMapper, AccountConfigRow } from './mappers/AccountConfigRowMapper.js'
 
 export class AccountConfigRepository implements IAccountConfigRepository {
+  constructor(private readonly executor: Executor) {}
+
+  withTx(tx: Executor): AccountConfigRepository {
+    return new AccountConfigRepository(tx)
+  }
+
   async findByAccountId(accountId: string): Promise<AccountConfig | null> {
-    const { rows } = await db.query(
+    const { rows } = await this.executor.query<AccountConfigRow>(
       `SELECT * FROM account_config WHERE account_id = $1`,
       [accountId]
     )
-    return rows[0] ? reconstitute(rows[0]) : null
+    return rows[0] ? AccountConfigRowMapper.toDto(rows[0]) : null
   }
 
   async upsert(input: AccountConfigInput): Promise<AccountConfig> {
-    const { rows } = await db.query(
+    const { rows } = await this.executor.query<AccountConfigRow>(
       `INSERT INTO account_config
          (id, account_id, pending_orders_endpoint, webhook_url,
           retry_limit, polling_method, polling_body, auth_type, auth_token,
@@ -68,6 +56,6 @@ export class AccountConfigRepository implements IAccountConfigRepository {
         input.silentIngestion,
       ]
     )
-    return reconstitute(rows[0])
+    return AccountConfigRowMapper.toDto(rows[0])
   }
 }

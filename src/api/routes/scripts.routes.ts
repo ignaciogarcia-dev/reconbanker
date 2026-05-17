@@ -1,27 +1,30 @@
 import { Router } from 'express'
-import { db } from '../../shared/infrastructure/db/client.js'
-import { PromoteScriptUseCase } from '../../contexts/script-engine/application/PromoteScriptUseCase.js'
+import { z } from 'zod'
+import { controller } from '../http/controller.js'
+import { validateParams } from '../http/validate.js'
+import type { ScriptEngineModule } from '../../composition/scriptEngineModule.js'
 
-export const scriptsRouter = Router()
+const scriptIdParams = z.object({ scriptId: z.string().uuid() })
 
-scriptsRouter.get('/', async (_req, res) => {
-  const { rows } = await db.query(
-    `SELECT * FROM bank_scripts ORDER BY bank, flow_type, created_at DESC`
-  )
-  res.json(rows)
-})
+export function buildScriptsRouter(scriptEngine: ScriptEngineModule): Router {
+  const router = Router()
 
-scriptsRouter.get('/:scriptId', async (req, res) => {
-  const { rows: [script] } = await db.query(
-    `SELECT * FROM bank_scripts WHERE id = $1`,
-    [req.params.scriptId]
-  )
-  if (!script) { res.status(404).json({ error: 'Not found' }); return }
-  res.json(script)
-})
+  router.get('/', controller(async (_req, res) => {
+    const scripts = await scriptEngine.listScripts.execute()
+    res.json(scripts)
+  }))
 
-scriptsRouter.post('/:scriptId/promote', async (req, res) => {
-  const useCase = new PromoteScriptUseCase()
-  await useCase.execute({ scriptId: req.params.scriptId })
-  res.json({ promoted: true })
-})
+  router.get('/:scriptId', controller(async (req, res) => {
+    const { scriptId } = validateParams(req, scriptIdParams)
+    const detail = await scriptEngine.getScriptDetail.execute(scriptId)
+    res.json(detail)
+  }))
+
+  router.post('/:scriptId/promote', controller(async (req, res) => {
+    const { scriptId } = validateParams(req, scriptIdParams)
+    await scriptEngine.promoteScript.execute({ scriptId })
+    res.json({ promoted: true })
+  }))
+
+  return router
+}

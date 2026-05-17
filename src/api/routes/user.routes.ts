@@ -1,32 +1,40 @@
 import { Router } from 'express'
-import { UserRepository } from '../../contexts/user/infrastructure/UserRepository.js'
-import { ChangeOperationModeUseCase } from '../../contexts/user/application/ChangeOperationModeUseCase.js'
-import { OperationMode } from '../../contexts/user/domain/User.js'
+import { z } from 'zod'
 import { AuthRequest } from '../middlewares/auth.middleware.js'
+import { controller } from '../http/controller.js'
+import { validateBody } from '../http/validate.js'
+import { UnauthorizedError } from '../../shared/errors/index.js'
+import type { UserModule } from '../../composition/userModule.js'
 
-export const userRouter = Router()
-const userRepo = new UserRepository()
-
-userRouter.get('/', async (req: AuthRequest, res) => {
-  if (!req.userId) { res.status(401).json({ error: 'Unauthorized' }); return }
-  const user = await userRepo.findById(req.userId)
-  if (!user) { res.status(404).json({ error: 'User not found' }); return }
-  res.json({
-    id: user.id,
-    email: user.email,
-    name: user.name,
-    operation_mode: user.operationMode,
-  })
+const operationModeSchema = z.object({
+  mode: z.enum(['reconcile', 'passthrough']),
 })
 
-userRouter.put('/operation-mode', async (req: AuthRequest, res) => {
-  if (!req.userId) { res.status(401).json({ error: 'Unauthorized' }); return }
-  const { mode } = req.body
-  if (mode !== 'reconcile' && mode !== 'passthrough') {
-    res.status(400).json({ error: "mode must be 'reconcile' or 'passthrough'" })
-    return
-  }
-  const useCase = new ChangeOperationModeUseCase()
-  const result = await useCase.execute({ userId: req.userId, mode: mode as OperationMode })
-  res.json({ operation_mode: result.mode })
-})
+function requireUserId(req: AuthRequest): string {
+  if (!req.userId) throw new UnauthorizedError('Unauthorized')
+  return req.userId
+}
+
+export function buildUserRouter(user: UserModule): Router {
+  const router = Router()
+
+  router.get('/', controller(async (req: AuthRequest, res) => {
+    const userId = requireUserId(req)
+    const me = await user.getCurrentUser.execute(userId)
+    res.json({
+      id: me.id,
+      email: me.email,
+      name: me.name,
+      operation_mode: me.operationMode,
+    })
+  }))
+
+  router.put('/operation-mode', controller(async (req: AuthRequest, res) => {
+    const userId = requireUserId(req)
+    const { mode } = validateBody(req, operationModeSchema)
+    const result = await user.changeOperationMode.execute({ userId, mode })
+    res.json({ operation_mode: result.mode })
+  }))
+
+  return router
+}

@@ -7,6 +7,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { CheckCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+interface ScriptRow {
+  id: string
+  bank: string
+  flow_type: string
+  version: string
+  origin: string
+  status: string
+}
+
 const statusVariant: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
   active:     'default',
   review:     'secondary',
@@ -20,7 +29,7 @@ export function Scripts() {
   const queryClient = useQueryClient()
   const { t } = useTranslation()
 
-  const { data: scripts = [], isLoading } = useQuery({
+  const { data: scripts = [], isLoading } = useQuery<ScriptRow[]>({
     queryKey: ['scripts'],
     queryFn: () => api.get('/scripts').then(r => r.data),
   })
@@ -54,7 +63,7 @@ export function Scripts() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {scripts.map((s: any) => (
+                {scripts.map((s) => (
                   <TableRow key={s.id}>
                     <TableCell className="font-medium">{s.bank}</TableCell>
                     <TableCell className="font-mono text-xs">{s.flow_type}</TableCell>

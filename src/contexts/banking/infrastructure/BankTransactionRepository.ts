@@ -1,51 +1,34 @@
-import { PoolClient } from 'pg'
-import { db } from '../../../shared/infrastructure/db/client.js'
 import { BankTransaction } from '../domain/BankTransaction.js'
 import { IBankTransactionRepository } from '../domain/IBankTransactionRepository.js'
-
-function reconstitute(row: any): BankTransaction {
-  return BankTransaction.reconstitute(row.id, {
-    accountId: row.account_id,
-    externalId: row.external_id,
-    referenceHash: row.reference_hash,
-    amount: Number(row.amount),
-    currency: row.currency,
-    senderName: row.sender_name ?? undefined,
-    receivedAt: row.received_at,
-    scriptId: row.script_id,
-    ingestedAt: row.ingested_at,
-    rawPayload: row.raw_payload,
-  })
-}
+import { Executor } from './Executor.js'
+import { BankTransactionRowMapper, BankTransactionRow } from './mappers/BankTransactionRowMapper.js'
 
 export class BankTransactionRepository implements IBankTransactionRepository {
-  constructor(private readonly client?: PoolClient) {}
+  constructor(private readonly executor: Executor) {}
 
-  private get executor() {
-    return this.client ?? db
+  withTx(tx: Executor): BankTransactionRepository {
+    return new BankTransactionRepository(tx)
   }
 
   async findById(id: string, opts: { forUpdate?: boolean } = {}): Promise<BankTransaction | null> {
     const suffix = opts.forUpdate ? ' FOR UPDATE' : ''
-    const { rows } = await this.executor.query(
+    const { rows } = await this.executor.query<BankTransactionRow>(
       `SELECT * FROM bank_transactions WHERE id = $1${suffix}`,
       [id]
     )
-    if (!rows[0]) return null
-    return reconstitute(rows[0])
+    return rows[0] ? BankTransactionRowMapper.toAggregate(rows[0]) : null
   }
 
   async findByExternalId(accountId: string, externalId: string): Promise<BankTransaction | null> {
-    const { rows } = await this.executor.query(
+    const { rows } = await this.executor.query<BankTransactionRow>(
       'SELECT * FROM bank_transactions WHERE account_id=$1 AND external_id=$2',
       [accountId, externalId]
     )
-    if (!rows[0]) return null
-    return reconstitute(rows[0])
+    return rows[0] ? BankTransactionRowMapper.toAggregate(rows[0]) : null
   }
 
   async findLatestExternalId(accountId: string): Promise<string | null> {
-    const { rows } = await this.executor.query(
+    const { rows } = await this.executor.query<{ external_id: string }>(
       `SELECT external_id FROM bank_transactions WHERE account_id = $1 ORDER BY received_at DESC LIMIT 1`,
       [accountId]
     )
@@ -60,7 +43,7 @@ export class BankTransactionRepository implements IBankTransactionRepository {
   }
 
   async isExcluded(id: string): Promise<boolean> {
-    const { rows } = await this.executor.query(
+    const { rows } = await this.executor.query<{ excluded_at: Date | null }>(
       `SELECT excluded_at FROM bank_transactions WHERE id = $1`,
       [id]
     )
@@ -83,7 +66,7 @@ export class BankTransactionRepository implements IBankTransactionRepository {
   }
 
   async isNotified(id: string): Promise<boolean> {
-    const { rows } = await this.executor.query(
+    const { rows } = await this.executor.query<{ notified_at: Date | null }>(
       `SELECT notified_at FROM bank_transactions WHERE id = $1`,
       [id]
     )
