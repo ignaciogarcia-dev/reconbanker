@@ -2,7 +2,6 @@ import { Router, Response } from 'express'
 import { db } from '../../shared/infrastructure/db/client.js'
 import { AccountRepository } from '../../contexts/account/infrastructure/AccountRepository.js'
 import { AccountConfigRepository } from '../../contexts/account/infrastructure/AccountConfigRepository.js'
-import { BankTransactionRepository } from '../../contexts/banking/infrastructure/BankTransactionRepository.js'
 import { UserRepository } from '../../contexts/user/infrastructure/UserRepository.js'
 import { CreateAccountUseCase } from '../../contexts/account/application/CreateAccountUseCase.js'
 import { DeleteAccountUseCase } from '../../contexts/account/application/DeleteAccountUseCase.js'
@@ -11,9 +10,9 @@ import { enqueueBankScrape } from '../../shared/infrastructure/queues/BankScrape
 import { AuthRequest } from '../middlewares/auth.middleware.js'
 
 export const accountsRouter = Router()
-const repo = new AccountRepository()
+export const accountRepoSingleton = new AccountRepository()
+const repo = accountRepoSingleton
 const configRepo = new AccountConfigRepository()
-const bankTxRepo = new BankTransactionRepository()
 const userRepo = new UserRepository()
 
 const RESERVED_WEBHOOK_KEYS = ['external_id', 'status', 'amount', 'currency', 'name', 'id', 'received_at']
@@ -257,42 +256,4 @@ accountsRouter.put('/:accountId/config', async (req: AuthRequest, res) => {
   res.json(toJson(config, await getBankUsername(accountId)))
 })
 
-accountsRouter.get('/:accountId/movements', async (req: AuthRequest, res) => {
-  const owned = await requireOwnedAccount(req, res)
-  if (!owned) return
-  const limit = Math.min(Number(req.query.limit ?? 100), 500)
-  const offset = Number(req.query.offset ?? 0)
-  const { rows } = await db.query(
-    `SELECT id, external_id, amount, currency, sender_name, received_at, notified_at, excluded_at
-       FROM bank_transactions
-      WHERE account_id = $1
-      ORDER BY received_at DESC
-      LIMIT $2 OFFSET $3`,
-    [owned.accountId, limit, offset]
-  )
-  res.json(rows)
-})
-
-accountsRouter.post('/:accountId/movements/:movementId/notify', async (req: AuthRequest, res) => {
-  const owned = await requireOwnedAccount(req, res)
-  if (!owned) return
-  const movementId = String(req.params.movementId)
-  const { rows } = await db.query(
-    `SELECT 1 FROM bank_transactions WHERE id = $1 AND account_id = $2`,
-    [movementId, owned.accountId]
-  )
-  if (rows.length === 0) {
-    res.status(404).json({ error: 'Movement not found for this account' })
-    return
-  }
-
-  await bankTxRepo.releaseNotification(movementId)
-
-  const { Queues } = await import('../../shared/infrastructure/queues/QueueRegistry.js')
-  await Queues.bankMovementWebhook.add(
-    'notify',
-    { bankTransactionId: movementId },
-    { jobId: `bank-movement-webhook_${movementId}_${Date.now()}`, removeOnComplete: true }
-  )
-  res.status(202).json({ queued: true })
-})
+// Bank-movements endpoints moved to buildBankMovementsRouter (mounted from composition root).
