@@ -1,44 +1,48 @@
-import { db } from '../../../shared/infrastructure/db/client.js'
-import { EventBus } from '../../../shared/events/EventBus.js'
-import { ConciliationRequestRepository } from '../infrastructure/ConciliationRequestRepository.js'
-import { Queues } from '../../../shared/infrastructure/queues/QueueRegistry.js'
-import { logger } from '../../../shared/infrastructure/logger/index.js'
+import { IEventBus } from '../../../shared/events/IEventBus.js'
+import { IConciliationRequestRepository } from '../domain/IConciliationRequestRepository.js'
+import { IAccountConfigReader } from '../domain/ports/IAccountConfigReader.js'
+import type { ILogger } from '../../../shared/logger/ILogger.js'
 
-const log = logger.child('[conciliation]')
+const FIVE_DAYS_MS = 5 * 24 * 60 * 60 * 1000
+
+export interface ExpireStaleRequestsDeps {
+  requestRepo: IConciliationRequestRepository
+  configReader: IAccountConfigReader
+  eventBus: IEventBus
+  enqueueWebhook: (requestId: string) => Promise<void>
+  logger?: ILogger
+  now?: () => Date
+}
 
 export class ExpireStaleRequestsUseCase {
-  private readonly requestRepo = new ConciliationRequestRepository()
+  constructor(private readonly deps: ExpireStaleRequestsDeps) {}
 
   async execute(): Promise<void> {
-    const { rows } = await db.query(
-      `SELECT cr.id, ac.notify_on_expired
-       FROM conciliation_requests cr
-       JOIN account_config ac ON ac.account_id = cr.account_id
-       WHERE cr.status IN ('pending', 'not_found')
-         AND cr.created_at <= now() - interval '5 days'`
-    )
+    const { requestRepo, configReader, eventBus, enqueueWebhook, logger } = this.deps
+    const now = this.deps.now ?? (() => new Date())
 
-    for (const row of rows) {
-      const request = await this.requestRepo.findById(row.id)
+    const cutoff = new Date(now().getTime() - FIVE_DAYS_MS)
+    const stale = await requestRepo.findStale(cutoff)
+
+    for (const ref of stale) {
+      const request = await requestRepo.findById(ref.id)
       if (!request) continue
 
       request.markExpired()
-      await this.requestRepo.save(request)
+      if (request.domainEvents.length === 0) continue
 
-      if (row.notify_on_expired) {
-        await Queues.webhook.add(
-          'notify',
-          { requestId: request.id },
-          { jobId: `webhook_expired_${request.id}`, removeOnComplete: true }
-        )
+      await requestRepo.save(request)
+
+      if (await configReader.shouldNotifyOnExpired(ref.accountId)) {
+        await enqueueWebhook(request.id)
       }
 
-      await EventBus.publishAll(request.domainEvents)
+      await eventBus.publishAll(request.domainEvents)
       request.clearDomainEvents()
     }
 
-    if (rows.length > 0) {
-      log.info(`expired stale requests`, { count: rows.length })
+    if (stale.length > 0) {
+      logger?.info('expired stale requests', { count: stale.length })
     }
   }
 }
