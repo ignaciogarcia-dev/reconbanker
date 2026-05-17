@@ -3,6 +3,7 @@ import type { ILogger } from '../shared/logger/ILogger.js'
 import type { IEventBus } from '../shared/events/IEventBus.js'
 import type { IUnitOfWork } from '../shared/persistence/IUnitOfWork.js'
 import type { BankingModule } from './bankingModule.js'
+import type { AccountModule } from './accountModule.js'
 
 // Avoid circular import: depend only on the bits of Container we actually use.
 interface ContainerBase {
@@ -11,6 +12,7 @@ interface ContainerBase {
   eventBus: IEventBus
   unitOfWork: IUnitOfWork
   banking: BankingModule
+  account: AccountModule
 }
 import { ConciliationEngine } from '../contexts/conciliation/domain/ConciliationEngine.js'
 import { ConciliationRequestRepository } from '../contexts/conciliation/infrastructure/ConciliationRequestRepository.js'
@@ -24,7 +26,6 @@ import { AccountReaderAdapter } from '../contexts/conciliation/infrastructure/ad
 import { UserOperationModeReaderAdapter } from '../contexts/conciliation/infrastructure/adapters/UserOperationModeReaderAdapter.js'
 import { ConciliationOwnershipCheckerAdapter } from '../contexts/conciliation/infrastructure/adapters/ConciliationOwnershipCheckerAdapter.js'
 import { HttpOrderSource } from '../contexts/conciliation/infrastructure/adapters/HttpOrderSource.js'
-import { AccountRepository } from '../contexts/account/infrastructure/AccountRepository.js'
 import { UserRepository } from '../contexts/user/infrastructure/UserRepository.js'
 import { RunConciliationUseCase } from '../contexts/conciliation/application/RunConciliationUseCase.js'
 import { ProcessIncomingTransactionUseCase } from '../contexts/conciliation/application/ProcessIncomingTransactionUseCase.js'
@@ -57,7 +58,7 @@ export function buildConciliationModule(container: ContainerBase): ConciliationM
   const readModel = new ConciliationReadModel(container.pool)
 
   const bankTxRepo = container.banking.bankTransactionRepository
-  const accountRepo = new AccountRepository()
+  const accountRepo = container.account.accountRepository
   const userRepo = new UserRepository()
 
   const bankTransactionFinder = new BankTransactionFinderAdapter(container.pool, bankTxRepo)

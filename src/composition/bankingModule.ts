@@ -9,9 +9,8 @@ import { ScriptEngineAdapter } from '../contexts/banking/infrastructure/ScriptEn
 import { AccountForBankingReaderAdapter } from '../contexts/banking/infrastructure/adapters/AccountForBankingReaderAdapter.js'
 import { NotificationConfigReaderAdapter } from '../contexts/banking/infrastructure/adapters/NotificationConfigReaderAdapter.js'
 import { UserOperationModeReaderAdapter } from '../contexts/banking/infrastructure/adapters/UserOperationModeReaderAdapter.js'
-import { AccountRepository } from '../contexts/account/infrastructure/AccountRepository.js'
-import { AccountConfigRepository } from '../contexts/account/infrastructure/AccountConfigRepository.js'
 import { UserRepository } from '../contexts/user/infrastructure/UserRepository.js'
+import type { AccountModule } from './accountModule.js'
 import { RunBankScrapeUseCase } from '../contexts/banking/application/RunBankScrapeUseCase.js'
 import { NotifyBankMovementUseCase } from '../contexts/banking/application/NotifyBankMovementUseCase.js'
 import { ListBankMovementsUseCase } from '../contexts/banking/application/ListBankMovementsUseCase.js'
@@ -22,6 +21,7 @@ interface ContainerBase {
   pool: pg.Pool
   logger: ILogger
   eventBus: IEventBus
+  account: AccountModule
 }
 
 export interface BankingModule {
@@ -39,8 +39,8 @@ export function buildBankingModule(container: ContainerBase): BankingModule {
   const scrapeRunRepo = new ScrapeRunRepository(exec)
   const readModel = new BankMovementReadModel(container.pool)
 
-  const accountRepo = new AccountRepository()
-  const configRepo = new AccountConfigRepository()
+  const accountRepo = container.account.accountRepository
+  const configRepo = container.account.accountConfigRepository
   const userRepo = new UserRepository()
 
   const accountReader = new AccountForBankingReaderAdapter(accountRepo)

@@ -6,14 +6,16 @@ import { InMemoryEventBus } from '../shared/events/InMemoryEventBus.js'
 import type { IEventBus } from '../shared/events/IEventBus.js'
 import { PgUnitOfWork } from '../shared/persistence/PgUnitOfWork.js'
 import type { IUnitOfWork } from '../shared/persistence/IUnitOfWork.js'
-import { buildConciliationModule, type ConciliationModule } from './conciliationModule.js'
+import { buildAccountModule, type AccountModule } from './accountModule.js'
 import { buildBankingModule, type BankingModule } from './bankingModule.js'
+import { buildConciliationModule, type ConciliationModule } from './conciliationModule.js'
 
 export interface Container {
   pool: pg.Pool
   logger: ILogger
   eventBus: IEventBus
   unitOfWork: IUnitOfWork
+  account: AccountModule
   banking: BankingModule
   conciliation: ConciliationModule
 }
@@ -30,8 +32,9 @@ export function buildContainer(overrides: ContainerOverrides = {}): Container {
   const eventBus = overrides.eventBus ?? new InMemoryEventBus(logger)
   const unitOfWork = new PgUnitOfWork(pool)
 
-  const base = { pool, logger, eventBus, unitOfWork } as Omit<Container, 'banking' | 'conciliation'>
+  const base = { pool, logger, eventBus, unitOfWork } as Omit<Container, 'account' | 'banking' | 'conciliation'>
   const container = base as Container
+  container.account = buildAccountModule(container)
   container.banking = buildBankingModule(container)
   container.conciliation = buildConciliationModule(container)
   return container
