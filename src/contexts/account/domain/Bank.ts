@@ -1,4 +1,5 @@
 import { AggregateRoot } from '../../../shared/domain/AggregateRoot.js'
+import { ValidationError } from '../../../shared/errors/index.js'
 
 export type BankStatus = 'pending' | 'ready' | 'failed'
 
@@ -19,7 +20,15 @@ export class Bank extends AggregateRoot<string> {
   }
 
   static create(id: string, code: string, name: string, loginUrl?: string): Bank {
-    return new Bank(id, { code, name, loginUrl, status: 'pending', createdAt: new Date() })
+    if (!code || !code.trim()) throw new ValidationError('code is required')
+    if (!name || !name.trim()) throw new ValidationError('name is required')
+    return new Bank(id, {
+      code: code.trim(),
+      name: name.trim(),
+      loginUrl: loginUrl?.trim() || undefined,
+      status: 'pending',
+      createdAt: new Date(),
+    })
   }
 
   static reconstitute(id: string, props: BankProps): Bank {
