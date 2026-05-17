@@ -45,10 +45,10 @@ export class AccountRepository implements IAccountRepository {
 
   async save(account: Account): Promise<void> {
     await this.executor.query(
-      `INSERT INTO accounts (id, user_id, bank_id, name, status, created_at)
-       VALUES ($1, $2, $3, $4, $5, now())
-       ON CONFLICT (id) DO UPDATE SET name = $4, status = $5`,
-      [account.id, account.userId, account.bankId, account.name ?? null, account.status]
+      `INSERT INTO accounts (id, user_id, bank_id, bank, name, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, now())
+       ON CONFLICT (id) DO UPDATE SET name = $5, status = $6`,
+      [account.id, account.userId, account.bankId, account.bank, account.name ?? null, account.status]
     )
   }
 
