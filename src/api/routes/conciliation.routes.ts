@@ -13,8 +13,8 @@ const listQuerySchema = z.object({
   status: z.string().min(1).optional(),
 })
 
-const requestIdParams = z.object({ requestId: z.string().min(1) })
-const accountIdParams = z.object({ accountId: z.string().min(1) })
+const requestIdParams = z.object({ requestId: z.string().uuid() })
+const accountIdParams = z.object({ accountId: z.string().uuid() })
 
 function requireUserId(req: AuthRequest): string {
   if (!req.userId) throw new UnauthorizedError('Unauthorized')

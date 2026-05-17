@@ -4,7 +4,7 @@ import { controller } from '../http/controller.js'
 import { validateParams } from '../http/validate.js'
 import type { ScriptEngineModule } from '../../composition/scriptEngineModule.js'
 
-const scriptIdParams = z.object({ scriptId: z.string().min(1) })
+const scriptIdParams = z.object({ scriptId: z.string().uuid() })
 
 export function buildScriptsRouter(scriptEngine: ScriptEngineModule): Router {
   const router = Router()

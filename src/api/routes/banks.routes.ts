@@ -4,7 +4,7 @@ import { controller } from '../http/controller.js'
 import { validateBody, validateParams } from '../http/validate.js'
 import type { AccountModule } from '../../composition/accountModule.js'
 
-const bankIdParams = z.object({ bankId: z.string().min(1) })
+const bankIdParams = z.object({ bankId: z.string().uuid() })
 
 const createBankSchema = z.object({
   code: z.string().min(1),

@@ -8,7 +8,7 @@ import { enqueueBankScrape } from '../../shared/infrastructure/queues/BankScrape
 import type { AccountModule } from '../../composition/accountModule.js'
 import type { AccountConfigDto } from '../../contexts/account/application/dto/AccountConfigDto.js'
 
-const accountIdParams = z.object({ accountId: z.string().min(1) })
+const accountIdParams = z.object({ accountId: z.string().uuid() })
 
 const createAccountSchema = z.object({
   bankId: z.string().min(1),

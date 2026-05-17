@@ -7,10 +7,10 @@ import { UnauthorizedError, ForbiddenError } from '../../shared/errors/index.js'
 import type { BankingModule } from '../../composition/bankingModule.js'
 import type { IAccountRepository } from '../../contexts/account/domain/IAccountRepository.js'
 
-const paramsSchema = z.object({ accountId: z.string().min(1) })
+const paramsSchema = z.object({ accountId: z.string().uuid() })
 const paramsWithMovementSchema = z.object({
-  accountId: z.string().min(1),
-  movementId: z.string().min(1),
+  accountId: z.string().uuid(),
+  movementId: z.string().uuid(),
 })
 const listQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(500).default(100),
