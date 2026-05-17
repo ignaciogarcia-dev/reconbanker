@@ -1,48 +1,55 @@
-import { db } from '../../../shared/infrastructure/db/client.js'
 import { BankScript, FlowType } from '../domain/BankScript.js'
-import { IBankScriptRepository } from '../domain/IBankScriptRepository.js'
+import { IBankScriptRepository, ScriptListItem } from '../domain/IBankScriptRepository.js'
+import { Executor } from './Executor.js'
+import { BankScriptRowMapper, BankScriptRow } from './mappers/BankScriptRowMapper.js'
 
 export class BankScriptRepository implements IBankScriptRepository {
+  constructor(private readonly executor: Executor) {}
+
+  withTx(tx: Executor): BankScriptRepository {
+    return new BankScriptRepository(tx)
+  }
+
   async findActive(bank: string, flowType: FlowType): Promise<BankScript | null> {
-    const { rows } = await db.query(
+    const { rows } = await this.executor.query<BankScriptRow>(
       `SELECT * FROM bank_scripts WHERE bank=$1 AND flow_type=$2 AND status='active' LIMIT 1`,
       [bank, flowType]
     )
-    if (!rows[0]) return null
-    return BankScript.reconstitute(rows[0].id, {
-      bank: rows[0].bank,
-      flowType: rows[0].flow_type,
-      version: rows[0].version,
-      status: rows[0].status,
-      origin: rows[0].origin,
-      baseScriptId: rows[0].base_script_id ?? undefined,
-      codeSnapshot: rows[0].code_snapshot ?? undefined,
-      selectorMap: rows[0].selector_map,
-      createdAt: rows[0].created_at,
-    })
+    return rows[0] ? BankScriptRowMapper.toAggregate(rows[0]) : null
   }
 
   async findById(id: string): Promise<BankScript | null> {
-    const { rows } = await db.query(
+    const { rows } = await this.executor.query<BankScriptRow>(
       `SELECT * FROM bank_scripts WHERE id=$1`,
       [id]
     )
-    if (!rows[0]) return null
-    return BankScript.reconstitute(rows[0].id, {
-      bank: rows[0].bank,
-      flowType: rows[0].flow_type,
-      version: rows[0].version,
-      status: rows[0].status,
-      origin: rows[0].origin,
-      baseScriptId: rows[0].base_script_id ?? undefined,
-      codeSnapshot: rows[0].code_snapshot ?? undefined,
-      selectorMap: rows[0].selector_map,
-      createdAt: rows[0].created_at,
-    })
+    return rows[0] ? BankScriptRowMapper.toAggregate(rows[0]) : null
+  }
+
+  async findAll(): Promise<ScriptListItem[]> {
+    const { rows } = await this.executor.query<BankScriptRow>(
+      `SELECT * FROM bank_scripts ORDER BY bank, flow_type, created_at DESC`
+    )
+    return rows.map((r) => ({
+      id: r.id,
+      bank: r.bank,
+      flowType: r.flow_type,
+      version: r.version,
+      status: r.status,
+      origin: r.origin,
+      createdAt: r.created_at,
+    }))
+  }
+
+  async deprecateActive(bank: string, flowType: FlowType): Promise<void> {
+    await this.executor.query(
+      `UPDATE bank_scripts SET status='deprecated' WHERE bank=$1 AND flow_type=$2 AND status='active'`,
+      [bank, flowType]
+    )
   }
 
   async save(script: BankScript): Promise<void> {
-    await db.query(
+    await this.executor.query(
       `INSERT INTO bank_scripts
          (id, bank, flow_type, version, status, origin, base_script_id, code_snapshot, selector_map, created_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
