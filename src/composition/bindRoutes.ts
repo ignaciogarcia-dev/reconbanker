@@ -6,7 +6,7 @@ import { buildBankMovementsRouter } from '../api/routes/bank-movements.routes.js
 import { buildBanksRouter } from '../api/routes/banks.routes.js'
 import { buildConciliationRouter } from '../api/routes/conciliation.routes.js'
 import { buildUserRouter } from '../api/routes/user.routes.js'
-import { scriptsRouter } from '../api/routes/scripts.routes.js'
+import { buildScriptsRouter } from '../api/routes/scripts.routes.js'
 import { buildAuthMiddleware } from '../api/middlewares/auth.middleware.js'
 
 export function bindRoutes(app: Express, container: Container): void {
@@ -24,5 +24,5 @@ export function bindRoutes(app: Express, container: Container): void {
   )
   app.use('/banks', buildBanksRouter(container.account))
   app.use('/conciliation', buildConciliationRouter(container.conciliation))
-  app.use('/scripts', scriptsRouter)
+  app.use('/scripts', buildScriptsRouter(container.scriptEngine))
 }

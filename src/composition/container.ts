@@ -10,6 +10,7 @@ import { buildUserModule, type UserModule } from './userModule.js'
 import { buildAccountModule, type AccountModule } from './accountModule.js'
 import { buildBankingModule, type BankingModule } from './bankingModule.js'
 import { buildConciliationModule, type ConciliationModule } from './conciliationModule.js'
+import { buildScriptEngineModule, type ScriptEngineModule } from './scriptEngineModule.js'
 
 export interface Container {
   pool: pg.Pool
@@ -20,6 +21,7 @@ export interface Container {
   account: AccountModule
   banking: BankingModule
   conciliation: ConciliationModule
+  scriptEngine: ScriptEngineModule
 }
 
 export interface ContainerOverrides {
@@ -40,5 +42,6 @@ export function buildContainer(overrides: ContainerOverrides = {}): Container {
   container.account = buildAccountModule(container)
   container.banking = buildBankingModule(container)
   container.conciliation = buildConciliationModule(container)
+  container.scriptEngine = buildScriptEngineModule(container)
   return container
 }
