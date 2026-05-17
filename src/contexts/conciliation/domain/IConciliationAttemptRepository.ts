@@ -3,7 +3,7 @@ export interface ConciliationAttemptData {
   accountId: string
   requestId: string
   attemptNumber: number
-  status: 'success' | 'not_found' | 'ambiguous'
+  status: 'success' | 'no_match' | 'ambiguous'
   failureType?: string
   candidateIds: string[]
   selectedTransactionId?: string

@@ -51,8 +51,8 @@ export class BankScriptRepository implements IBankScriptRepository {
   async save(script: BankScript): Promise<void> {
     await this.executor.query(
       `INSERT INTO bank_scripts
-         (id, bank, flow_type, version, status, origin, base_script_id, code_snapshot, selector_map, created_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+         (id, bank, bank_id, flow_type, version, status, origin, base_script_id, code_snapshot, selector_map, created_at)
+       VALUES ($1,$2,(SELECT id FROM banks WHERE code = $2),$3,$4,$5,$6,$7,$8,$9,$10)
        ON CONFLICT (id) DO UPDATE SET
          status = EXCLUDED.status,
          code_snapshot = EXCLUDED.code_snapshot`,
