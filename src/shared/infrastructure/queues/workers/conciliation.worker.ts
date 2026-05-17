@@ -49,10 +49,7 @@ export function createConciliationWorkers(container: Container): ConciliationWor
 
   const bankMovementWebhookWorker = new Worker(
     'bank-movement-webhook',
-    async (job) => {
-      const mod = await import('../../../../contexts/banking/application/NotifyBankMovementUseCase.js')
-      await new mod.NotifyBankMovementUseCase().execute(job.data)
-    },
+    async (job) => { await container.banking.notifyBankMovement.execute(job.data) },
     { connection: redis }
   )
   bankMovementWebhookWorker.on('completed', (job) => bankMovementWebhookLog.info(`job ${job.id} completed`))

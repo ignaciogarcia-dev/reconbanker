@@ -1,7 +1,7 @@
 import 'dotenv/config'
 import { createServer } from './api/server.js'
 import { buildContainer } from './composition/container.js'
-import { bankScrapeWorker } from './shared/infrastructure/queues/workers/bank-scrape.worker.js'
+import { createBankScrapeWorker } from './shared/infrastructure/queues/workers/bank-scrape.worker.js'
 import { createConciliationWorkers } from './shared/infrastructure/queues/workers/conciliation.worker.js'
 import { createOrderIngestionWorker } from './shared/infrastructure/queues/workers/order-ingestion.worker.js'
 import { Scheduler } from './shared/infrastructure/queues/Scheduler.js'
@@ -34,6 +34,7 @@ container.eventBus.subscribe<ConciliationMatchedEvent>('ConciliationMatched', as
 })
 
 const orderIngestionWorker = createOrderIngestionWorker(container)
+const bankScrapeWorker = createBankScrapeWorker(container)
 const {
   conciliationWorker, txConciliationWorker, webhookWorker, bankMovementWebhookWorker,
 } = createConciliationWorkers(container)
