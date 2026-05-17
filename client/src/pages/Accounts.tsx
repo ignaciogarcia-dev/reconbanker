@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
 interface Bank { id: string; code: string; name: string; status: string }
+interface AccountRow { id: string; name?: string; bank: string; status: string }
 
 export function Accounts() {
   const navigate = useNavigate()
@@ -22,7 +23,7 @@ export function Accounts() {
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState({ bankId: '', name: '' })
 
-  const { data: accounts = [], isLoading } = useQuery({
+  const { data: accounts = [], isLoading } = useQuery<AccountRow[]>({
     queryKey: ['accounts'],
     queryFn: () => api.get('/accounts').then(r => r.data),
   })
@@ -108,7 +109,7 @@ export function Accounts() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {accounts.map((a: any) => (
+                {accounts.map((a) => (
                   <TableRow key={a.id}>
                     <TableCell className="font-medium">{a.name ?? '—'}</TableCell>
                     <TableCell>{a.bank}</TableCell>
