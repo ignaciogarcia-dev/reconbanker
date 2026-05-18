@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { useAuth } from '@/shared/_legacy/auth'
+import { useAuth } from '@/features/user/hooks/useAuth'
 import { Avatar, AvatarFallback } from '@/shared/ui/avatar'
 import {
   DropdownMenu,
@@ -11,9 +11,11 @@ import { LayoutDashboard, Building2, Building, GitMerge, ArrowDownUp, Code2, Log
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { LanguageSelector } from '@/shared/layout/LanguageSelector'
-import { ModeSelectDialog } from '@/components/ModeSelectDialog'
-import { Settings as SettingsDialog } from '@/pages/Settings'
-import { useUser, useSetOperationMode, type OperationMode } from '@/shared/_legacy/useUser'
+import { ModeSelectDialog } from '@/features/user/components/ModeSelectDialog'
+import { SettingsDialog } from '@/features/user/components/SettingsDialog'
+import { useUser } from '@/features/user/hooks/useUser'
+import { useSetOperationMode } from '@/features/user/hooks/useSetOperationMode'
+import type { OperationMode } from '@/features/user/types'
 
 export function AppLayout() {
   const { user, logout } = useAuth()
@@ -21,7 +23,7 @@ export function AppLayout() {
   const { t } = useTranslation()
   const { data: me } = useUser()
   const setMode = useSetOperationMode()
-  const modalOpen = !!me && me.operation_mode == null
+  const modalOpen = !!me && me.operationMode == null
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   function handleModeConfirm(mode: OperationMode) {
@@ -43,10 +45,10 @@ export function AppLayout() {
     { to: '/', label: t('nav.dashboard'), icon: LayoutDashboard },
     { to: '/banks', label: t('nav.banks'), icon: Building },
     { to: '/accounts', label: t('nav.accounts'), icon: Building2 },
-    me?.operation_mode !== 'passthrough' && {
+    me?.operationMode !== 'passthrough' && {
       to: '/conciliations', label: t('nav.conciliations'), icon: GitMerge,
     },
-    me?.operation_mode !== 'reconcile' && {
+    me?.operationMode !== 'reconcile' && {
       to: '/movements', label: t('nav.movements'), icon: ArrowDownUp,
     },
     { to: '/scripts', label: t('nav.scripts'), icon: Code2 },

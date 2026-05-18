@@ -1,5 +1,5 @@
 import { Navigate } from 'react-router-dom'
-import { useAuth } from '@/shared/_legacy/auth'
+import { useAuth } from '@/features/user/hooks/useAuth'
 import { AppLayout } from './AppLayout'
 
 // NOTE: AppLayout currently renders its own <Outlet />, so ProtectedShell

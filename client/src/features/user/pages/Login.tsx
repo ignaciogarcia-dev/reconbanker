@@ -1,16 +1,16 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { httpClient } from '@/shared/http/client'
+import { useAuth } from '../hooks/useAuth'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card'
 import { useTranslation } from 'react-i18next'
 
-export function Register() {
+export function Login() {
+  const { login } = useAuth()
   const navigate = useNavigate()
   const { t } = useTranslation()
-  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -21,11 +21,10 @@ export function Register() {
     setError('')
     setLoading(true)
     try {
-      await httpClient.post('/auth/register', { email, password, name: name || undefined })
-      navigate('/login')
-    } catch (err: unknown) {
-      const message = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-      setError(message ?? t('register.defaultError'))
+      await login(email, password)
+      navigate('/')
+    } catch {
+      setError(t('login.error'))
     } finally {
       setLoading(false)
     }
@@ -35,22 +34,13 @@ export function Register() {
     <div className="min-h-screen flex items-center justify-center bg-background">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle>{t('register.title')}</CardTitle>
-          <CardDescription>{t('register.subtitle')}</CardDescription>
+          <CardTitle>ReconBanker</CardTitle>
+          <CardDescription>{t('login.subtitle')}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name">{t('register.name')}</Label>
-              <Input
-                id="name"
-                type="text"
-                value={name}
-                onChange={e => setName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">{t('register.email')}</Label>
+              <Label htmlFor="email">{t('login.email')}</Label>
               <Input
                 id="email"
                 type="email"
@@ -60,7 +50,7 @@ export function Register() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">{t('register.password')}</Label>
+              <Label htmlFor="password">{t('login.password')}</Label>
               <Input
                 id="password"
                 type="password"
@@ -71,12 +61,12 @@ export function Register() {
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? t('register.loading') : t('register.submit')}
+              {loading ? t('login.loading') : t('login.submit')}
             </Button>
             <p className="text-sm text-center text-muted-foreground">
-              {t('register.hasAccount')}{' '}
-              <Link to="/login" className="underline underline-offset-4 hover:text-primary">
-                {t('register.login')}
+              {t('login.noAccount')}{' '}
+              <Link to="/register" className="underline underline-offset-4 hover:text-primary">
+                {t('login.register')}
               </Link>
             </p>
           </form>

@@ -2,9 +2,10 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { TooltipProvider } from '@/shared/ui/tooltip'
 import { Toaster } from '@/shared/ui/sonner'
-import { AuthProvider, useAuth } from '@/shared/_legacy/auth'
+import { AuthProvider } from '@/features/user/providers/AuthProvider'
+import { useAuth } from '@/features/user/hooks/useAuth'
 import { AppLayout } from '@/shared/layout/AppLayout'
-import { Login } from '@/pages/Login'
+import { Login } from '@/features/user/pages/Login'
 import { Dashboard } from '@/pages/Dashboard'
 import { Banks } from '@/pages/Banks'
 import { Accounts } from '@/pages/Accounts'
@@ -12,8 +13,9 @@ import { AccountConfig } from '@/pages/AccountConfig'
 import { Conciliations } from '@/pages/Conciliations'
 import { BankMovements } from '@/pages/BankMovements'
 import { Scripts } from '@/pages/Scripts'
-import { Register } from '@/pages/Register'
-import { useUser, type OperationMode } from '@/shared/_legacy/useUser'
+import { Register } from '@/features/user/pages/Register'
+import { useUser } from '@/features/user/hooks/useUser'
+import type { OperationMode } from '@/features/user/types'
 
 const queryClient = new QueryClient()
 
@@ -27,7 +29,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function ModeGuard({ requires, children }: { requires: OperationMode; children: React.ReactNode }) {
   const { data: me, isLoading } = useUser()
   if (isLoading || !me) return null
-  if (me.operation_mode != null && me.operation_mode !== requires) {
+  if (me.operationMode != null && me.operationMode !== requires) {
     return <Navigate to="/" replace />
   }
   return <>{children}</>

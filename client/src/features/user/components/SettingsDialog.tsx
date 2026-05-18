@@ -8,7 +8,9 @@ import { Button } from '@/shared/ui/button'
 import { Badge } from '@/shared/ui/badge'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/shared/ui/dialog'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/shared/ui/tabs'
-import { useUser, useSetOperationMode, type OperationMode } from '@/shared/_legacy/useUser'
+import { useUser } from '../hooks/useUser'
+import { useSetOperationMode } from '../hooks/useSetOperationMode'
+import type { OperationMode } from '../types'
 import { cn } from '@/shared/lib/utils'
 
 const MODE_OPTIONS = [
@@ -21,7 +23,7 @@ const SECTIONS = [
   { key: 'operation', icon: Settings2 },
 ] as const
 
-export function Settings({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const { t } = useTranslation()
   const { data: me } = useUser()
   const setMode = useSetOperationMode()
@@ -39,7 +41,7 @@ export function Settings({ open, onOpenChange }: { open: boolean; onOpenChange: 
     onOpenChange(o)
   }
 
-  const currentMode = me?.operation_mode ?? null
+  const currentMode = me?.operationMode ?? null
   const initial = me?.name?.[0]?.toUpperCase() ?? me?.email?.[0]?.toUpperCase() ?? '?'
 
   function startEditing() {

@@ -11,7 +11,7 @@ import { Switch } from '@/shared/ui/switch'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
 import { ArrowLeft, Save, Info, Trash2, AlertTriangle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useUser } from '@/shared/_legacy/useUser'
+import { useUser } from '@/features/user/hooks/useUser'
 
 interface AccountSummary {
   id: string
@@ -41,7 +41,7 @@ export function AccountConfig() {
   const queryClient = useQueryClient()
   const { t } = useTranslation()
   const { data: me } = useUser()
-  const mode = me?.operation_mode
+  const mode = me?.operationMode
   const [form, setForm] = useState<AccountConfig>({
     pending_orders_endpoint: '',
     webhook_url: '',

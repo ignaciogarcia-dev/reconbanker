@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { httpClient } from '@/shared/http/client'
-import { useUser } from '@/shared/_legacy/useUser'
+import { useUser } from '@/features/user/hooks/useUser'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
@@ -135,7 +135,7 @@ export function BankMovements() {
   })
 
   const isLoading = loadingMe || loadingAccounts
-  const wrongMode = !isLoading && me?.operation_mode !== 'passthrough'
+  const wrongMode = !isLoading && me?.operationMode !== 'passthrough'
 
   return (
     <div className="p-8 space-y-6">

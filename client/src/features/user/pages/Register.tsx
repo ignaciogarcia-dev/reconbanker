@@ -1,16 +1,16 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { useAuth } from '@/shared/_legacy/auth'
+import { register } from '../api/auth'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card'
 import { useTranslation } from 'react-i18next'
 
-export function Login() {
-  const { login } = useAuth()
+export function Register() {
   const navigate = useNavigate()
   const { t } = useTranslation()
+  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -21,10 +21,11 @@ export function Login() {
     setError('')
     setLoading(true)
     try {
-      await login(email, password)
-      navigate('/')
-    } catch {
-      setError(t('login.error'))
+      await register({ email, password, name: name || undefined })
+      navigate('/login')
+    } catch (err: unknown) {
+      const message = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+      setError(message ?? t('register.defaultError'))
     } finally {
       setLoading(false)
     }
@@ -34,13 +35,22 @@ export function Login() {
     <div className="min-h-screen flex items-center justify-center bg-background">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle>ReconBanker</CardTitle>
-          <CardDescription>{t('login.subtitle')}</CardDescription>
+          <CardTitle>{t('register.title')}</CardTitle>
+          <CardDescription>{t('register.subtitle')}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">{t('login.email')}</Label>
+              <Label htmlFor="name">{t('register.name')}</Label>
+              <Input
+                id="name"
+                type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">{t('register.email')}</Label>
               <Input
                 id="email"
                 type="email"
@@ -50,7 +60,7 @@ export function Login() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">{t('login.password')}</Label>
+              <Label htmlFor="password">{t('register.password')}</Label>
               <Input
                 id="password"
                 type="password"
@@ -61,12 +71,12 @@ export function Login() {
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? t('login.loading') : t('login.submit')}
+              {loading ? t('register.loading') : t('register.submit')}
             </Button>
             <p className="text-sm text-center text-muted-foreground">
-              {t('login.noAccount')}{' '}
-              <Link to="/register" className="underline underline-offset-4 hover:text-primary">
-                {t('login.register')}
+              {t('register.hasAccount')}{' '}
+              <Link to="/login" className="underline underline-offset-4 hover:text-primary">
+                {t('register.login')}
               </Link>
             </p>
           </form>

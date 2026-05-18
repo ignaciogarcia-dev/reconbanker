@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { httpClient } from '@/shared/http/client'
-import { useUser } from '@/shared/_legacy/useUser'
+import { useUser } from '@/features/user/hooks/useUser'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
@@ -171,7 +171,7 @@ export function Conciliations() {
   const accounts = allAccounts
 
   const isLoading = loadingReqs || loadingAccounts || loadingMe
-  const wrongMode = !isLoading && me?.operation_mode !== 'reconcile'
+  const wrongMode = !isLoading && me?.operationMode !== 'reconcile'
 
   const filtered = useMemo(() => {
     let result = requests
