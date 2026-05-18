@@ -12,9 +12,9 @@ describe('server boot (smoke)', () => {
     expect(res.body).toEqual({ ok: true })
   })
 
-  it('unknown protected route returns 401 without crashing', async () => {
+  it('protected api route returns 401 without crashing', async () => {
     const app = createServer(buildContainer())
-    const res = await request(app).get('/accounts')
+    const res = await request(app).get('/api/accounts')
     expect([401, 403]).toContain(res.status)
   })
 })

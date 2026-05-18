@@ -10,19 +10,21 @@ import { buildScriptsRouter } from '../api/routes/scripts.routes.js'
 import { buildAuthMiddleware } from '../api/middlewares/auth.middleware.js'
 
 export function bindRoutes(app: Express, container: Container): void {
-  app.use('/auth', buildAuthRouter(container.user))
+  app.use('/api/auth', buildAuthRouter(container.user))
 
-  app.use(buildAuthMiddleware(container.user.tokenIssuer))
-  app.use('/me', buildUserRouter(container.user))
-  app.use('/accounts', buildAccountsRouter(container.account))
+  const protectedApi = buildAuthMiddleware(container.user.tokenIssuer)
+
+  app.use('/api/me', protectedApi, buildUserRouter(container.user))
   app.use(
-    '/accounts/:accountId/movements',
+    '/api/accounts/:accountId/movements',
+    protectedApi,
     buildBankMovementsRouter({
       banking: container.banking,
       accountRepo: container.account.accountRepository,
     })
   )
-  app.use('/banks', buildBanksRouter(container.account))
-  app.use('/conciliation', buildConciliationRouter(container.conciliation))
-  app.use('/scripts', buildScriptsRouter(container.scriptEngine))
+  app.use('/api/accounts', protectedApi, buildAccountsRouter(container.account))
+  app.use('/api/banks', protectedApi, buildBanksRouter(container.account))
+  app.use('/api/conciliation', protectedApi, buildConciliationRouter(container.conciliation))
+  app.use('/api/scripts', protectedApi, buildScriptsRouter(container.scriptEngine))
 }
