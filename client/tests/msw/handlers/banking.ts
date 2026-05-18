@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw'
 
 export const bankingHandlers = [
-  http.get('http://localhost:3000/accounts/:accountId/movements', () =>
+  http.get('/api/accounts/:accountId/movements', () =>
     HttpResponse.json([
       {
         id: 'm-1',

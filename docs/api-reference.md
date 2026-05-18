@@ -1,8 +1,8 @@
 # API Reference
 
-Base URL: `http://localhost:3000`
+Base URL: `http://localhost:3000/api`
 
-All routes except `/health`, `/auth/register`, and `/auth/login` require a `Bearer` token in the `Authorization` header.
+All API routes except `/health`, `/auth/register`, and `/auth/login` require a `Bearer` token in the `Authorization` header. The backend also keeps `GET /health` outside `/api` for infrastructure health checks.
 
 ## Authentication
 
@@ -90,7 +90,7 @@ Switches the user's operation mode.
 
 Returns all banks.
 
-`status` can be `pending`, `ready`, or `failed`.
+`status` can be `pending`, `onboarding`, `ready`, or `failed`.
 
 **Response** `200`
 ```json

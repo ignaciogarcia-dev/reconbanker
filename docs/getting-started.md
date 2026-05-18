@@ -92,7 +92,9 @@ cd client
 pnpm dev
 ```
 
-Vite dev server starts at `http://localhost:5173`. The frontend Axios client calls `http://localhost:3000` directly.
+Vite dev server starts at `http://localhost:5173`. Frontend API calls go to `/api`, which Vite proxies to `http://localhost:3000`.
+
+If you need to override the frontend API base URL, define `VITE_API_BASE_URL` in `client/.env`, `client/.env.local`, or export it in the shell before running `pnpm dev` / `pnpm build` in `client/`.
 
 ## Environment variable reference
 
@@ -107,6 +109,7 @@ Vite dev server starts at `http://localhost:5173`. The frontend Axios client cal
 | `SCRAPE_INTERVAL_SECONDS` | No | `1200` | Interval for running bank scraping jobs |
 | `EXPIRE_STALE_REQUESTS_INTERVAL_SECONDS` | No | `3600` | Interval for expiring stale conciliation requests |
 | `BANK_SCRAPE_CONCURRENCY` | No | `2` | Maximum number of bank scraping jobs, and Playwright browsers, to run at the same time |
+| `VITE_API_BASE_URL` | No | `/api` | Frontend API base URL (read by Vite from `client/.env*` or exported shell env); set only when the API is served from a different origin |
 
 ## Production build
 

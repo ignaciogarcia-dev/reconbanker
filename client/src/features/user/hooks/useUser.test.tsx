@@ -2,9 +2,11 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import type { ReactNode } from 'react'
 import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { http, HttpResponse } from 'msw'
 import { server } from '../../../../tests/msw/server'
 import { userHandlers } from '../../../../tests/msw/handlers/user'
 import { useUser } from './useUser'
+import { setOperationMode } from '../api/me'
 
 describe('useUser', () => {
   beforeEach(() => {
@@ -27,5 +29,18 @@ describe('useUser', () => {
       name: 'T',
       operationMode: 'passthrough',
     })
+  })
+
+  it('updates operation mode through the api prefix', async () => {
+    let received: unknown = null
+    server.use(
+      http.put('/api/me/operation-mode', async ({ request }) => {
+        received = await request.json()
+        return HttpResponse.json({ operation_mode: 'reconcile' })
+      })
+    )
+
+    await expect(setOperationMode('reconcile')).resolves.toEqual({ mode: 'reconcile' })
+    expect(received).toEqual({ mode: 'reconcile' })
   })
 })

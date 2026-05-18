@@ -23,12 +23,15 @@ export function createServer(container: Container = buildContainer()) {
   app.use(express.json());
 
   app.get("/health", (_req, res) => res.json({ ok: true }));
+  app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
   if (existsSync(clientDist)) {
     app.use(express.static(clientDist));
   }
 
   bindRoutes(app, container);
+
+  app.use("/api", (_req, res) => res.status(404).json({ error: "Not found" }));
 
   app.use(errorMiddleware);
 
