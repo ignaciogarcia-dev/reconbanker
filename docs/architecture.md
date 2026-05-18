@@ -4,7 +4,7 @@ ReconBanker is a full-stack TypeScript monorepo built around Domain-Driven Desig
 
 ## Bounded contexts
 
-The backend is organized into four bounded contexts under `src/contexts/`:
+The backend is organized into five bounded contexts under `src/contexts/`:
 
 ### `account`
 
@@ -39,6 +39,14 @@ Manages Playwright automation scripts.
 - Scripts flow from `review` → `active` via `PromoteScriptUseCase`
 - Supported banks: Itaú, Mi Dinero
 
+### `user`
+
+Manages authentication and user preferences.
+
+- **User** - authenticated application user
+- **Operation mode** - switches the frontend flow between reconciliation and passthrough movement notification, and is honored by selected background processing paths
+- `RegisterUserUseCase`, `LoginUseCase`, `GetCurrentUserUseCase`, and `ChangeOperationModeUseCase`
+
 ## Reconciliation algorithm
 
 `ConciliationEngine` processes each request in three phases:
@@ -57,16 +65,18 @@ Manages Playwright automation scripts.
 
 ## Job queue system
 
-Four BullMQ queues backed by Redis:
+Six BullMQ queues backed by Redis:
 
 ```
-order-ingestion  →  PollPendingOrdersUseCase
-bank-scrape      →  RunBankScrapeUseCase
-conciliation     →  RunConciliationUseCase
-webhook          →  NotifyWebhookUseCase
+order-ingestion       →  PollPendingOrdersUseCase
+bank-scrape           →  RunBankScrapeUseCase
+conciliation          →  RunConciliationUseCase
+tx-conciliation       →  ProcessIncomingTransactionUseCase
+webhook               →  NotifyWebhookUseCase
+bank-movement-webhook →  NotifyBankMovementUseCase
 ```
 
-The Scheduler (`src/shared/queues/Scheduler.ts`) enqueues recurring jobs based on `POLLING_INTERVAL_SECONDS` and `SCRAPE_INTERVAL_SECONDS`.
+The Scheduler (`src/shared/infrastructure/queues/Scheduler.ts`) enqueues recurring polling, scraping, and stale-request expiry jobs based on `POLLING_INTERVAL_SECONDS`, `SCRAPE_INTERVAL_SECONDS`, and `EXPIRE_STALE_REQUESTS_INTERVAL_SECONDS`.
 
 ## Domain event bus
 
@@ -75,10 +85,13 @@ An in-memory pub/sub bus (`EventBus`) connects contexts without direct coupling:
 | Event | Published by | Handled by |
 |---|---|---|
 | `AccountCreated` | `CreateAccountUseCase` | - |
-| `TransactionIngested` | `RunBankScrapeUseCase` | Enqueues pending conciliation jobs |
+| `TransactionIngested` | `RunBankScrapeUseCase` | Runs transaction ingestion handling and enqueues bank movement webhook notification |
 | `ConciliationMatched` | `RunConciliationUseCase` | Enqueues webhook notification |
 | `ConciliationFailed` | `RunConciliationUseCase` | - |
+| `ConciliationExpired` | `ExpireStaleRequestsUseCase` | - |
 | `ScrapeRunFailed` | `RunBankScrapeUseCase` | - |
+| `OperationModeChanged` | `ChangeOperationModeUseCase` | - |
+| `ScriptPromoted` | `PromoteScriptUseCase` | - |
 
 ## Shared kernel
 
@@ -97,24 +110,26 @@ Key tables:
 | Table | Purpose |
 |---|---|
 | `users` | Authentication |
-| `banks` | Supported bank definitions |
+| `banks` | Supported bank definitions (`pending`, `onboarding`, `ready`, `failed`) |
 | `accounts` | Customer bank accounts |
-| `account_config` | Per-account webhook and polling config |
+| `account_config` | Per-account webhook, polling, expiry-notification, extra-field, and silent-ingestion config |
 | `bank_credentials` | Encrypted login credentials per account |
-| `bank_transactions` | Scraped transactions |
+| `bank_transactions` | Scraped transactions, including exclusion and notification timestamps |
 | `bank_scripts` | Playwright scripts (versioned) |
 | `bank_scrape_runs` | Scraping execution history |
 | `bank_scrape_steps` | Step-level audit trail |
-| `conciliation_requests` | Orders pending reconciliation |
+| `conciliation_requests` | Orders pending reconciliation, including expired and cancelled states |
 | `conciliation_attempts` | Attempt history with reasons |
 | `conciliated_transactions` | Confirmed matches |
 
 ## Frontend
 
-React 19 SPA in `client/`. Vite dev server proxies `/api` to the backend at `localhost:3000`.
+React 19 SPA in `client/`. The Vite dev server can proxy `/api` to the backend, while the shared Axios client currently uses `http://localhost:3000` as its base URL.
 
 - **Routing**: React Router v7
 - **Server state**: TanStack Query (caching, refetch, mutations)
-- **Auth**: JWT stored in memory via React context (`lib/auth.tsx`)
+- **Auth**: `client/src/features/user/providers/AuthProvider.tsx` coordinates session state; token and user are persisted in `localStorage`, and `client/src/shared/http/client.ts` attaches the bearer token and redirects on `401`
 - **UI**: shadcn/ui components + Tailwind CSS v4
-- **i18n**: i18next with `client/src/i18n/`
+- **i18n**: i18next with `client/src/shared/i18n/` plus per-feature namespaces in `client/src/features/*/i18n/`
+- **Feature modules**: frontend code is grouped under `client/src/features/{user,dashboard,account,banking,conciliation,script-engine}/` with local APIs, hooks, pages, routes, types, and translations where needed
+- **Operation mode guards**: `/conciliations` requires `reconcile`, while `/movements` requires `passthrough`

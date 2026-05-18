@@ -10,6 +10,11 @@
 | `pnpm build` | Compile TypeScript to `dist/` |
 | `pnpm start` | Run compiled backend from `dist/` |
 | `pnpm migrate` | Run all pending database migrations |
+| `pnpm test` | Run backend unit tests |
+| `pnpm test:watch` | Run backend tests in watch mode |
+| `pnpm test:coverage` | Run backend tests with coverage |
+| `pnpm test:integration` | Run backend integration tests |
+| `pnpm typecheck` | Type-check backend source and tests |
 
 ### Frontend (run from `client/`)
 
@@ -19,6 +24,10 @@
 | `pnpm build` | Type-check and build for production |
 | `pnpm preview` | Preview the production build |
 | `pnpm lint` | Run ESLint |
+| `pnpm test` | Run frontend unit/component tests |
+| `pnpm test:watch` | Run frontend tests in watch mode |
+| `pnpm test:coverage` | Run frontend tests with coverage |
+| `pnpm typecheck:test` | Type-check frontend tests |
 
 ### Infrastructure
 
@@ -36,7 +45,7 @@ Create a new SQL file in `src/shared/infrastructure/db/migrations/` following th
 NNN_description.sql
 ```
 
-Where `NNN` is the next sequential number (e.g. `017_add_column_x.sql`). The migration runner applies files in filename order and tracks which have been applied.
+Where `NNN` is the next sequential number. The migration runner applies files in filename order and tracks which have been applied.
 
 ## Adding a bank script
 
@@ -64,4 +73,4 @@ Where `NNN` is the next sequential number (e.g. `017_add_column_x.sql`). The mig
 | PostgreSQL | 5432 |
 | Redis | 6379 |
 
-Vite proxies all `/api` requests to `http://localhost:3000` - configured in `client/vite.config.ts`.
+The frontend Axios client calls `http://localhost:3000` directly. `client/vite.config.ts` also defines a `/api` proxy for local experiments, but the app's current API calls do not depend on that prefix.

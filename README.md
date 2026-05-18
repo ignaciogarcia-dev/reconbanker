@@ -41,17 +41,18 @@ ReconBanker is a self-hosted reconciliation engine that scrapes bank transaction
 
 ### Async job processing
 
-- Four BullMQ queues: `order-ingestion`, `bank-scrape`, `conciliation`, `webhook`
-- Domain event bus: `TransactionIngested` → conciliation, `ConciliationMatched` → webhook
-- Configurable polling and scraping intervals via env vars
+- Six BullMQ queues: `order-ingestion`, `bank-scrape`, `conciliation`, `tx-conciliation`, `webhook`, `bank-movement-webhook`
+- Domain event bus: `TransactionIngested` → conciliation and movement notification, `ConciliationMatched` → webhook
+- Configurable polling, scraping, and stale-request expiry intervals via env vars
 
 ### Frontend dashboard
 
 - Login / register
 - Account list and per-account config
 - Conciliation requests with status, attempt history, and matched transaction detail
+- Bank movement passthrough mode
 - Bank and script management
-- i18n support (i18next)
+- Feature-scoped i18n support (i18next)
 
 ## Tech stack
 
@@ -80,7 +81,7 @@ cp .env.example .env
 ./setup.sh
 ```
 
-`setup.sh` installs all dependencies, starts Docker (PostgreSQL + Redis), runs migrations, and launches both backend and frontend.
+`setup.sh` pulls the latest git changes, installs all dependencies, starts Docker (PostgreSQL + Redis), runs migrations, and launches both backend and frontend.
 
 - Backend API: `http://localhost:3000`
 - Frontend: `http://localhost:5173`
@@ -103,8 +104,9 @@ See [docs/getting-started.md](docs/getting-started.md) for manual setup and envi
 | -------------------------- | ------------- | -------------------------------------------------------------------------------------- |
 | `PORT`                     | `3000`        | Backend API port                                                                       |
 | `NODE_ENV`                 | `development` | Environment                                                                            |
-| `POLLING_INTERVAL_SECONDS` | `60`          | How often to poll customer order endpoints                                             |
-| `SCRAPE_INTERVAL_SECONDS`  | `600`         | How often to run bank scraping                                                         |
+| `POLLING_INTERVAL_SECONDS` | `600`         | How often to poll customer order endpoints                                             |
+| `SCRAPE_INTERVAL_SECONDS`  | `1200`        | How often to run bank scraping                                                         |
+| `EXPIRE_STALE_REQUESTS_INTERVAL_SECONDS` | `3600` | How often to expire stale conciliation requests |
 | `BANK_SCRAPE_CONCURRENCY`  | `2`           | Maximum number of bank scraping jobs, and Playwright browsers, to run at the same time |
 
 ## Development
@@ -124,8 +126,13 @@ cd client && pnpm dev
 # Database migrations
 pnpm migrate
 
-# Build backend
+# Tests and type-checking
+pnpm test
+pnpm typecheck
+
+# Build backend and frontend
 pnpm build
+cd client && pnpm build
 ```
 
 For a detailed workflow see [docs/development.md](docs/development.md).
@@ -141,4 +148,4 @@ For a detailed workflow see [docs/development.md](docs/development.md).
 
 ## License
 
-MIT
+ISC

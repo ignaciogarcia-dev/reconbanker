@@ -16,12 +16,13 @@ cp .env.example .env
 
 This script:
 
-1. Installs root and client dependencies (`pnpm install`)
-2. Starts PostgreSQL and Redis via Docker Compose
-3. Waits for PostgreSQL to be healthy
-4. Runs all database migrations (`pnpm migrate`)
-5. Starts the backend in watch mode (port 3000)
-6. Starts the Vite frontend dev server (port 5173)
+1. Pulls the latest git changes
+2. Installs root and client dependencies (`pnpm install`)
+3. Starts PostgreSQL and Redis via Docker Compose
+4. Waits for PostgreSQL to be healthy
+5. Runs all database migrations (`pnpm migrate`)
+6. Starts the backend in watch mode (port 3000)
+7. Starts the Vite frontend dev server (port 5173)
 
 Press `Ctrl+C` to stop both processes.
 
@@ -60,9 +61,10 @@ PORT=3000
 NODE_ENV=development
 JWT_SECRET=change_this_to_a_long_random_secret
 
-POLLING_INTERVAL_SECONDS=60
-SCRAPE_INTERVAL_SECONDS=600
-BANK_SCRAPE_CONCURRENCY=3
+POLLING_INTERVAL_SECONDS=600
+SCRAPE_INTERVAL_SECONDS=1200
+EXPIRE_STALE_REQUESTS_INTERVAL_SECONDS=3600
+BANK_SCRAPE_CONCURRENCY=2
 ```
 
 ### 4. Run migrations
@@ -90,7 +92,7 @@ cd client
 pnpm dev
 ```
 
-Vite dev server starts at `http://localhost:5173`. API calls are proxied to `http://localhost:3000`.
+Vite dev server starts at `http://localhost:5173`. The frontend Axios client calls `http://localhost:3000` directly.
 
 ## Environment variable reference
 
@@ -101,9 +103,10 @@ Vite dev server starts at `http://localhost:5173`. API calls are proxied to `htt
 | `JWT_SECRET` | Yes | - | Secret for signing JWT tokens - use a long random string in production |
 | `PORT` | No | `3000` | Backend API port |
 | `NODE_ENV` | No | `development` | Set to `production` to disable stack traces in error responses |
-| `POLLING_INTERVAL_SECONDS` | No | `60` | Interval for polling customer order endpoints |
-| `SCRAPE_INTERVAL_SECONDS` | No | `600` | Interval for running bank scraping jobs |
-| `BANK_SCRAPE_CONCURRENCY` | No | `3` | Maximum number of bank scraping jobs, and Playwright browsers, to run at the same time |
+| `POLLING_INTERVAL_SECONDS` | No | `600` | Interval for polling customer order endpoints |
+| `SCRAPE_INTERVAL_SECONDS` | No | `1200` | Interval for running bank scraping jobs |
+| `EXPIRE_STALE_REQUESTS_INTERVAL_SECONDS` | No | `3600` | Interval for expiring stale conciliation requests |
+| `BANK_SCRAPE_CONCURRENCY` | No | `2` | Maximum number of bank scraping jobs, and Playwright browsers, to run at the same time |
 
 ## Production build
 
