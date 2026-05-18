@@ -21,7 +21,7 @@ Register a new user.
 
 **Response** `201`
 ```json
-{ "token": "<jwt>" }
+{ "id": "uuid", "email": "user@example.com" }
 ```
 
 ---
@@ -38,7 +38,48 @@ Register a new user.
 
 **Response** `200`
 ```json
-{ "token": "<jwt>" }
+{
+  "token": "<jwt>",
+  "user": { "id": "uuid", "email": "user@example.com", "name": "Jane Doe" }
+}
+```
+
+---
+
+## Current User
+
+### GET /me
+
+Returns the authenticated user and current operation mode.
+
+`operation_mode` is `reconcile`, `passthrough`, or `null` before the user selects a mode.
+
+**Response** `200`
+```json
+{
+  "id": "uuid",
+  "email": "user@example.com",
+  "name": "Jane Doe",
+  "operation_mode": null
+}
+```
+
+---
+
+### PUT /me/operation-mode
+
+Switches the user's operation mode.
+
+**Body**
+```json
+{ "mode": "passthrough" }
+```
+
+`mode` must be `reconcile` or `passthrough`.
+
+**Response** `200`
+```json
+{ "operation_mode": "passthrough" }
 ```
 
 ---
@@ -49,10 +90,12 @@ Register a new user.
 
 Returns all banks.
 
+`status` can be `pending`, `ready`, or `failed`.
+
 **Response** `200`
 ```json
 [
-  { "id": "uuid", "code": "itau", "name": "Itaú", "loginUrl": "https://...", "status": "active" }
+  { "id": "uuid", "code": "itau", "name": "Itaú", "loginUrl": "https://...", "status": "pending" }
 ]
 ```
 
@@ -83,13 +126,13 @@ Returns bank details including associated scripts.
 
 ### GET /accounts
 
-Returns all accounts.
+Returns accounts for the authenticated user.
 
 ---
 
 ### POST /accounts
 
-Create an account.
+Create an account for the authenticated user.
 
 **Body**
 ```json
@@ -99,21 +142,51 @@ Create an account.
 }
 ```
 
+**Response** `201`
+
+---
+
+### GET /accounts/:accountId
+
+Returns account detail for the authenticated user.
+
+---
+
+### DELETE /accounts/:accountId
+
+Deletes an account after confirmation.
+
+**Body**
+```json
+{ "confirmation_name": "Main account" }
+```
+
+**Response** `204`
+
 ---
 
 ### GET /accounts/:accountId/config
 
-Returns the account's reconciliation configuration.
+Returns the account's reconciliation and webhook configuration, or `null` when no config exists.
 
 **Response** `200`
 ```json
 {
-  "pendingOrdersEndpoint": "https://erp.example.com/orders/pending",
-  "webhookUrl": "https://erp.example.com/webhooks/reconbanker",
-  "pollingMethod": "GET",
-  "authType": "bearer",
-  "webhookAuthType": "bearer",
-  "webhookAuthToken": "..."
+  "id": "uuid",
+  "account_id": "uuid",
+  "pending_orders_endpoint": "https://erp.example.com/orders/pending",
+  "webhook_url": "https://erp.example.com/webhooks/reconbanker",
+  "retry_limit": 3,
+  "polling_method": "GET",
+  "polling_body": null,
+  "auth_type": "bearer",
+  "auth_token": "...",
+  "webhook_auth_type": "bearer",
+  "webhook_auth_token": "...",
+  "notify_on_expired": false,
+  "webhook_extra_fields": null,
+  "silent_ingestion": false,
+  "bank_username": "user"
 }
 ```
 
@@ -123,7 +196,27 @@ Returns the account's reconciliation configuration.
 
 Create or update account configuration.
 
-**Body** - same shape as config response above.
+**Body**
+```json
+{
+  "pending_orders_endpoint": "https://erp.example.com/orders/pending",
+  "webhook_url": "https://erp.example.com/webhooks/reconbanker",
+  "webhook_auth_type": "bearer",
+  "webhook_auth_token": "...",
+  "retry_limit": 3,
+  "polling_method": "POST",
+  "polling_body": { "status": "pending" },
+  "auth_type": "api_key",
+  "auth_token": "...",
+  "bank_username": "user",
+  "bank_password": "secret",
+  "notify_on_expired": false,
+  "webhook_extra_fields": { "source": "reconbanker" },
+  "silent_ingestion": false
+}
+```
+
+`webhook_extra_fields` may be a JSON object, a JSON object encoded as a string, or `null`. It cannot override reserved webhook keys such as `external_id`, `status`, `amount`, `currency`, `name`, `id`, or `received_at`.
 
 ---
 
@@ -133,7 +226,33 @@ Trigger a manual bank scrape for this account.
 
 **Response** `202`
 ```json
-{ "jobId": "..." }
+{ "queued": true }
+```
+
+---
+
+## Bank Movements
+
+### GET /accounts/:accountId/movements
+
+Returns scraped bank movements for an account. Requires ownership of the account.
+
+**Query params**
+
+| Param | Type | Description |
+|---|---|---|
+| `limit` | number | Results per page, max 500, default 100 |
+| `offset` | number | Offset, default 0 |
+
+---
+
+### POST /accounts/:accountId/movements/:movementId/notify
+
+Re-queues webhook notification for a bank movement. Requires ownership of the account and movement.
+
+**Response** `202`
+```json
+{ "queued": true }
 ```
 
 ---
@@ -142,21 +261,21 @@ Trigger a manual bank scrape for this account.
 
 ### GET /conciliation
 
-Returns conciliation requests. Supports pagination and status filtering.
+Returns conciliation requests for the authenticated user.
 
 **Query params**
 
 | Param | Type | Description |
 |---|---|---|
-| `status` | string | Filter by status: `pending`, `matched`, `ambiguous`, `failed` |
-| `page` | number | Page number (default 1) |
-| `limit` | number | Results per page (default 20) |
+| `status` | string | Optional status filter: `pending`, `processing`, `matched`, `not_found`, `ambiguous`, `failed`, `expired`, `cancelled` |
+| `limit` | number | Results per page, max 500, default 50 |
+| `offset` | number | Offset, default 0 |
 
 ---
 
 ### GET /conciliation/:requestId
 
-Returns a single request with attempt history and matched transaction (if any).
+Returns a single request with attempt history and matched transaction if available.
 
 ---
 
@@ -166,7 +285,18 @@ Trigger a manual reconciliation run for a specific request.
 
 **Response** `202`
 ```json
-{ "jobId": "..." }
+{ "queued": true }
+```
+
+---
+
+### POST /conciliation/:requestId/notify
+
+Re-queues webhook notification for a conciliation request.
+
+**Response** `202`
+```json
+{ "queued": true }
 ```
 
 ---
@@ -177,7 +307,7 @@ Trigger a manual order poll for an account.
 
 **Response** `202`
 ```json
-{ "jobId": "..." }
+{ "queued": true }
 ```
 
 ---
@@ -206,4 +336,4 @@ Promote a script from `review` to `active` status. The previously active script 
 
 ### GET /health
 
-Returns `200 OK` - no authentication required. Used for liveness checks.
+Returns `200` with `{ "ok": true }`. No authentication required.
