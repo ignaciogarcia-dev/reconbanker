@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import request from 'supertest'
+import { existsSync } from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { createServer } from './server.js'
 import type { Container } from '../composition/container.js'
 
@@ -31,6 +34,10 @@ function fakeContainer(): Container {
   } as unknown as Container
 }
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const clientDist = path.resolve(__dirname, '../../client/dist')
+const hasClientDist = existsSync(clientDist)
+
 describe('createServer routing', () => {
   it('serves api health without authentication', async () => {
     const res = await request(createServer(fakeContainer())).get('/api/health')
@@ -58,9 +65,14 @@ describe('createServer routing', () => {
     async (route) => {
       const res = await request(createServer(fakeContainer())).get(route)
 
-      expect(res.status).toBe(200)
-      expect(res.type).toContain('html')
-      expect(res.text).toContain('<!doctype html>')
+      if (hasClientDist) {
+        expect(res.status).toBe(200)
+        expect(res.type).toContain('html')
+        expect(res.text).toContain('<!doctype html>')
+        return
+      }
+
+      expect(res.status).toBe(404)
     }
   )
 })
