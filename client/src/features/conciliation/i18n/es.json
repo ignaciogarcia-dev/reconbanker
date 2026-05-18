@@ -1,0 +1,30 @@
+{
+  "conciliations": {
+    "title": "Conciliaciones",
+    "subtitle": "Estado de las órdenes de conciliación",
+    "loading": "Cargando...",
+    "tabAll": "Todas",
+    "orders": "Órdenes",
+    "empty": "No hay órdenes registradas",
+    "colAccount": "Cuenta",
+    "colExternalId": "External ID",
+    "colAmount": "Monto",
+    "colCurrency": "Moneda",
+    "colSender": "Remitente",
+    "colStatus": "Estado",
+    "colCreated": "Creada",
+    "emptyWrongMode": "Tu cuenta opera en modo Notificación directa. Las conciliaciones solo están disponibles en modo Conciliación. Cambiá el modo desde Configuración para verlas.",
+    "searchPlaceholder": "Buscar por ID, remitente, monto...",
+    "filters": "Filtros",
+    "allStatuses": "Todos los estados",
+    "dateFrom": "Desde",
+    "dateTo": "Hasta",
+    "clearFilters": "Limpiar",
+    "applyFilters": "Aplicar",
+    "colActions": "Acciones",
+    "renotifyTitle": "¿Seguro que querés volver a notificar?",
+    "renotifyDesc": "Esto enviará el webhook nuevamente y provocará que se ejecuten acciones en el sistema al que apunta.",
+    "renotifyConfirm": "Notificar",
+    "renotifyCancel": "Cancelar"
+  }
+}

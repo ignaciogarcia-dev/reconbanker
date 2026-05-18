@@ -1,0 +1,30 @@
+{
+  "conciliations": {
+    "title": "Conciliations",
+    "subtitle": "Reconciliation order status",
+    "loading": "Loading...",
+    "tabAll": "All",
+    "orders": "Orders",
+    "empty": "No orders registered",
+    "colAccount": "Account",
+    "colExternalId": "External ID",
+    "colAmount": "Amount",
+    "colCurrency": "Currency",
+    "colSender": "Sender",
+    "colStatus": "Status",
+    "colCreated": "Created",
+    "emptyWrongMode": "Your account operates in Direct notification mode. Conciliations are only available in Reconciliation mode. Change the mode from Settings to see them.",
+    "searchPlaceholder": "Search by ID, sender, amount...",
+    "filters": "Filters",
+    "allStatuses": "All statuses",
+    "dateFrom": "From",
+    "dateTo": "To",
+    "clearFilters": "Clear",
+    "applyFilters": "Apply",
+    "colActions": "Actions",
+    "renotifyTitle": "Are you sure you want to re-notify?",
+    "renotifyDesc": "This will send the webhook again and trigger actions on the target system.",
+    "renotifyConfirm": "Notify",
+    "renotifyCancel": "Cancel"
+  }
+}

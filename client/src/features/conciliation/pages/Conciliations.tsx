@@ -1,7 +1,9 @@
 import { useState, useMemo } from 'react'
-import { useQuery, useMutation } from '@tanstack/react-query'
-import { httpClient } from '@/shared/http/client'
 import { useUser } from '@/features/user/hooks/useUser'
+import { useAccounts } from '@/features/account/hooks/useAccounts'
+import type { Account } from '@/features/account/types'
+import { useConciliations, useNotifyConciliation } from '../hooks/useConciliations'
+import type { ConciliationRequestListItem } from '../types'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
@@ -27,23 +29,6 @@ const statusStyle: Record<string, { icon: LucideIcon; className: string }> = {
   cancelled:  { icon: Ban,          className: 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-transparent' },
 }
 
-interface ConciliationRequest {
-  id: string
-  account_id: string
-  external_id: string
-  expected_amount: number
-  currency: string
-  sender_name: string | null
-  status: string
-  created_at: string
-}
-
-interface Account {
-  id: string
-  name: string
-  bank: string
-}
-
 interface Filters {
   status: string
   dateFrom: string
@@ -58,13 +43,11 @@ function hasActiveFilters(f: Filters) {
 
 const NOTIFIABLE_STATUSES = ['matched', 'ambiguous', 'expired']
 
-function OrdersTable({ requests, accounts, showAccount }: { requests: ConciliationRequest[]; accounts: Account[]; showAccount?: boolean }) {
+function OrdersTable({ requests, accounts, showAccount }: { requests: ConciliationRequestListItem[]; accounts: Account[]; showAccount?: boolean }) {
   const { t } = useTranslation()
   const accountMap = Object.fromEntries(accounts.map(a => [a.id, a.name || a.bank]))
 
-  const renotify = useMutation({
-    mutationFn: (requestId: string) => httpClient.post(`/conciliation/${requestId}/notify`),
-  })
+  const renotify = useNotifyConciliation()
 
   return (
     <Table>
@@ -83,11 +66,11 @@ function OrdersTable({ requests, accounts, showAccount }: { requests: Conciliati
       <TableBody>
         {requests.map(r => (
           <TableRow key={r.id}>
-            {showAccount && <TableCell className="text-sm">{accountMap[r.account_id] ?? '—'}</TableCell>}
-            <TableCell className="font-mono text-xs">{r.external_id}</TableCell>
-            <TableCell>{r.expected_amount}</TableCell>
+            {showAccount && <TableCell className="text-sm">{accountMap[r.accountId] ?? '—'}</TableCell>}
+            <TableCell className="font-mono text-xs">{r.externalId}</TableCell>
+            <TableCell>{r.expectedAmount}</TableCell>
             <TableCell>{r.currency}</TableCell>
-            <TableCell>{r.sender_name ?? '—'}</TableCell>
+            <TableCell>{r.senderName ?? '—'}</TableCell>
             <TableCell>
               {(() => {
                 const style = statusStyle[r.status]
@@ -101,7 +84,7 @@ function OrdersTable({ requests, accounts, showAccount }: { requests: Conciliati
               })()}
             </TableCell>
             <TableCell className="text-muted-foreground text-xs">
-              {new Date(r.created_at).toLocaleString()}
+              {new Date(r.createdAt).toLocaleString()}
             </TableCell>
             <TableCell>
               {NOTIFIABLE_STATUSES.includes(r.status) ? (
@@ -156,16 +139,8 @@ export function Conciliations() {
   const [filters, setFilters] = useState<Filters>(emptyFilters)
   const [draft, setDraft] = useState<Filters>(emptyFilters)
 
-  const { data: requests = [], isLoading: loadingReqs } = useQuery<ConciliationRequest[]>({
-    queryKey: ['conciliations'],
-    queryFn: () => httpClient.get('/conciliation').then(r => r.data),
-  })
-
-  const { data: allAccounts = [], isLoading: loadingAccounts } = useQuery<Account[]>({
-    queryKey: ['accounts'],
-    queryFn: () => httpClient.get('/accounts').then(r => r.data),
-  })
-
+  const { data: requests = [], isLoading: loadingReqs } = useConciliations()
+  const { data: allAccounts = [], isLoading: loadingAccounts } = useAccounts()
   const { data: me, isLoading: loadingMe } = useUser()
 
   const accounts = allAccounts
@@ -179,9 +154,9 @@ export function Conciliations() {
     if (search) {
       const q = search.toLowerCase()
       result = result.filter(r =>
-        r.external_id.toLowerCase().includes(q) ||
-        (r.sender_name && r.sender_name.toLowerCase().includes(q)) ||
-        String(r.expected_amount).includes(q) ||
+        r.externalId.toLowerCase().includes(q) ||
+        (r.senderName && r.senderName.toLowerCase().includes(q)) ||
+        String(r.expectedAmount).includes(q) ||
         r.currency.toLowerCase().includes(q) ||
         t(`enums.conciliationStatus.${r.status}`).toLowerCase().includes(q)
       )
@@ -193,12 +168,12 @@ export function Conciliations() {
 
     if (filters.dateFrom) {
       const from = new Date(filters.dateFrom)
-      result = result.filter(r => new Date(r.created_at) >= from)
+      result = result.filter(r => new Date(r.createdAt) >= from)
     }
 
     if (filters.dateTo) {
       const to = new Date(filters.dateTo + 'T23:59:59')
-      result = result.filter(r => new Date(r.created_at) <= to)
+      result = result.filter(r => new Date(r.createdAt) <= to)
     }
 
     return result
@@ -360,7 +335,7 @@ export function Conciliations() {
                   <CardTitle>{account.name || account.bank}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <OrdersTable requests={filtered.filter(r => r.account_id === account.id)} accounts={allAccounts} />
+                  <OrdersTable requests={filtered.filter(r => r.accountId === account.id)} accounts={allAccounts} />
                 </CardContent>
               </Card>
             </TabsContent>
