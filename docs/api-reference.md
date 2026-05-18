@@ -90,10 +90,12 @@ Switches the user's operation mode.
 
 Returns all banks.
 
+`status` can be `pending`, `ready`, or `failed`.
+
 **Response** `200`
 ```json
 [
-  { "id": "uuid", "code": "itau", "name": "Itaú", "loginUrl": "https://...", "status": "ready" }
+  { "id": "uuid", "code": "itau", "name": "Itaú", "loginUrl": "https://...", "status": "pending" }
 ]
 ```
 
