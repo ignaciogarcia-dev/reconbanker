@@ -1,22 +1,13 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { httpClient } from '@/shared/http/client'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
 import { CheckCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useScripts, usePromoteScript } from '../hooks/useScripts'
+import type { ScriptStatus } from '../types'
 
-interface ScriptRow {
-  id: string
-  bank: string
-  flow_type: string
-  version: string
-  origin: string
-  status: string
-}
-
-const statusVariant: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+const statusVariant: Record<ScriptStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
   active:     'default',
   review:     'secondary',
   testing:    'outline',
@@ -26,18 +17,9 @@ const statusVariant: Record<string, 'default' | 'secondary' | 'destructive' | 'o
 }
 
 export function Scripts() {
-  const queryClient = useQueryClient()
   const { t } = useTranslation()
-
-  const { data: scripts = [], isLoading } = useQuery<ScriptRow[]>({
-    queryKey: ['scripts'],
-    queryFn: () => httpClient.get('/scripts').then(r => r.data),
-  })
-
-  const promote = useMutation({
-    mutationFn: (scriptId: string) => httpClient.post(`/scripts/${scriptId}/promote`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['scripts'] }),
-  })
+  const { data: scripts = [], isLoading } = useScripts()
+  const promote = usePromoteScript()
 
   return (
     <div className="p-8 space-y-6">
@@ -66,7 +48,7 @@ export function Scripts() {
                 {scripts.map((s) => (
                   <TableRow key={s.id}>
                     <TableCell className="font-medium">{s.bank}</TableCell>
-                    <TableCell className="font-mono text-xs">{s.flow_type}</TableCell>
+                    <TableCell className="font-mono text-xs">{s.flowType}</TableCell>
                     <TableCell className="font-mono text-xs">{s.version}</TableCell>
                     <TableCell>{s.origin}</TableCell>
                     <TableCell>
