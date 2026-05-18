@@ -1,19 +1,9 @@
-import { useQuery } from '@tanstack/react-query'
-import { httpClient } from '@/shared/http/client'
 import { Badge } from '@/shared/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
 import { useTranslation } from 'react-i18next'
-
-type BankStatus = 'pending' | 'ready' | 'failed' | 'onboarding'
-
-interface Bank {
-  id: string
-  name: string
-  code: string
-  loginUrl: string
-  status: BankStatus
-}
+import { useBanks } from '../hooks/useBanks'
+import type { BankStatus } from '../types'
 
 const statusVariant: Record<BankStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
   ready:       'default',
@@ -25,10 +15,7 @@ const statusVariant: Record<BankStatus, 'default' | 'secondary' | 'destructive' 
 export function Banks() {
   const { t } = useTranslation()
 
-  const { data: banks = [], isLoading } = useQuery<Bank[]>({
-    queryKey: ['banks'],
-    queryFn: () => httpClient.get('/banks').then(r => r.data),
-  })
+  const { data: banks = [], isLoading } = useBanks()
 
   return (
     <div className="p-8 space-y-6">

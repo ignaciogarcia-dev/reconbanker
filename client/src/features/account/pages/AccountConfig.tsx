@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { httpClient } from '@/shared/http/client'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
@@ -12,25 +10,21 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/ui/di
 import { ArrowLeft, Save, Info, Trash2, AlertTriangle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useUser } from '@/features/user/hooks/useUser'
+import { useAccount, useDeleteAccount } from '../hooks/useAccounts'
+import { useAccountConfig, useUpsertAccountConfig } from '../hooks/useAccountConfig'
+import type { AuthType, PollingMethod } from '../types'
 
-interface AccountSummary {
-  id: string
-  bank: string
-  name: string
-  status: string
-}
-
-interface AccountConfig {
-  pending_orders_endpoint: string
-  webhook_url: string
-  polling_method: 'GET' | 'POST'
-  polling_body: string
-  auth_type: 'bearer' | 'api_key'
-  auth_token: string
-  bank_username: string
-  bank_password: string
-  webhook_extra_fields: string
-  silent_ingestion: boolean
+interface AccountConfigForm {
+  pendingOrdersEndpoint: string
+  webhookUrl: string
+  pollingMethod: PollingMethod
+  pollingBody: string
+  authType: AuthType
+  authToken: string
+  bankUsername: string
+  bankPassword: string
+  webhookExtraFields: string
+  silentIngestion: boolean
 }
 
 const RESERVED_WEBHOOK_KEYS = ['external_id', 'status', 'amount', 'currency', 'name', 'id', 'received_at']
@@ -38,21 +32,20 @@ const RESERVED_WEBHOOK_KEYS = ['external_id', 'status', 'amount', 'currency', 'n
 export function AccountConfig() {
   const { accountId } = useParams<{ accountId: string }>()
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const { t } = useTranslation()
   const { data: me } = useUser()
   const mode = me?.operationMode
-  const [form, setForm] = useState<AccountConfig>({
-    pending_orders_endpoint: '',
-    webhook_url: '',
-    polling_method: 'GET',
-    polling_body: '',
-    auth_type: 'bearer',
-    auth_token: '',
-    bank_username: '',
-    bank_password: '',
-    webhook_extra_fields: '',
-    silent_ingestion: false,
+  const [form, setForm] = useState<AccountConfigForm>({
+    pendingOrdersEndpoint: '',
+    webhookUrl: '',
+    pollingMethod: 'GET',
+    pollingBody: '',
+    authType: 'bearer',
+    authToken: '',
+    bankUsername: '',
+    bankPassword: '',
+    webhookExtraFields: '',
+    silentIngestion: false,
   })
   const [saved, setSaved] = useState(false)
   const [extraFieldsError, setExtraFieldsError] = useState<string | null>(null)
@@ -60,17 +53,8 @@ export function AccountConfig() {
   const [deleteConfirmName, setDeleteConfirmName] = useState('')
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
-  const { data: account } = useQuery<AccountSummary>({
-    queryKey: ['account', accountId],
-    queryFn: () => httpClient.get(`/accounts/${accountId}`).then(r => r.data),
-    enabled: !!accountId,
-  })
-
-  const { data, isLoading } = useQuery({
-    queryKey: ['account-config', accountId],
-    queryFn: () => httpClient.get(`/accounts/${accountId}/config`).then(r => r.data),
-    enabled: !!accountId,
-  })
+  const { data: account } = useAccount(accountId)
+  const { data, isLoading } = useAccountConfig(accountId)
 
   useEffect(() => {
     if (!data) return
@@ -78,16 +62,23 @@ export function AccountConfig() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setForm(f => ({
       ...f,
-      ...data,
-      bank_password: '',
-      webhook_extra_fields: data.webhook_extra_fields
-        ? JSON.stringify(data.webhook_extra_fields, null, 2)
+      pendingOrdersEndpoint: data.pendingOrdersEndpoint ?? '',
+      webhookUrl: data.webhookUrl ?? '',
+      pollingMethod: data.pollingMethod,
+      pollingBody: data.pollingBody ? JSON.stringify(data.pollingBody, null, 2) : '',
+      authType: data.authType,
+      authToken: data.authToken ?? '',
+      bankUsername: data.bankUsername ?? '',
+      bankPassword: '',
+      webhookExtraFields: data.webhookExtraFields
+        ? JSON.stringify(data.webhookExtraFields, null, 2)
         : '',
+      silentIngestion: data.silentIngestion,
     }))
   }, [data])
 
   function validateExtraFields(): string | null {
-    const raw = form.webhook_extra_fields.trim()
+    const raw = form.webhookExtraFields.trim()
     if (!raw) return null
     let parsed: unknown
     try {
@@ -105,26 +96,9 @@ export function AccountConfig() {
     return null
   }
 
-  const save = useMutation({
-    mutationFn: () => httpClient.put(`/accounts/${accountId}/config`, form),
-    onSuccess: () => {
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
-    },
-  })
+  const save = useUpsertAccountConfig(accountId ?? '')
 
-  const remove = useMutation({
-    mutationFn: () =>
-      httpClient.delete(`/accounts/${accountId}`, { data: { confirmation_name: deleteConfirmName.trim() } }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['accounts'] })
-      navigate('/accounts')
-    },
-    onError: (err: unknown) => {
-      const message = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-      setDeleteError(message ?? t('accountConfig.danger.genericError'))
-    },
-  })
+  const remove = useDeleteAccount()
 
   function openDeleteDialog(open: boolean) {
     setDeleteOpen(open)
@@ -136,14 +110,66 @@ export function AccountConfig() {
 
   const confirmMatches = !!account && deleteConfirmName.trim() === account.name
 
+  function parseJsonOrNull(raw: string): Record<string, unknown> | null {
+    const trimmed = raw.trim()
+    if (!trimmed) return null
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>
+      }
+    } catch {
+      // Ignored — caller validates separately.
+    }
+    return null
+  }
+
   function handleSave() {
+    if (!accountId) return
     const err = validateExtraFields()
     setExtraFieldsError(err)
     if (err) return
-    save.mutate()
+    save.mutate(
+      {
+        pendingOrdersEndpoint: form.pendingOrdersEndpoint.trim() === '' ? null : form.pendingOrdersEndpoint,
+        webhookUrl: form.webhookUrl,
+        retryLimit: data?.retryLimit ?? 3,
+        pollingMethod: form.pollingMethod,
+        pollingBody: parseJsonOrNull(form.pollingBody),
+        authType: form.authType,
+        authToken: form.authToken === '' ? null : form.authToken,
+        webhookAuthType: data?.webhookAuthType ?? null,
+        webhookAuthToken: data?.webhookAuthToken ?? null,
+        notifyOnExpired: data?.notifyOnExpired ?? false,
+        webhookExtraFields: parseJsonOrNull(form.webhookExtraFields),
+        silentIngestion: form.silentIngestion,
+        bankUsername: form.bankUsername === '' ? null : form.bankUsername,
+        bankPassword: form.bankPassword === '' ? null : form.bankPassword,
+      },
+      {
+        onSuccess: () => {
+          setSaved(true)
+          setTimeout(() => setSaved(false), 2000)
+        },
+      }
+    )
   }
 
-  function field<K extends keyof AccountConfig>(key: K) {
+  function handleDelete() {
+    if (!accountId) return
+    remove.mutate(
+      { accountId, confirmationName: deleteConfirmName.trim() },
+      {
+        onSuccess: () => navigate('/accounts'),
+        onError: (err: unknown) => {
+          const message = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+          setDeleteError(message ?? t('accountConfig.danger.genericError'))
+        },
+      }
+    )
+  }
+
+  function field<K extends keyof AccountConfigForm>(key: K) {
     return {
       value: String(form[key]),
       onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -172,11 +198,11 @@ export function AccountConfig() {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>{t('accountConfig.username')}</Label>
-            <Input placeholder={t('accountConfig.usernamePlaceholder')} {...field('bank_username')} />
+            <Input placeholder={t('accountConfig.usernamePlaceholder')} {...field('bankUsername')} />
           </div>
           <div className="space-y-2">
             <Label>{t('accountConfig.password')}</Label>
-            <Input type="password" placeholder={t('accountConfig.passwordPlaceholder')} {...field('bank_password')} />
+            <Input type="password" placeholder={t('accountConfig.passwordPlaceholder')} {...field('bankPassword')} />
           </div>
         </CardContent>
       </Card>
@@ -188,11 +214,11 @@ export function AccountConfig() {
           <div className="space-y-2">
             <Label>{t('accountConfig.authType')}</Label>
             <Select
-              value={form.auth_type}
-              onValueChange={v => setForm(f => ({ ...f, auth_type: v as 'bearer' | 'api_key' }))}
+              value={form.authType}
+              onValueChange={v => setForm(f => ({ ...f, authType: v as AuthType }))}
             >
               <SelectTrigger>
-                <SelectValue>{form.auth_type === 'bearer' ? 'Bearer token' : 'API Key'}</SelectValue>
+                <SelectValue>{form.authType === 'bearer' ? 'Bearer token' : 'API Key'}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="bearer">Bearer token</SelectItem>
@@ -202,7 +228,7 @@ export function AccountConfig() {
           </div>
           <div className="space-y-2">
             <Label>{t('accountConfig.tokenKey')}</Label>
-            <Input type="password" {...field('auth_token')} />
+            <Input type="password" {...field('authToken')} />
           </div>
         </CardContent>
       </Card>
@@ -229,16 +255,16 @@ export function AccountConfig() {
           </div>
           <div className="space-y-2">
             <Label>{t('accountConfig.pendingEndpoint')}</Label>
-            <Input placeholder="https://..." {...field('pending_orders_endpoint')} />
+            <Input placeholder="https://..." {...field('pendingOrdersEndpoint')} />
           </div>
           <div className="space-y-2">
             <Label>{t('accountConfig.httpMethod')}</Label>
             <Select
-              value={form.polling_method}
-              onValueChange={v => setForm(f => ({ ...f, polling_method: v as 'GET' | 'POST' }))}
+              value={form.pollingMethod}
+              onValueChange={v => setForm(f => ({ ...f, pollingMethod: v as PollingMethod }))}
             >
               <SelectTrigger>
-                <SelectValue>{form.polling_method}</SelectValue>
+                <SelectValue>{form.pollingMethod}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="GET">GET</SelectItem>
@@ -246,13 +272,13 @@ export function AccountConfig() {
               </SelectContent>
             </Select>
           </div>
-          {form.polling_method === 'POST' && (
+          {form.pollingMethod === 'POST' && (
             <div className="space-y-2">
               <Label>{t('accountConfig.body')}</Label>
               <textarea
                 className="w-full min-h-24 rounded-md border bg-transparent px-3 py-2 text-sm font-mono resize-y"
                 placeholder='{"key": "value"}'
-                {...field('polling_body')}
+                {...field('pollingBody')}
               />
             </div>
           )}
@@ -293,13 +319,13 @@ export function AccountConfig() {
           </div>
           <div className="space-y-2">
             <Label>{t('accountConfig.webhookUrl')}</Label>
-            <Input placeholder="https://..." {...field('webhook_url')} />
+            <Input placeholder="https://..." {...field('webhookUrl')} />
           </div>
           <div className="rounded-md border border-border bg-muted/30 p-3 flex items-start gap-4">
             <Switch
-              checked={form.silent_ingestion}
+              checked={form.silentIngestion}
               onCheckedChange={(checked: boolean) =>
-                setForm(f => ({ ...f, silent_ingestion: checked }))
+                setForm(f => ({ ...f, silentIngestion: checked }))
               }
             />
             <div className="flex-1">
@@ -313,9 +339,9 @@ export function AccountConfig() {
             <textarea
               className="w-full min-h-24 rounded-md border bg-transparent px-3 py-2 text-sm font-mono resize-y"
               placeholder='{"source": "reconbanker"}'
-              value={form.webhook_extra_fields}
+              value={form.webhookExtraFields}
               onChange={e => {
-                setForm(f => ({ ...f, webhook_extra_fields: e.target.value }))
+                setForm(f => ({ ...f, webhookExtraFields: e.target.value }))
                 if (extraFieldsError) setExtraFieldsError(null)
               }}
             />
@@ -395,7 +421,7 @@ export function AccountConfig() {
               </Button>
               <Button
                 variant="destructive"
-                onClick={() => remove.mutate()}
+                onClick={handleDelete}
                 disabled={!confirmMatches || remove.isPending}
                 className="gap-2"
               >

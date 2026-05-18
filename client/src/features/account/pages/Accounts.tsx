@@ -1,6 +1,4 @@
 import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { httpClient } from '@/shared/http/client'
 import { Button, buttonVariants } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
@@ -12,35 +10,28 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Plus, Settings } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-
-interface Bank { id: string; code: string; name: string; status: string }
-interface AccountRow { id: string; name?: string; bank: string; status: string }
+import { useAccounts, useCreateAccount } from '../hooks/useAccounts'
+import { useBanks } from '../hooks/useBanks'
 
 export function Accounts() {
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState({ bankId: '', name: '' })
 
-  const { data: accounts = [], isLoading } = useQuery<AccountRow[]>({
-    queryKey: ['accounts'],
-    queryFn: () => httpClient.get('/accounts').then(r => r.data),
-  })
+  const { data: accounts = [], isLoading } = useAccounts()
+  const { data: banks = [] } = useBanks()
 
-  const { data: banks = [] } = useQuery<Bank[]>({
-    queryKey: ['banks'],
-    queryFn: () => httpClient.get('/banks').then(r => r.data),
-  })
+  const create = useCreateAccount()
 
-  const create = useMutation({
-    mutationFn: (data: typeof form) => httpClient.post('/accounts', data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['accounts'] })
-      setOpen(false)
-      setForm({ bankId: '', name: '' })
-    },
-  })
+  function handleCreate() {
+    create.mutate(form, {
+      onSuccess: () => {
+        setOpen(false)
+        setForm({ bankId: '', name: '' })
+      },
+    })
+  }
 
   return (
     <div className="p-8 space-y-6">
@@ -83,7 +74,7 @@ export function Accounts() {
               </div>
               <Button
                 className="w-full"
-                onClick={() => create.mutate(form)}
+                onClick={handleCreate}
                 disabled={!form.bankId || create.isPending}
               >
                 {create.isPending ? t('accounts.dialog.creating') : t('accounts.dialog.create')}
