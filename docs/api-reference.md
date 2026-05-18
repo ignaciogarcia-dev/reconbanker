@@ -93,7 +93,7 @@ Returns all banks.
 **Response** `200`
 ```json
 [
-  { "id": "uuid", "code": "itau", "name": "Itau", "loginUrl": "https://...", "status": "ready" }
+  { "id": "uuid", "code": "itau", "name": "Itaú", "loginUrl": "https://...", "status": "ready" }
 ]
 ```
 
@@ -107,7 +107,7 @@ Create a bank.
 ```json
 {
   "code": "itau",
-  "name": "Itau",
+  "name": "Itaú",
   "loginUrl": "https://example.com/login"
 }
 ```
