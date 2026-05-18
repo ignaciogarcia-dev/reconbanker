@@ -11,7 +11,7 @@ describe('Conciliations page', () => {
   beforeEach(() => {
     // Conciliations only renders when the user is in `reconcile` mode.
     server.use(
-      http.get('http://localhost:3000/me', () =>
+      http.get('/api/me', () =>
         HttpResponse.json({
           id: 'u-1',
           email: 'test@x',

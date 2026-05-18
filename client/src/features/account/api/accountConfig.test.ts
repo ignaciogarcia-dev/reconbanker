@@ -6,7 +6,7 @@ import { getAccountConfig, upsertAccountConfig } from './accountConfig'
 describe('accountConfig api', () => {
   it('maps snake_case row to camelCase AccountConfig', async () => {
     server.use(
-      http.get('http://localhost:3000/accounts/acc-1/config', () =>
+      http.get('/api/accounts/acc-1/config', () =>
         HttpResponse.json({
           id: 'cfg-1',
           account_id: 'acc-1',
@@ -48,7 +48,7 @@ describe('accountConfig api', () => {
 
   it('returns null when the server responds with null', async () => {
     server.use(
-      http.get('http://localhost:3000/accounts/acc-1/config', () =>
+      http.get('/api/accounts/acc-1/config', () =>
         HttpResponse.json(null)
       )
     )
@@ -58,7 +58,7 @@ describe('accountConfig api', () => {
   it('sends camelCase input as snake_case body on upsert', async () => {
     let received: unknown = null
     server.use(
-      http.put('http://localhost:3000/accounts/acc-1/config', async ({ request }) => {
+      http.put('/api/accounts/acc-1/config', async ({ request }) => {
         received = await request.json()
         return HttpResponse.json({
           id: 'cfg-1', account_id: 'acc-1',

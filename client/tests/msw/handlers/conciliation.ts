@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw'
 
 export const conciliationHandlers = [
-  http.get('http://localhost:3000/conciliation', () =>
+  http.get('/api/conciliation', () =>
     HttpResponse.json([
       {
         id: 'c-1',

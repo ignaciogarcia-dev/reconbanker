@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw'
 
 export const scriptEngineHandlers = [
-  http.get('http://localhost:3000/scripts', () =>
+  http.get('/api/scripts', () =>
     HttpResponse.json([
       {
         id: 's-1',

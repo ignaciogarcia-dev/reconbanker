@@ -1,7 +1,12 @@
 import axios from 'axios'
 
+export function resolveApiBaseUrl(value: string | undefined): string {
+  const normalized = value?.trim()
+  return normalized || '/api'
+}
+
 export const httpClient = axios.create({
-  baseURL: 'http://localhost:3000',
+  baseURL: resolveApiBaseUrl(import.meta.env.VITE_API_BASE_URL),
 })
 
 httpClient.interceptors.request.use(config => {
