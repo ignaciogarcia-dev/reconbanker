@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
-import { api } from './api'
+import { httpClient } from '@/shared/http/client'
 
 interface User { id: string; email: string; name?: string }
 interface AuthContextType {
@@ -26,7 +26,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(readStoredUser)
 
   async function login(email: string, password: string) {
-    const { data } = await api.post('/auth/login', { email, password })
+    const { data } = await httpClient.post('/auth/login', { email, password })
     localStorage.setItem('token', data.token)
     localStorage.setItem('user', JSON.stringify(data.user))
     setUser(data.user)

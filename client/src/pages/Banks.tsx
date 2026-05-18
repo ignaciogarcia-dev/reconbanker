@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
-import { api } from '@/lib/api'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { httpClient } from '@/shared/http/client'
+import { Badge } from '@/shared/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
 import { useTranslation } from 'react-i18next'
 
 type BankStatus = 'pending' | 'ready' | 'failed' | 'onboarding'
@@ -27,7 +27,7 @@ export function Banks() {
 
   const { data: banks = [], isLoading } = useQuery<Bank[]>({
     queryKey: ['banks'],
-    queryFn: () => api.get('/banks').then(r => r.data),
+    queryFn: () => httpClient.get('/banks').then(r => r.data),
   })
 
   return (

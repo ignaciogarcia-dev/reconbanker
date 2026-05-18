@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from './api'
+import { httpClient } from '@/shared/http/client'
 
 export type OperationMode = 'reconcile' | 'passthrough'
 
@@ -13,7 +13,7 @@ export interface Me {
 export function useUser() {
   return useQuery<Me>({
     queryKey: ['me'],
-    queryFn: () => api.get('/me').then(r => r.data),
+    queryFn: () => httpClient.get('/me').then(r => r.data),
   })
 }
 
@@ -21,7 +21,7 @@ export function useSetOperationMode() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (mode: OperationMode) =>
-      api.put('/me/operation-mode', { mode }).then(r => r.data),
+      httpClient.put('/me/operation-mode', { mode }).then(r => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['me'] })
       qc.invalidateQueries({ queryKey: ['accounts'] })

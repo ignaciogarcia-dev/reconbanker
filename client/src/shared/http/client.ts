@@ -1,16 +1,16 @@
 import axios from 'axios'
 
-export const api = axios.create({
+export const httpClient = axios.create({
   baseURL: 'http://localhost:3000',
 })
 
-api.interceptors.request.use(config => {
+httpClient.interceptors.request.use(config => {
   const token = localStorage.getItem('token')
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })
 
-api.interceptors.response.use(
+httpClient.interceptors.response.use(
   res => res,
   err => {
     if (err.response?.status === 401) {

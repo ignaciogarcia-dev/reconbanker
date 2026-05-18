@@ -1,17 +1,17 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '@/lib/api'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { httpClient } from '@/shared/http/client'
+import { Button } from '@/shared/ui/button'
+import { Input } from '@/shared/ui/input'
+import { Label } from '@/shared/ui/label'
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
+import { Switch } from '@/shared/ui/switch'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
 import { ArrowLeft, Save, Info, Trash2, AlertTriangle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useUser } from '@/lib/useUser'
+import { useUser } from '@/shared/_legacy/useUser'
 
 interface AccountSummary {
   id: string
@@ -62,13 +62,13 @@ export function AccountConfig() {
 
   const { data: account } = useQuery<AccountSummary>({
     queryKey: ['account', accountId],
-    queryFn: () => api.get(`/accounts/${accountId}`).then(r => r.data),
+    queryFn: () => httpClient.get(`/accounts/${accountId}`).then(r => r.data),
     enabled: !!accountId,
   })
 
   const { data, isLoading } = useQuery({
     queryKey: ['account-config', accountId],
-    queryFn: () => api.get(`/accounts/${accountId}/config`).then(r => r.data),
+    queryFn: () => httpClient.get(`/accounts/${accountId}/config`).then(r => r.data),
     enabled: !!accountId,
   })
 
@@ -106,7 +106,7 @@ export function AccountConfig() {
   }
 
   const save = useMutation({
-    mutationFn: () => api.put(`/accounts/${accountId}/config`, form),
+    mutationFn: () => httpClient.put(`/accounts/${accountId}/config`, form),
     onSuccess: () => {
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
@@ -115,7 +115,7 @@ export function AccountConfig() {
 
   const remove = useMutation({
     mutationFn: () =>
-      api.delete(`/accounts/${accountId}`, { data: { confirmation_name: deleteConfirmName.trim() } }),
+      httpClient.delete(`/accounts/${accountId}`, { data: { confirmation_name: deleteConfirmName.trim() } }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['accounts'] })
       navigate('/accounts')

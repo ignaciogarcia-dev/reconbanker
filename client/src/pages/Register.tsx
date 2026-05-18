@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { api } from '@/lib/api'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { httpClient } from '@/shared/http/client'
+import { Button } from '@/shared/ui/button'
+import { Input } from '@/shared/ui/input'
+import { Label } from '@/shared/ui/label'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card'
 import { useTranslation } from 'react-i18next'
 
 export function Register() {
@@ -21,7 +21,7 @@ export function Register() {
     setError('')
     setLoading(true)
     try {
-      await api.post('/auth/register', { email, password, name: name || undefined })
+      await httpClient.post('/auth/register', { email, password, name: name || undefined })
       navigate('/login')
     } catch (err: unknown) {
       const message = (err as { response?: { data?: { error?: string } } })?.response?.data?.error

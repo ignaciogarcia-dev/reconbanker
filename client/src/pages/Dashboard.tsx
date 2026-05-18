@@ -1,7 +1,7 @@
 import { useQuery, useQueries } from '@tanstack/react-query'
-import { api } from '@/lib/api'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { httpClient } from '@/shared/http/client'
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import { Building2, GitMerge, CheckCircle, AlertCircle, Bell, Clock } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
@@ -118,7 +118,7 @@ export function Dashboard() {
 
   const { data: accounts = [] } = useQuery<Account[]>({
     queryKey: ['accounts'],
-    queryFn: () => api.get('/accounts').then(r => r.data),
+    queryFn: () => httpClient.get('/accounts').then(r => r.data),
   })
 
   const reconcileAccounts = accounts.filter(a => a.mode === 'reconcile')
@@ -128,14 +128,14 @@ export function Dashboard() {
 
   const { data: conciliations = [] } = useQuery<ConciliationRequest[]>({
     queryKey: ['conciliations'],
-    queryFn: () => api.get('/conciliation').then(r => r.data),
+    queryFn: () => httpClient.get('/conciliation').then(r => r.data),
     enabled: reconcileAccounts.length > 0,
   })
 
   const movementResults = useQueries({
     queries: passthroughAccounts.map(a => ({
       queryKey: ['movements', a.id],
-      queryFn: (): Promise<BankMovement[]> => api.get(`/accounts/${a.id}/movements`).then(r => r.data),
+      queryFn: (): Promise<BankMovement[]> => httpClient.get(`/accounts/${a.id}/movements`).then(r => r.data),
     })),
   })
 

@@ -1,8 +1,8 @@
 import { GitMerge, ArrowDownUp } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Badge } from '@/components/ui/badge'
-import { cn } from '@/lib/utils'
-import type { OperationMode } from '@/lib/useUser'
+import { Badge } from '@/shared/ui/badge'
+import { cn } from '@/shared/lib/utils'
+import type { OperationMode } from '@/shared/_legacy/useUser'
 
 const OPTIONS = [
   { mode: 'reconcile' as const, icon: GitMerge, recommended: true },

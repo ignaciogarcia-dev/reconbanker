@@ -1,19 +1,19 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { useAuth } from '@/lib/auth'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { useAuth } from '@/shared/_legacy/auth'
+import { Avatar, AvatarFallback } from '@/shared/ui/avatar'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@/shared/ui/dropdown-menu'
 import { LayoutDashboard, Building2, Building, GitMerge, ArrowDownUp, Code2, LogOut, Settings } from 'lucide-react'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { LanguageSelector } from '@/components/LanguageSelector'
+import { LanguageSelector } from '@/shared/layout/LanguageSelector'
 import { ModeSelectDialog } from '@/components/ModeSelectDialog'
 import { Settings as SettingsDialog } from '@/pages/Settings'
-import { useUser, useSetOperationMode, type OperationMode } from '@/lib/useUser'
+import { useUser, useSetOperationMode, type OperationMode } from '@/shared/_legacy/useUser'
 
 export function AppLayout() {
   const { user, logout } = useAuth()

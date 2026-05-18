@@ -1,9 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '@/lib/api'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { httpClient } from '@/shared/http/client'
+import { Badge } from '@/shared/ui/badge'
+import { Button } from '@/shared/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
 import { CheckCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -31,11 +31,11 @@ export function Scripts() {
 
   const { data: scripts = [], isLoading } = useQuery<ScriptRow[]>({
     queryKey: ['scripts'],
-    queryFn: () => api.get('/scripts').then(r => r.data),
+    queryFn: () => httpClient.get('/scripts').then(r => r.data),
   })
 
   const promote = useMutation({
-    mutationFn: (scriptId: string) => api.post(`/scripts/${scriptId}/promote`),
+    mutationFn: (scriptId: string) => httpClient.post(`/scripts/${scriptId}/promote`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['scripts'] }),
   })
 

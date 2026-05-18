@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
+import { Button } from '@/shared/ui/button'
 import { ModeOptionCards } from '@/components/ModeOptionCards'
-import type { OperationMode } from '@/lib/useUser'
+import type { OperationMode } from '@/shared/_legacy/useUser'
 
 /**
  * Shown when the logged-in user has no operation_mode set. Mandatory: it has

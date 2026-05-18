@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '@/lib/api'
-import { Button, buttonVariants } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { httpClient } from '@/shared/http/client'
+import { Button, buttonVariants } from '@/shared/ui/button'
+import { Input } from '@/shared/ui/input'
+import { Label } from '@/shared/ui/label'
+import { Badge } from '@/shared/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
 import { Plus, Settings } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -25,16 +25,16 @@ export function Accounts() {
 
   const { data: accounts = [], isLoading } = useQuery<AccountRow[]>({
     queryKey: ['accounts'],
-    queryFn: () => api.get('/accounts').then(r => r.data),
+    queryFn: () => httpClient.get('/accounts').then(r => r.data),
   })
 
   const { data: banks = [] } = useQuery<Bank[]>({
     queryKey: ['banks'],
-    queryFn: () => api.get('/banks').then(r => r.data),
+    queryFn: () => httpClient.get('/banks').then(r => r.data),
   })
 
   const create = useMutation({
-    mutationFn: (data: typeof form) => api.post('/accounts', data),
+    mutationFn: (data: typeof form) => httpClient.post('/accounts', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['accounts'] })
       setOpen(false)

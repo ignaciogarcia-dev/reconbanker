@@ -1,9 +1,9 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { TooltipProvider } from '@/components/ui/tooltip'
-import { Toaster } from '@/components/ui/sonner'
-import { AuthProvider, useAuth } from '@/lib/auth'
-import { AppLayout } from '@/components/layout/AppLayout'
+import { TooltipProvider } from '@/shared/ui/tooltip'
+import { Toaster } from '@/shared/ui/sonner'
+import { AuthProvider, useAuth } from '@/shared/_legacy/auth'
+import { AppLayout } from '@/shared/layout/AppLayout'
 import { Login } from '@/pages/Login'
 import { Dashboard } from '@/pages/Dashboard'
 import { Banks } from '@/pages/Banks'
@@ -13,7 +13,7 @@ import { Conciliations } from '@/pages/Conciliations'
 import { BankMovements } from '@/pages/BankMovements'
 import { Scripts } from '@/pages/Scripts'
 import { Register } from '@/pages/Register'
-import { useUser, type OperationMode } from '@/lib/useUser'
+import { useUser, type OperationMode } from '@/shared/_legacy/useUser'
 
 const queryClient = new QueryClient()
 

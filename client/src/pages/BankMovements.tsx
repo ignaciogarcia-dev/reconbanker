@@ -1,12 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '@/lib/api'
-import { useUser } from '@/lib/useUser'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { httpClient } from '@/shared/http/client'
+import { useUser } from '@/shared/_legacy/useUser'
+import { Badge } from '@/shared/ui/badge'
+import { Button } from '@/shared/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/shared/ui/dialog'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import { useTranslation } from 'react-i18next'
 import { Bell, CheckCircle2, Clock } from 'lucide-react'
 
@@ -33,12 +33,12 @@ function MovementsTable({ accountId }: { accountId: string }) {
 
   const { data: movements = [], isLoading } = useQuery<BankMovement[]>({
     queryKey: ['movements', accountId],
-    queryFn: () => api.get(`/accounts/${accountId}/movements`).then(r => r.data),
+    queryFn: () => httpClient.get(`/accounts/${accountId}/movements`).then(r => r.data),
   })
 
   const renotify = useMutation({
     mutationFn: (movementId: string) =>
-      api.post(`/accounts/${accountId}/movements/${movementId}/notify`),
+      httpClient.post(`/accounts/${accountId}/movements/${movementId}/notify`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['movements', accountId] })
     },
@@ -131,7 +131,7 @@ export function BankMovements() {
 
   const { data: accounts = [], isLoading: loadingAccounts } = useQuery<Account[]>({
     queryKey: ['accounts'],
-    queryFn: () => api.get('/accounts').then(r => r.data),
+    queryFn: () => httpClient.get('/accounts').then(r => r.data),
   })
 
   const isLoading = loadingMe || loadingAccounts
