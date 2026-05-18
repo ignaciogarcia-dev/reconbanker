@@ -49,5 +49,19 @@
       "confirmCancel": "Cancelar",
       "confirmConfirm": "Sí, cambiar y borrar datos"
     }
+  },
+  "modeSelect": {
+    "title": "¿Cómo querés que opere ReconBanker?",
+    "subtitle": "Elegí el modo de operación. Vas a poder cambiarlo más adelante desde Configuración.",
+    "confirm": "Continuar",
+    "reconcile": {
+      "title": "Conciliación",
+      "desc": "El sistema pollea órdenes pendientes desde tu endpoint, las matchea contra los movimientos bancarios y dispara el webhook al conciliar.",
+      "recommended": "Recomendado"
+    },
+    "passthrough": {
+      "title": "Notificación directa",
+      "desc": "El sistema no consulta órdenes pendientes. Por cada movimiento bancario detectado se envía un webhook directo con los datos del movimiento."
+    }
   }
 }

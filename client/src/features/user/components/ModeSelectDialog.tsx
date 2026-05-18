@@ -18,7 +18,7 @@ export function ModeSelectDialog({
   onConfirm: (mode: OperationMode) => void
   isPending?: boolean
 }) {
-  const { t } = useTranslation()
+  const { t } = useTranslation('user')
   const [selected, setSelected] = useState<OperationMode | null>(null)
 
   return (

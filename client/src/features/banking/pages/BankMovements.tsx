@@ -12,7 +12,7 @@ import { useTranslation } from 'react-i18next'
 import { Bell, CheckCircle2, Clock } from 'lucide-react'
 
 function MovementsTable({ accountId }: { accountId: string }) {
-  const { t } = useTranslation()
+  const { t } = useTranslation('banking')
   const qc = useQueryClient()
 
   const { data: movements = [], isLoading } = useBankMovements(accountId)
@@ -109,7 +109,7 @@ function MovementsTable({ accountId }: { accountId: string }) {
 }
 
 export function BankMovements() {
-  const { t } = useTranslation()
+  const { t } = useTranslation('banking')
   const { data: me, isLoading: loadingMe } = useUser()
   const { data: accounts = [], isLoading: loadingAccounts } = useAccounts()
 

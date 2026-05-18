@@ -49,5 +49,19 @@
       "confirmCancel": "Cancel",
       "confirmConfirm": "Yes, change and delete data"
     }
+  },
+  "modeSelect": {
+    "title": "How should ReconBanker operate?",
+    "subtitle": "Choose the operation mode. You can change it later from Settings.",
+    "confirm": "Continue",
+    "reconcile": {
+      "title": "Reconciliation",
+      "desc": "The system polls pending orders from your endpoint, matches them against bank movements, and fires the webhook on reconciliation.",
+      "recommended": "Recommended"
+    },
+    "passthrough": {
+      "title": "Direct notification",
+      "desc": "The system does not poll orders. Each detected bank movement triggers a direct webhook with the movement data."
+    }
   }
 }

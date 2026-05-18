@@ -17,7 +17,7 @@ const statusVariant: Record<ScriptStatus, 'default' | 'secondary' | 'destructive
 }
 
 export function Scripts() {
-  const { t } = useTranslation()
+  const { t } = useTranslation(['script-engine', 'common'])
   const { data: scripts = [], isLoading } = useScripts()
   const promote = usePromoteScript()
 

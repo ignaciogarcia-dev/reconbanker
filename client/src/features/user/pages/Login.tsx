@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next'
 export function Login() {
   const { login } = useAuth()
   const navigate = useNavigate()
-  const { t } = useTranslation()
+  const { t } = useTranslation('user')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')

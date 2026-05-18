@@ -32,7 +32,7 @@ const RESERVED_WEBHOOK_KEYS = ['external_id', 'status', 'amount', 'currency', 'n
 export function AccountConfig() {
   const { accountId } = useParams<{ accountId: string }>()
   const navigate = useNavigate()
-  const { t } = useTranslation()
+  const { t } = useTranslation('account')
   const { data: me } = useUser()
   const mode = me?.operationMode
   const [form, setForm] = useState<AccountConfigForm>({

@@ -98,7 +98,7 @@ function StatCard({ label, value, icon: Icon }: { label: string; value: number; 
 }
 
 export function Dashboard() {
-  const { t } = useTranslation()
+  const { t } = useTranslation('dashboard')
   const today = new Date().toLocaleDateString('sv')
 
   const { data: me } = useUser()

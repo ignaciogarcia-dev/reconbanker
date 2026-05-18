@@ -13,7 +13,7 @@ const statusVariant: Record<BankStatus, 'default' | 'secondary' | 'destructive' 
 }
 
 export function Banks() {
-  const { t } = useTranslation()
+  const { t } = useTranslation(['account', 'common'])
 
   const { data: banks = [], isLoading } = useBanks()
 

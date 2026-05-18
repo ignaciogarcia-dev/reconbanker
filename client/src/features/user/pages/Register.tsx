@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next'
 
 export function Register() {
   const navigate = useNavigate()
-  const { t } = useTranslation()
+  const { t } = useTranslation('user')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')

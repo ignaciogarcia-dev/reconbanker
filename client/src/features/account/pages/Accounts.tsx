@@ -15,7 +15,7 @@ import { useBanks } from '../hooks/useBanks'
 
 export function Accounts() {
   const navigate = useNavigate()
-  const { t } = useTranslation()
+  const { t } = useTranslation(['account', 'common'])
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState({ bankId: '', name: '' })
 

@@ -44,7 +44,7 @@ function hasActiveFilters(f: Filters) {
 const NOTIFIABLE_STATUSES = ['matched', 'ambiguous', 'expired']
 
 function OrdersTable({ requests, accounts, showAccount }: { requests: ConciliationRequestListItem[]; accounts: Account[]; showAccount?: boolean }) {
-  const { t } = useTranslation()
+  const { t } = useTranslation(['conciliation', 'common'])
   const accountMap = Object.fromEntries(accounts.map(a => [a.id, a.name || a.bank]))
 
   const renotify = useNotifyConciliation()
@@ -134,7 +134,7 @@ function OrdersTable({ requests, accounts, showAccount }: { requests: Conciliati
 }
 
 export function Conciliations() {
-  const { t } = useTranslation()
+  const { t } = useTranslation(['conciliation', 'common'])
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState<Filters>(emptyFilters)
   const [draft, setDraft] = useState<Filters>(emptyFilters)

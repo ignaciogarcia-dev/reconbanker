@@ -16,7 +16,7 @@ export function ModeOptionCards({
   value: OperationMode | null
   onChange: (mode: OperationMode) => void
 }) {
-  const { t } = useTranslation()
+  const { t } = useTranslation('user')
 
   return (
     <div className="space-y-2.5">

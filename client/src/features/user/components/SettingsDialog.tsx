@@ -24,7 +24,7 @@ const SECTIONS = [
 ] as const
 
 export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
-  const { t } = useTranslation()
+  const { t } = useTranslation('user')
   const { data: me } = useUser()
   const setMode = useSetOperationMode()
 

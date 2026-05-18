@@ -8,7 +8,7 @@ const LANGUAGES = [
 ] as const
 
 export function LanguageSelector() {
-  const { i18n } = useTranslation()
+  const { i18n } = useTranslation('common')
 
   function handleChange(code: string | null) {
     if (!code) return

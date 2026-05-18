@@ -20,7 +20,7 @@ import type { OperationMode } from '@/features/user/types'
 export function AppLayout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
-  const { t } = useTranslation()
+  const { t } = useTranslation('common')
   const { data: me } = useUser()
   const setMode = useSetOperationMode()
   const modalOpen = !!me && me.operationMode == null
