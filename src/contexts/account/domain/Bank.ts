@@ -1,7 +1,7 @@
 import { AggregateRoot } from '../../../shared/domain/AggregateRoot.js'
 import { ValidationError } from '../../../shared/errors/index.js'
 
-export type BankStatus = 'pending' | 'ready' | 'failed'
+export type BankStatus = 'pending' | 'onboarding' | 'ready' | 'failed'
 
 interface BankProps {
   code: string

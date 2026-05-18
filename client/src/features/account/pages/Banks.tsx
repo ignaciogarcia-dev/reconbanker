@@ -46,7 +46,7 @@ export function Banks() {
                     <TableCell className="font-mono text-xs">{bank.code}</TableCell>
                     <TableCell className="text-xs text-muted-foreground truncate max-w-48">{bank.loginUrl}</TableCell>
                     <TableCell>
-                      <Badge variant={statusVariant[bank.status] ?? 'outline'}>{t(`enums.bankStatus.${bank.status}`)}</Badge>
+                      <Badge variant={statusVariant[bank.status] ?? 'outline'}>{t(`common:enums.bankStatus.${bank.status}`)}</Badge>
                     </TableCell>
                   </TableRow>
                 ))}

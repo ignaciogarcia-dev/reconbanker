@@ -106,7 +106,7 @@ export function Accounts() {
                     <TableCell>{a.bank}</TableCell>
                     <TableCell>
                       <Badge variant={a.status === 'active' ? 'default' : 'secondary'}>
-                        {t(`enums.accountStatus.${a.status}`)}
+                        {t(`common:enums.accountStatus.${a.status}`)}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground text-xs font-mono">{a.id}</TableCell>
