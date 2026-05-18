@@ -1,6 +1,7 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { httpClient } from '@/shared/http/client'
+import { useQueryClient } from '@tanstack/react-query'
 import { useUser } from '@/features/user/hooks/useUser'
+import { useAccounts } from '@/features/account/hooks/useAccounts'
+import { useBankMovements, useReNotifyMovement, bankMovementsQueryKey } from '../hooks/useBankMovements'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
@@ -10,39 +11,21 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import { useTranslation } from 'react-i18next'
 import { Bell, CheckCircle2, Clock } from 'lucide-react'
 
-interface Account {
-  id: string
-  name: string
-  bank: string
-}
-
-interface BankMovement {
-  id: string
-  external_id: string
-  amount: number | string
-  currency: string
-  sender_name: string | null
-  received_at: string
-  notified_at: string | null
-  excluded_at: string | null
-}
-
 function MovementsTable({ accountId }: { accountId: string }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
 
-  const { data: movements = [], isLoading } = useQuery<BankMovement[]>({
-    queryKey: ['movements', accountId],
-    queryFn: () => httpClient.get(`/accounts/${accountId}/movements`).then(r => r.data),
-  })
+  const { data: movements = [], isLoading } = useBankMovements(accountId)
 
-  const renotify = useMutation({
-    mutationFn: (movementId: string) =>
-      httpClient.post(`/accounts/${accountId}/movements/${movementId}/notify`),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['movements', accountId] })
-    },
-  })
+  const renotify = useReNotifyMovement(accountId)
+
+  const handleRenotify = (movementId: string) => {
+    renotify.mutate(movementId, {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: bankMovementsQueryKey(accountId) })
+      },
+    })
+  }
 
   if (isLoading) {
     return <p className="text-muted-foreground text-sm">{t('movements.loading')}</p>
@@ -64,15 +47,15 @@ function MovementsTable({ accountId }: { accountId: string }) {
       <TableBody>
         {movements.map(m => (
           <TableRow key={m.id}>
-            <TableCell className="font-mono text-xs">{m.external_id}</TableCell>
+            <TableCell className="font-mono text-xs">{m.externalId}</TableCell>
             <TableCell>{m.amount}</TableCell>
             <TableCell>{m.currency}</TableCell>
-            <TableCell>{m.sender_name ?? '—'}</TableCell>
+            <TableCell>{m.senderName ?? '—'}</TableCell>
             <TableCell className="text-muted-foreground text-xs">
-              {new Date(m.received_at).toLocaleString()}
+              {new Date(m.receivedAt).toLocaleString()}
             </TableCell>
             <TableCell>
-              {m.notified_at ? (
+              {m.notifiedAt ? (
                 <Badge className="bg-green-500/10 text-green-700 dark:text-green-400 border-transparent">
                   <CheckCircle2 />
                   {t('movements.notified')}
@@ -103,7 +86,7 @@ function MovementsTable({ accountId }: { accountId: string }) {
                       </Button>
                     } />
                     <DialogClose render={
-                      <Button onClick={() => renotify.mutate(m.id)}>
+                      <Button onClick={() => handleRenotify(m.id)}>
                         {t('movements.renotifyConfirm')}
                       </Button>
                     } />
@@ -128,11 +111,7 @@ function MovementsTable({ accountId }: { accountId: string }) {
 export function BankMovements() {
   const { t } = useTranslation()
   const { data: me, isLoading: loadingMe } = useUser()
-
-  const { data: accounts = [], isLoading: loadingAccounts } = useQuery<Account[]>({
-    queryKey: ['accounts'],
-    queryFn: () => httpClient.get('/accounts').then(r => r.data),
-  })
+  const { data: accounts = [], isLoading: loadingAccounts } = useAccounts()
 
   const isLoading = loadingMe || loadingAccounts
   const wrongMode = !isLoading && me?.operationMode !== 'passthrough'

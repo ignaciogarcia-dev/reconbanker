@@ -1,0 +1,23 @@
+{
+  "movements": {
+    "title": "Bank movements",
+    "subtitle": "Audit movements for direct notification accounts and re-send the webhook when needed.",
+    "loading": "Loading...",
+    "emptyNoAccounts": "You don't have any direct notification accounts. Set an account to direct notification to see its movements here.",
+    "emptyWrongMode": "Your account operates in Reconciliation mode. Bank movements are only available in Direct notification mode. Change the mode from Settings to see them.",
+    "emptyTable": "No movements recorded for this account.",
+    "colExternalId": "External ID",
+    "colAmount": "Amount",
+    "colCurrency": "Currency",
+    "colSender": "Sender",
+    "colReceivedAt": "Received",
+    "colNotified": "Notified",
+    "colActions": "Actions",
+    "notified": "Yes",
+    "pending": "Pending",
+    "renotifyTitle": "Are you sure you want to re-notify?",
+    "renotifyDesc": "This will re-send the webhook for this movement to the external system.",
+    "renotifyConfirm": "Notify",
+    "renotifyCancel": "Cancel"
+  }
+}
