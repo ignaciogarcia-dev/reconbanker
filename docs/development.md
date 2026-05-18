@@ -52,7 +52,7 @@ Where `NNN` is the next sequential number. The migration runner applies files in
 1. Create a folder under `src/contexts/script-engine/infrastructure/scripts/<bank-code>/`
 2. Write the Playwright automation script
 3. Insert a row into `bank_scripts` with `status = 'review'`
-4. Use `POST /scripts/:scriptId/promote` to activate it
+4. Use `POST /api/scripts/:scriptId/promote` to activate it
 
 ## Adding a new bounded context
 
@@ -73,4 +73,4 @@ Where `NNN` is the next sequential number. The migration runner applies files in
 | PostgreSQL | 5432 |
 | Redis | 6379 |
 
-The frontend Axios client calls `http://localhost:3000` directly. `client/vite.config.ts` also defines a `/api` proxy for local experiments, but the app's current API calls do not depend on that prefix.
+The frontend Axios client calls `/api` by default. In development, `client/vite.config.ts` proxies `/api` to `http://localhost:3000`; in production, the backend serves the built SPA and API from the same origin.

@@ -83,7 +83,7 @@ cp .env.example .env
 
 `setup.sh` pulls the latest git changes, installs all dependencies, starts Docker (PostgreSQL + Redis), runs migrations, and launches both backend and frontend.
 
-- Backend API: `http://localhost:3000`
+- Backend API: `http://localhost:3000/api`
 - Frontend: `http://localhost:5173`
 
 See [docs/getting-started.md](docs/getting-started.md) for manual setup and environment variable reference.

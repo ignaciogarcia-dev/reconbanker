@@ -110,7 +110,7 @@ Key tables:
 | Table | Purpose |
 |---|---|
 | `users` | Authentication |
-| `banks` | Supported bank definitions (`pending`, `ready`, `failed`) |
+| `banks` | Supported bank definitions (`pending`, `onboarding`, `ready`, `failed`) |
 | `accounts` | Customer bank accounts |
 | `account_config` | Per-account webhook, polling, expiry-notification, extra-field, and silent-ingestion config |
 | `bank_credentials` | Encrypted login credentials per account |
@@ -124,7 +124,7 @@ Key tables:
 
 ## Frontend
 
-React 19 SPA in `client/`. The Vite dev server can proxy `/api` to the backend, while the shared Axios client currently uses `http://localhost:3000` as its base URL.
+React 19 SPA in `client/`. API routes are mounted under `/api`, and the shared Axios client uses `/api` by default with an optional `VITE_API_BASE_URL` override. The Vite dev server proxies `/api` to the backend.
 
 - **Routing**: React Router v7
 - **Server state**: TanStack Query (caching, refetch, mutations)

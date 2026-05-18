@@ -13,13 +13,13 @@ reconbanker/
 │   │   │   ├── auth.middleware.ts            # JWT verification
 │   │   │   └── error.middleware.ts           # Global error handler
 │   │   └── routes/
-│   │       ├── auth.routes.ts                # POST /auth/register, /auth/login
-│   │       ├── user.routes.ts                # /me and operation mode
-│   │       ├── accounts.routes.ts            # /accounts CRUD, config, scrape trigger
-│   │       ├── bank-movements.routes.ts      # /accounts/:accountId/movements
-│   │       ├── banks.routes.ts               # /banks CRUD + scripts
-│   │       ├── conciliation.routes.ts        # /conciliation list, run, poll, notify
-│   │       └── scripts.routes.ts             # /scripts list, detail, promote
+│   │       ├── auth.routes.ts                # POST /api/auth/register, /api/auth/login
+│   │       ├── user.routes.ts                # /api/me and operation mode
+│   │       ├── accounts.routes.ts            # /api/accounts CRUD, config, scrape trigger
+│   │       ├── bank-movements.routes.ts      # /api/accounts/:accountId/movements
+│   │       ├── banks.routes.ts               # /api/banks CRUD + scripts
+│   │       ├── conciliation.routes.ts        # /api/conciliation list, run, poll, notify
+│   │       └── scripts.routes.ts             # /api/scripts list, detail, promote
 │   ├── composition/
 │   │   ├── container.ts                      # Dependency graph and module factory
 │   │   ├── bindRoutes.ts                     # Express route composition
