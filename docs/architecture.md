@@ -110,7 +110,7 @@ Key tables:
 | Table | Purpose |
 |---|---|
 | `users` | Authentication |
-| `banks` | Supported bank definitions (`pending`, `onboarding`, `ready`, `failed`) |
+| `banks` | Supported bank definitions (`pending`, `ready`, `failed`) |
 | `accounts` | Customer bank accounts |
 | `account_config` | Per-account webhook, polling, expiry-notification, extra-field, and silent-ingestion config |
 | `bank_credentials` | Encrypted login credentials per account |
