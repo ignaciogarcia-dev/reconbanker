@@ -1,0 +1,18 @@
+{
+  "dashboard": {
+    "title": "Dashboard",
+    "subtitle": "System overview",
+    "activeAccounts": "Active accounts",
+    "conciliations": "Conciliations",
+    "reconciledToday": "Reconciled today",
+    "reconciledByDay": "Reconciliations over time",
+    "unreconciled": "Unreconciled",
+    "reconciledSection": "Reconciliation",
+    "passthroughSection": "Direct notification",
+    "movementsTotal": "Total movements",
+    "movementsToday": "Movements today",
+    "movementsNotified": "Notified",
+    "movementsPending": "Pending notification",
+    "movementsByDay": "Movements over time"
+  }
+}

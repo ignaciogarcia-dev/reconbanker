@@ -1,0 +1,67 @@
+{
+  "login": {
+    "subtitle": "Ingresá con tu cuenta para continuar",
+    "email": "Email",
+    "password": "Contraseña",
+    "submit": "Ingresar",
+    "loading": "Ingresando...",
+    "error": "Email o contraseña incorrectos",
+    "noAccount": "¿No tenés cuenta?",
+    "register": "Registrarse"
+  },
+  "register": {
+    "title": "Crear cuenta admin",
+    "subtitle": "Registrá un nuevo usuario administrador",
+    "name": "Nombre (opcional)",
+    "email": "Email",
+    "password": "Contraseña",
+    "submit": "Registrar",
+    "loading": "Registrando...",
+    "defaultError": "Error al registrar el usuario",
+    "hasAccount": "¿Ya tenés cuenta?",
+    "login": "Ingresar"
+  },
+  "settings": {
+    "title": "Configuración",
+    "subtitle": "Gestioná tu perfil y el modo de operación",
+    "loading": "Cargando...",
+    "tabs": {
+      "general": "General",
+      "operation": "Operación"
+    },
+    "profile": {
+      "title": "Perfil",
+      "name": "Nombre",
+      "email": "Email"
+    },
+    "mode": {
+      "title": "Modo de operación",
+      "notSet": "Sin definir",
+      "current": "Actual",
+      "change": "Cambiar modo",
+      "cancel": "Cancelar",
+      "save": "Guardar",
+      "saving": "Guardando...",
+      "saved": "Modo de operación actualizado",
+      "saveError": "No se pudo actualizar el modo de operación",
+      "confirmTitle": "Confirmá el cambio de modo",
+      "confirmBody": "Al cambiar de modo se eliminarán de forma permanente todos los movimientos y conciliaciones registrados hasta ahora. Por motivos de seguridad y cumplimiento, los datos procesados bajo un modo no pueden conservarse al pasar al otro. Esta acción es irreversible.",
+      "confirmCancel": "Cancelar",
+      "confirmConfirm": "Sí, cambiar y borrar datos"
+    }
+  },
+  "modeSelect": {
+    "title": "¿Cómo querés que opere ReconBanker?",
+    "subtitle": "Elegí el modo de operación. Vas a poder cambiarlo más adelante desde Configuración.",
+    "confirm": "Continuar",
+    "reconcile": {
+      "title": "Conciliación",
+      "desc": "El sistema pollea órdenes pendientes desde tu endpoint, las matchea contra los movimientos bancarios y dispara el webhook al conciliar.",
+      "recommended": "Recomendado"
+    },
+    "passthrough": {
+      "title": "Notificación directa",
+      "desc": "El sistema no consulta órdenes pendientes. Por cada movimiento bancario detectado se envía un webhook directo con los datos del movimiento."
+    }
+  }
+}

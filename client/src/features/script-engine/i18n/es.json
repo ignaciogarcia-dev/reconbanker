@@ -1,0 +1,16 @@
+{
+  "scripts": {
+    "title": "Scripts",
+    "subtitle": "Scripts de automatización bancaria",
+    "registered": "Scripts registrados",
+    "loading": "Cargando...",
+    "empty": "No hay scripts registrados",
+    "colBank": "Banco",
+    "colFlow": "Flujo",
+    "colVersion": "Versión",
+    "colOrigin": "Origen",
+    "colStatus": "Estado",
+    "colActions": "Acciones",
+    "promote": "Promover"
+  }
+}

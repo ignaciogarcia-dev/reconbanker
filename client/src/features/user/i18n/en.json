@@ -1,0 +1,67 @@
+{
+  "login": {
+    "subtitle": "Sign in to your account to continue",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Sign in",
+    "loading": "Signing in...",
+    "error": "Incorrect email or password",
+    "noAccount": "Don't have an account?",
+    "register": "Register"
+  },
+  "register": {
+    "title": "Create admin account",
+    "subtitle": "Register a new admin user",
+    "name": "Name (optional)",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Register",
+    "loading": "Registering...",
+    "defaultError": "Error registering user",
+    "hasAccount": "Already have an account?",
+    "login": "Sign in"
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Manage your profile and operation mode",
+    "loading": "Loading...",
+    "tabs": {
+      "general": "General",
+      "operation": "Operation"
+    },
+    "profile": {
+      "title": "Profile",
+      "name": "Name",
+      "email": "Email"
+    },
+    "mode": {
+      "title": "Operation mode",
+      "notSet": "Not set",
+      "current": "Current",
+      "change": "Change mode",
+      "cancel": "Cancel",
+      "save": "Save",
+      "saving": "Saving...",
+      "saved": "Operation mode updated",
+      "saveError": "Failed to update operation mode",
+      "confirmTitle": "Confirm mode change",
+      "confirmBody": "Changing the mode will permanently delete all movements and conciliations recorded so far. For security and compliance reasons, data processed under one mode cannot be carried over to the other. This action is irreversible.",
+      "confirmCancel": "Cancel",
+      "confirmConfirm": "Yes, change and delete data"
+    }
+  },
+  "modeSelect": {
+    "title": "How should ReconBanker operate?",
+    "subtitle": "Choose the operation mode. You can change it later from Settings.",
+    "confirm": "Continue",
+    "reconcile": {
+      "title": "Reconciliation",
+      "desc": "The system polls pending orders from your endpoint, matches them against bank movements, and fires the webhook on reconciliation.",
+      "recommended": "Recommended"
+    },
+    "passthrough": {
+      "title": "Direct notification",
+      "desc": "The system does not poll orders. Each detected bank movement triggers a direct webhook with the movement data."
+    }
+  }
+}

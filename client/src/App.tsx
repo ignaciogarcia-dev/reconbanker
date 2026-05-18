@@ -1,59 +1,19 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { TooltipProvider } from '@/components/ui/tooltip'
-import { Toaster } from '@/components/ui/sonner'
-import { AuthProvider, useAuth } from '@/lib/auth'
-import { AppLayout } from '@/components/layout/AppLayout'
-import { Login } from '@/pages/Login'
-import { Dashboard } from '@/pages/Dashboard'
-import { Banks } from '@/pages/Banks'
-import { Accounts } from '@/pages/Accounts'
-import { AccountConfig } from '@/pages/AccountConfig'
-import { Conciliations } from '@/pages/Conciliations'
-import { BankMovements } from '@/pages/BankMovements'
-import { Scripts } from '@/pages/Scripts'
-import { Register } from '@/pages/Register'
-import { useUser, type OperationMode } from '@/lib/useUser'
+import { TooltipProvider } from '@/shared/ui/tooltip'
+import { Toaster } from '@/shared/ui/sonner'
+import { AuthProvider } from '@/features/user/providers/AuthProvider'
+import { PublicShell } from '@/shared/layout/PublicShell'
+import { ProtectedShell } from '@/shared/layout/ProtectedShell'
+import { userPublicRoutes } from '@/features/user/routes'
+import { dashboardRoutes } from '@/features/dashboard/routes'
+import { accountRoutes } from '@/features/account/routes'
+import { bankingRoutes } from '@/features/banking/routes'
+import { conciliationRoutes } from '@/features/conciliation/routes'
+import { scriptEngineRoutes } from '@/features/script-engine/routes'
+import '@/shared/i18n'
 
 const queryClient = new QueryClient()
-
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useAuth()
-  if (isLoading) return null
-  if (!user) return <Navigate to="/login" replace />
-  return <>{children}</>
-}
-
-function ModeGuard({ requires, children }: { requires: OperationMode; children: React.ReactNode }) {
-  const { data: me, isLoading } = useUser()
-  if (isLoading || !me) return null
-  if (me.operation_mode != null && me.operation_mode !== requires) {
-    return <Navigate to="/" replace />
-  }
-  return <>{children}</>
-}
-
-function AppRoutes() {
-  const { user, isLoading } = useAuth()
-  if (isLoading) return null
-
-  return (
-    <Routes>
-      <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
-      <Route path="/register" element={user ? <Navigate to="/" replace /> : <Register />} />
-      <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-        <Route path="/"                              element={<Dashboard />} />
-        <Route path="/banks"                         element={<Banks />} />
-        <Route path="/accounts"                      element={<Accounts />} />
-        <Route path="/accounts/:accountId/config"    element={<AccountConfig />} />
-        <Route path="/conciliations"                 element={<ModeGuard requires="reconcile"><Conciliations /></ModeGuard>} />
-        <Route path="/movements"                     element={<ModeGuard requires="passthrough"><BankMovements /></ModeGuard>} />
-        <Route path="/scripts"                       element={<Scripts />} />
-      </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
-  )
-}
 
 export default function App() {
   return (
@@ -61,7 +21,17 @@ export default function App() {
       <AuthProvider>
         <TooltipProvider>
           <BrowserRouter>
-            <AppRoutes />
+            <Routes>
+              <Route element={<PublicShell />}>{userPublicRoutes}</Route>
+              <Route element={<ProtectedShell />}>
+                {dashboardRoutes}
+                {accountRoutes}
+                {bankingRoutes}
+                {conciliationRoutes}
+                {scriptEngineRoutes}
+              </Route>
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
           </BrowserRouter>
           <Toaster />
         </TooltipProvider>

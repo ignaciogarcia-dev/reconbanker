@@ -1,0 +1,16 @@
+{
+  "scripts": {
+    "title": "Scripts",
+    "subtitle": "Bank automation scripts",
+    "registered": "Registered scripts",
+    "loading": "Loading...",
+    "empty": "No scripts registered",
+    "colBank": "Bank",
+    "colFlow": "Flow",
+    "colVersion": "Version",
+    "colOrigin": "Origin",
+    "colStatus": "Status",
+    "colActions": "Actions",
+    "promote": "Promote"
+  }
+}
