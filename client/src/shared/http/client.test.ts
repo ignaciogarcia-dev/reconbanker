@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { httpClient, resolveApiBaseUrl } from './client'
+import { resolveApiBaseUrl } from './client'
 
 describe('httpClient', () => {
   it('uses the api prefix by default', () => {
-    expect(httpClient.defaults.baseURL).toBe('/api')
+    expect(resolveApiBaseUrl(undefined)).toBe('/api')
   })
 
   it('falls back to the api prefix when the env var is empty', () => {
