@@ -143,6 +143,18 @@ export function buildAccountsRouter(account: AccountModule): Router {
     res.status(202).json(result)
   }))
 
+  // Clears a fatal scrape/session block (e.g. after fixing bad credentials) and
+  // re-triggers scraping. Works for both one-shot and persistent accounts.
+  // Benign race: if a persistent session's fatal `done` rejection is still settling,
+  // it may re-block right after this clear — the operator just restarts again.
+  router.post('/:accountId/restart', controller(async (req: AuthRequest, res) => {
+    const userId = requireUserId(req)
+    const { accountId } = validateParams(req, accountIdParams)
+    await account.clearScrapeBlock.execute(accountId, userId) // ownership check + clear block
+    const result = await enqueueBankScrape(accountId)
+    res.status(202).json(result)
+  }))
+
   router.put('/:accountId/config', controller(async (req: AuthRequest, res) => {
     const userId = requireUserId(req)
     const { accountId } = validateParams(req, accountIdParams)

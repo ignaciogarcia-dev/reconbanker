@@ -7,12 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
 import { Switch } from '@/shared/ui/switch'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
-import { ArrowLeft, Save, Info, Trash2, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Save, Info, Trash2, AlertTriangle, RotateCcw, ShieldAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useUser } from '@/features/user/hooks/useUser'
-import { useAccount, useDeleteAccount } from '../hooks/useAccounts'
+import { useAccount, useDeleteAccount, useRestartAccount } from '../hooks/useAccounts'
 import { useAccountConfig, useUpsertAccountConfig } from '../hooks/useAccountConfig'
-import type { AuthType, PollingMethod } from '../types'
+import type { AuthType, PollingMethod, SessionType, LoginMode } from '../types'
 
 interface AccountConfigForm {
   pendingOrdersEndpoint: string
@@ -25,6 +25,8 @@ interface AccountConfigForm {
   bankPassword: string
   webhookExtraFields: string
   silentIngestion: boolean
+  sessionType: SessionType
+  loginMode: LoginMode
 }
 
 const RESERVED_WEBHOOK_KEYS = ['external_id', 'status', 'amount', 'currency', 'name', 'id', 'received_at']
@@ -46,6 +48,8 @@ export function AccountConfig() {
     bankPassword: '',
     webhookExtraFields: '',
     silentIngestion: false,
+    sessionType: 'one-shot',
+    loginMode: 'simple',
   })
   const [saved, setSaved] = useState(false)
   const [extraFieldsError, setExtraFieldsError] = useState<string | null>(null)
@@ -74,6 +78,8 @@ export function AccountConfig() {
         ? JSON.stringify(data.webhookExtraFields, null, 2)
         : '',
       silentIngestion: data.silentIngestion,
+      sessionType: data.sessionType,
+      loginMode: data.loginMode,
     }))
   }, [data])
 
@@ -99,6 +105,8 @@ export function AccountConfig() {
   const save = useUpsertAccountConfig(accountId ?? '')
 
   const remove = useDeleteAccount()
+
+  const restart = useRestartAccount()
 
   function openDeleteDialog(open: boolean) {
     setDeleteOpen(open)
@@ -143,6 +151,8 @@ export function AccountConfig() {
         notifyOnExpired: data?.notifyOnExpired ?? false,
         webhookExtraFields: parseJsonOrNull(form.webhookExtraFields),
         silentIngestion: form.silentIngestion,
+        sessionType: form.sessionType,
+        loginMode: form.loginMode,
         bankUsername: form.bankUsername === '' ? null : form.bankUsername,
         bankPassword: form.bankPassword === '' ? null : form.bankPassword,
       },
@@ -192,6 +202,41 @@ export function AccountConfig() {
         </div>
       </div>
 
+      {/* Session blocked — fatal failure stopped automatic scraping/sessions */}
+      {account?.scrapeBlockedReason && (
+        <div className="relative overflow-hidden rounded-xl border border-destructive/30 bg-destructive/5">
+          <div className="absolute inset-y-0 left-0 w-1 bg-destructive" />
+          <div className="flex flex-col gap-4 p-5 pl-6 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex gap-3">
+              <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+                <ShieldAlert className="size-5" />
+              </div>
+              <div className="space-y-1.5">
+                <p className="font-semibold leading-none text-destructive">{t('accountConfig.blocked.title')}</p>
+                <p className="text-sm text-muted-foreground">{t('accountConfig.blocked.description')}</p>
+                <code className="mt-1 inline-block rounded bg-destructive/10 px-2 py-1 font-mono text-xs text-destructive">
+                  {account.scrapeBlockedReason}
+                </code>
+                {account.scrapeBlockedAt && (
+                  <p className="text-xs text-muted-foreground">
+                    {t('accountConfig.blocked.since', { when: new Date(account.scrapeBlockedAt).toLocaleString() })}
+                  </p>
+                )}
+              </div>
+            </div>
+            <Button
+              variant="destructive"
+              className="shrink-0 gap-2"
+              disabled={restart.isPending}
+              onClick={() => accountId && restart.mutate(accountId)}
+            >
+              <RotateCcw className={`size-4 ${restart.isPending ? 'animate-spin' : ''}`} />
+              {restart.isPending ? t('accountConfig.blocked.restarting') : t('accountConfig.blocked.restart')}
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Bank credentials */}
       <Card>
         <CardHeader><CardTitle>{t('accountConfig.bankCredentials')}</CardTitle></CardHeader>
@@ -203,6 +248,53 @@ export function AccountConfig() {
           <div className="space-y-2">
             <Label>{t('accountConfig.password')}</Label>
             <Input type="password" placeholder={t('accountConfig.passwordPlaceholder')} {...field('bankPassword')} />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Session behaviour */}
+      <Card>
+        <CardHeader><CardTitle>{t('accountConfig.session')}</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>{t('accountConfig.sessionType')}</Label>
+            <Select
+              value={form.sessionType}
+              onValueChange={v => setForm(f => ({ ...f, sessionType: v as SessionType }))}
+            >
+              <SelectTrigger>
+                <SelectValue>
+                  {form.sessionType === 'persistent'
+                    ? t('accountConfig.sessionTypePersistent')
+                    : t('accountConfig.sessionTypeOneShot')}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="one-shot">{t('accountConfig.sessionTypeOneShot')}</SelectItem>
+                <SelectItem value="persistent">{t('accountConfig.sessionTypePersistent')}</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">{t('accountConfig.sessionTypeDesc')}</p>
+          </div>
+          <div className="space-y-2">
+            <Label>{t('accountConfig.loginMode')}</Label>
+            <Select
+              value={form.loginMode}
+              onValueChange={v => setForm(f => ({ ...f, loginMode: v as LoginMode }))}
+            >
+              <SelectTrigger>
+                <SelectValue>
+                  {form.loginMode === 'assisted'
+                    ? t('accountConfig.loginModeAssisted')
+                    : t('accountConfig.loginModeSimple')}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="simple">{t('accountConfig.loginModeSimple')}</SelectItem>
+                <SelectItem value="assisted">{t('accountConfig.loginModeAssisted')}</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">{t('accountConfig.loginModeDesc')}</p>
           </div>
         </CardContent>
       </Card>

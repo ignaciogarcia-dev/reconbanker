@@ -2,6 +2,8 @@ export type AccountStatus = 'active' | 'inactive'
 export type BankStatus = 'pending' | 'onboarding' | 'ready' | 'failed'
 export type AuthType = 'bearer' | 'api_key'
 export type PollingMethod = 'GET' | 'POST'
+export type SessionType = 'one-shot' | 'persistent'
+export type LoginMode = 'simple' | 'assisted'
 
 export interface Bank {
   id: string
@@ -16,6 +18,8 @@ export interface Account {
   bank: string
   name: string | null
   status: AccountStatus
+  scrapeBlockedAt: string | null
+  scrapeBlockedReason: string | null
 }
 
 export interface AccountConfig {
@@ -33,6 +37,8 @@ export interface AccountConfig {
   notifyOnExpired: boolean
   webhookExtraFields: Record<string, unknown> | null
   silentIngestion: boolean
+  sessionType: SessionType
+  loginMode: LoginMode
   bankUsername: string | null
 }
 
