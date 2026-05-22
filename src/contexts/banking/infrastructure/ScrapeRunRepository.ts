@@ -23,10 +23,10 @@ export class ScrapeRunRepository implements IScrapeRunRepository {
     )
   }
 
-  async markFailed(runId: string, errorMessage: string): Promise<void> {
+  async markFailed(runId: string, errorMessage: string, failureType: string = 'unknown'): Promise<void> {
     await this.executor.query(
-      `UPDATE bank_scrape_runs SET status='failed', failure_type='unknown', error_message=$1, finished_at=now() WHERE id=$2`,
-      [errorMessage, runId]
+      `UPDATE bank_scrape_runs SET status='failed', failure_type=$1, error_message=$2, finished_at=now() WHERE id=$3`,
+      [failureType, errorMessage, runId]
     )
   }
 }
