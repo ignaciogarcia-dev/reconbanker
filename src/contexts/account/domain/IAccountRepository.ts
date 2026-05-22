@@ -6,4 +6,5 @@ export interface IAccountRepository {
   findAllByUser(userId: string): Promise<Account[]>
   save(account: Account): Promise<void>
   delete(id: string): Promise<void>
+  clearScrapeBlock(id: string): Promise<void>
 }

@@ -55,4 +55,11 @@ export class AccountRepository implements IAccountRepository {
   async delete(id: string): Promise<void> {
     await this.executor.query(`DELETE FROM accounts WHERE id = $1`, [id])
   }
+
+  async clearScrapeBlock(id: string): Promise<void> {
+    await this.executor.query(
+      `UPDATE accounts SET scrape_blocked_at = NULL, scrape_blocked_reason = NULL WHERE id = $1`,
+      [id]
+    )
+  }
 }
