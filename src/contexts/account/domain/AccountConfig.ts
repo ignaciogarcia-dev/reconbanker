@@ -1,5 +1,7 @@
 export type AuthType = 'bearer' | 'api_key'
 export type PollingMethod = 'GET' | 'POST'
+export type SessionType = 'one-shot' | 'persistent'
+export type LoginMode = 'simple' | 'assisted'
 
 export interface AccountConfig {
   id: string
@@ -16,6 +18,8 @@ export interface AccountConfig {
   notifyOnExpired: boolean
   webhookExtraFields: Record<string, unknown> | null
   silentIngestion: boolean
+  sessionType: SessionType
+  loginMode: LoginMode
 }
 
 export interface AccountConfigInput {
@@ -32,4 +36,6 @@ export interface AccountConfigInput {
   notifyOnExpired: boolean
   webhookExtraFields: Record<string, unknown> | null
   silentIngestion: boolean
+  sessionType: SessionType
+  loginMode: LoginMode
 }

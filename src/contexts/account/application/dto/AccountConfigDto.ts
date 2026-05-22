@@ -1,4 +1,4 @@
-import type { AccountConfig, AuthType, PollingMethod } from '../../domain/AccountConfig.js'
+import type { AccountConfig, AuthType, PollingMethod, SessionType, LoginMode } from '../../domain/AccountConfig.js'
 
 export interface AccountConfigDto extends AccountConfig {
   bankUsername: string | null
@@ -19,6 +19,8 @@ export interface UpsertAccountConfigInput {
   notifyOnExpired: boolean
   webhookExtraFields: Record<string, unknown> | null
   silentIngestion: boolean
+  sessionType: SessionType
+  loginMode: LoginMode
   bankUsername: string | null
   bankPassword: string | null
 }
