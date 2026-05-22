@@ -10,6 +10,7 @@ import { UserOperationModeReaderAdapter } from '../contexts/account/infrastructu
 import type { UserModule } from './userModule.js'
 import { CreateAccountUseCase } from '../contexts/account/application/CreateAccountUseCase.js'
 import { DeleteAccountUseCase } from '../contexts/account/application/DeleteAccountUseCase.js'
+import { ClearScrapeBlockUseCase } from '../contexts/account/application/ClearScrapeBlockUseCase.js'
 import { ListAccountsForUserUseCase } from '../contexts/account/application/ListAccountsForUserUseCase.js'
 import { GetAccountDetailUseCase } from '../contexts/account/application/GetAccountDetailUseCase.js'
 import { GetAccountConfigUseCase } from '../contexts/account/application/GetAccountConfigUseCase.js'
@@ -27,6 +28,7 @@ interface ContainerBase {
 export interface AccountModule {
   createAccount: CreateAccountUseCase
   deleteAccount: DeleteAccountUseCase
+  clearScrapeBlock: ClearScrapeBlockUseCase
   listAccountsForUser: ListAccountsForUserUseCase
   getAccountDetail: GetAccountDetailUseCase
   getAccountConfig: GetAccountConfigUseCase
@@ -58,6 +60,7 @@ export function buildAccountModule(container: ContainerBase): AccountModule {
     bankCredentialsRepository,
     createAccount: new CreateAccountUseCase(accountRepository, bankRepository),
     deleteAccount: new DeleteAccountUseCase(accountRepository),
+    clearScrapeBlock: new ClearScrapeBlockUseCase(accountRepository),
     listAccountsForUser: new ListAccountsForUserUseCase(accountRepository),
     getAccountDetail: new GetAccountDetailUseCase(accountRepository),
     getAccountConfig: new GetAccountConfigUseCase(
