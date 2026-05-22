@@ -34,6 +34,8 @@ const upsertConfigSchema = z.object({
   notify_on_expired: z.boolean().optional(),
   webhook_extra_fields: z.union([z.record(z.string(), z.unknown()), z.string(), z.null()]).optional(),
   silent_ingestion: z.boolean().optional(),
+  session_type: z.enum(['one-shot', 'persistent']).optional(),
+  login_mode: z.enum(['simple', 'assisted']).optional(),
 })
 
 const RESERVED_WEBHOOK_KEYS = ['external_id', 'status', 'amount', 'currency', 'name', 'id', 'received_at']
@@ -89,6 +91,8 @@ function toJson(config: AccountConfigDto) {
     notify_on_expired: config.notifyOnExpired,
     webhook_extra_fields: config.webhookExtraFields,
     silent_ingestion: config.silentIngestion,
+    session_type: config.sessionType,
+    login_mode: config.loginMode,
     bank_username: config.bankUsername,
   }
 }
@@ -159,6 +163,8 @@ export function buildAccountsRouter(account: AccountModule): Router {
       notifyOnExpired: body.notify_on_expired ?? false,
       webhookExtraFields: parseExtraFields(body.webhook_extra_fields),
       silentIngestion: body.silent_ingestion ?? false,
+      sessionType: body.session_type ?? 'one-shot',
+      loginMode: body.login_mode ?? 'simple',
       bankUsername: body.bank_username ?? null,
       bankPassword: body.bank_password ?? null,
     })
