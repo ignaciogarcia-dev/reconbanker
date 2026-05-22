@@ -16,7 +16,7 @@ ReconBanker is a self-hosted reconciliation engine that scrapes bank transaction
 
 ## What it does
 
-- **Scrapes bank transactions** from customer bank accounts using Playwright browser automation (Itaú, Mi Dinero, and more)
+- **Scrapes bank transactions** from customer bank accounts using Playwright browser automation (Mi Dinero, Banco Pichincha Empresas, and more)
 - **Polls pending orders** from customer ERP or order-management systems via HTTP
 - **Reconciles transactions to orders** using a rule-based engine (exact amount + date window) and a fuzzy sender-name heuristic
 - **Notifies customers** via webhook when a match is found, including match type and transaction detail
@@ -39,6 +39,13 @@ ReconBanker is a self-hosted reconciliation engine that scrapes bank transaction
 - Manual or scheduled scraping and polling triggers
 - Script versioning: promote bank scripts from `review` → `active`
 
+### Bank session management
+
+- **One-shot scrapes** (open → scrape → close, run periodically) or long-lived **persistent sessions** (a browser monitor kept open per account), selectable per account via `session_type`
+- **Login mode** per account (`login_mode`): `simple` logs in unattended, `assisted` waits for a human to complete 2FA
+- **Skip-on-fatal**: a fatal failure (e.g. bad credentials / login failure) blocks the account from all automatic scrape/session triggers — instead of retrying and risking a bank lockout
+- **Manual restart**: a blocked account surfaces a "needs attention" badge in the UI and stays blocked until an operator restarts it
+
 ### Async job processing
 
 - Six BullMQ queues: `order-ingestion`, `bank-scrape`, `conciliation`, `tx-conciliation`, `webhook`, `bank-movement-webhook`
@@ -48,7 +55,8 @@ ReconBanker is a self-hosted reconciliation engine that scrapes bank transaction
 ### Frontend dashboard
 
 - Login / register
-- Account list and per-account config
+- Account list with a "needs attention" badge for accounts blocked by a fatal failure
+- Per-account config, including session settings (`session_type` / `login_mode`) and a restart action to unblock a fatally failed account
 - Conciliation requests with status, attempt history, and matched transaction detail
 - Bank movement passthrough mode
 - Bank and script management
@@ -144,6 +152,7 @@ For a detailed workflow see [docs/development.md](docs/development.md).
 | [docs/getting-started.md](docs/getting-started.md) | Setup, env vars, manual run guide          |
 | [docs/architecture.md](docs/architecture.md)       | Bounded contexts, DDD patterns, job queues |
 | [docs/api-reference.md](docs/api-reference.md)     | REST endpoints and request/response shapes |
+| [docs/development.md](docs/development.md)         | Common commands, migrations, adding scripts and contexts |
 | [docs/repository-map.md](docs/repository-map.md)   | Compact source tree reference              |
 
 ## License

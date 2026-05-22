@@ -13,8 +13,8 @@
 | `pnpm test` | Run backend unit tests |
 | `pnpm test:watch` | Run backend tests in watch mode |
 | `pnpm test:coverage` | Run backend tests with coverage |
-| `pnpm test:integration` | Run backend integration tests |
-| `pnpm typecheck` | Type-check backend source and tests |
+| `pnpm test:integration` | Run backend integration tests (separate `vitest.integration.config.ts`, run serially, need a Postgres test DB — see [below](#integration-tests)) |
+| `pnpm typecheck` | Type-check backend source and tests (`tsc --noEmit` + `tsc -p tsconfig.test.json`) |
 
 ### Frontend (run from `client/`)
 
@@ -36,6 +36,34 @@
 | `docker compose up -d` | Start PostgreSQL and Redis |
 | `docker compose down` | Stop services |
 | `docker compose down -v` | Stop services and delete volumes |
+
+## Integration tests
+
+`pnpm test:integration` uses `vitest.integration.config.ts` (separate from the unit-test
+config) and runs the suites serially. The setup file (`tests/integration/setup.ts`):
+
+1. Resolves a test database from `DATABASE_URL_TEST`, or derives a `reconbanker_test`
+   database from `DATABASE_URL` (default `postgres://reconbanker:reconbanker@localhost:5432/reconbanker_test`).
+2. Creates that database if it does not exist.
+3. Runs all migrations against it (`pnpm migrate`).
+4. Seeds canonical fixtures (`mi-dinero` bank + active script) stamped in the past.
+
+The Docker Compose Postgres (below) is enough; no manual test-DB setup is required.
+
+## Bank scraping & persistent sessions
+
+Real bank scrapes and persistent bank sessions run through Playwright. The runners
+(`PlaywrightRunner`, `PersistentPlaywrightRunner`) launch Chromium with `headless: false`,
+so running these locally requires:
+
+- The Chromium browser installed: `npx playwright install chromium`
+- A display / X server (note: WSL2 needs WSLg or an external X server)
+- Migrations `028`–`031` applied (`pnpm migrate`)
+
+Persistent sessions store a per-account browser profile under `PLAYWRIGHT_PROFILES_DIR`
+(default `./playwright-profiles`, gitignored). Tuning env vars: `SESSION_HEALTHCHECK_SECONDS`
+(default 75) and `PERSISTENT_POLL_INTERVAL_MS` (default 60000). See `docs/getting-started.md`
+for the full env reference.
 
 ## Adding a database migration
 
