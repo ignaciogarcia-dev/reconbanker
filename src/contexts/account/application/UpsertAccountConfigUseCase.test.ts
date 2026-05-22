@@ -37,6 +37,8 @@ const baseInput = {
   notifyOnExpired: false,
   webhookExtraFields: null,
   silentIngestion: false,
+  sessionType: 'one-shot' as const,
+  loginMode: 'simple' as const,
   bankUsername: null,
   bankPassword: null,
 }
