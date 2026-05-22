@@ -107,15 +107,31 @@ const fetchDetail = async (rowIndex, expectedUuid) => {
 
 return {
   async login(page, context) {
-    await page.goto("https://bancaempresas.pichincha.com/", { waitUntil: "commit" }).catch((e) => {
+    // Load the login page; the SPA may ABORT the initial navigation, which is benign.
+    await page.goto("https://bancaempresas.pichincha.com/", { waitUntil: "domcontentloaded" }).catch((e) => {
       if (!String(e.message).includes("ERR_ABORTED")) throw e;
     });
-    await page.waitForLoadState("domcontentloaded", { timeout: 30000 }).catch(() => {});
-    await page.waitForSelector("#signInName", { timeout: 30000 });
-    await page.fill("#signInName", context.username);
-    await page.fill("#password", context.password);
-    await page.waitForSelector("#continue", { timeout: 10000 });
-    await page.click("#continue");
+
+    // Wait until the username field is actually visible (not just attached), then
+    // give the Azure AD B2C form a moment to finish wiring its handlers.
+    const userField = page.locator("#signInName");
+    await userField.waitFor({ state: "visible", timeout: 30000 });
+    await page.waitForTimeout(1000);
+
+    // Type username → wait → type password → wait → submit (staged, not all-at-once).
+    await userField.click();
+    await userField.pressSequentially(context.username, { delay: 40 });
+    await page.waitForTimeout(1000);
+
+    const passField = page.locator("#password");
+    await passField.waitFor({ state: "visible", timeout: 10000 });
+    await passField.click();
+    await passField.pressSequentially(context.password, { delay: 40 });
+    await page.waitForTimeout(1000);
+
+    const continueBtn = page.locator("#continue");
+    await continueBtn.waitFor({ state: "visible", timeout: 10000 });
+    await continueBtn.click();
   },
 
   async isAuthenticated(page) {
