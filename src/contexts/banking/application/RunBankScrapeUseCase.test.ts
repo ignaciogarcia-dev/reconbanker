@@ -18,7 +18,7 @@ function buildSut(transactions: ScrapedTransaction[], opts: { hasScript?: boolea
   }
   const accountReader = {
     findById: async (accountId: string) =>
-      opts.hasAccount === false ? null : { id: accountId, userId: 'user-1', bank: 'test-bank' },
+      opts.hasAccount === false ? null : { id: accountId, userId: 'user-1', bank: 'test-bank', sessionType: 'one-shot' as const, loginMode: 'simple' as const },
   }
   const useCase = new RunBankScrapeUseCase({
     accountReader, txRepo, scrapeRunRepo, scriptEngine, eventBus,
@@ -63,7 +63,7 @@ describe('RunBankScrapeUseCase', () => {
     const failHandler = vi.fn().mockResolvedValue(undefined)
     eventBus.subscribe('ScrapeRunFailed', failHandler)
     const useCase = new RunBankScrapeUseCase({
-      accountReader: { findById: async () => ({ id: 'acc-1', userId: 'user-1', bank: 'b' }) },
+      accountReader: { findById: async () => ({ id: 'acc-1', userId: 'user-1', bank: 'b', sessionType: 'one-shot', loginMode: 'simple' }) },
       txRepo, scrapeRunRepo,
       scriptEngine: {
         loadActiveScript: async () => ({ id: 'script-1', codeSnapshot: '' }),

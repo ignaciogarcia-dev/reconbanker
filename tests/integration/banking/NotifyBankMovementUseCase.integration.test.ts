@@ -74,7 +74,7 @@ function buildUseCase(sendWebhookFn: any) {
   const pool = getTestPool()
   return new NotifyBankMovementUseCase({
     bankTxRepo: txRepo,
-    accountReader: new AccountForBankingReaderAdapter(new AccountRepository(accountExec(pool))),
+    accountReader: new AccountForBankingReaderAdapter(new AccountRepository(accountExec(pool)), new AccountConfigRepository(accountExec(pool))),
     configReader: new NotificationConfigReaderAdapter(new AccountConfigRepository(accountExec(pool))),
     userModeReader: new UserOperationModeReaderAdapter(new UserRepository(userExec(pool))),
     sendWebhookFn,
