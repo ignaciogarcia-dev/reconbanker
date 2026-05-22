@@ -8,6 +8,8 @@ export interface AccountRow {
   name: string | null
   status: AccountStatus
   created_at: Date
+  scrape_blocked_at: Date | null
+  scrape_blocked_reason: string | null
 }
 
 export const AccountRowMapper = {
@@ -19,6 +21,8 @@ export const AccountRowMapper = {
       name: row.name ?? undefined,
       status: row.status,
       createdAt: row.created_at,
+      scrapeBlockedAt: row.scrape_blocked_at ?? null,
+      scrapeBlockedReason: row.scrape_blocked_reason ?? null,
     })
   },
 }
