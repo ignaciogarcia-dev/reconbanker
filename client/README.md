@@ -11,6 +11,14 @@ pnpm dev       # http://localhost:5173
 
 Requires the backend running on port 3000. See the [root README](../README.md) for full setup.
 
+## Features
+
+- Login / register, account list, and conciliation request views
+- Per-account config form, including bank **session settings** (`sessionType`: one-shot / persistent, `loginMode`: simple / assisted)
+- **Needs-attention** badge on the account list when a fatal failure has blocked an account, and a **restart** action on the account config page to unblock it
+- Bank and script management
+- Feature-scoped i18n (i18next)
+
 ## Scripts
 
 | Command | Description |

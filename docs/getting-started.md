@@ -5,6 +5,8 @@
 - [Node.js](https://nodejs.org/) >= 20
 - [pnpm](https://pnpm.io/) >= 10 - `npm install -g pnpm`
 - [Docker](https://www.docker.com/) with Compose v2
+- A Playwright Chromium browser, only if you run **real** bank scrapes or persistent
+  bank sessions locally (see [Bank scraping & persistent sessions](#bank-scraping--persistent-sessions))
 
 ## One-command setup
 
@@ -109,7 +111,55 @@ If you need to override the frontend API base URL, define `VITE_API_BASE_URL` in
 | `SCRAPE_INTERVAL_SECONDS` | No | `1200` | Interval for running bank scraping jobs |
 | `EXPIRE_STALE_REQUESTS_INTERVAL_SECONDS` | No | `3600` | Interval for expiring stale conciliation requests |
 | `BANK_SCRAPE_CONCURRENCY` | No | `2` | Maximum number of bank scraping jobs, and Playwright browsers, to run at the same time |
+| `PLAYWRIGHT_PROFILES_DIR` | No | `./playwright-profiles` | Directory where persistent bank sessions store per-account browser profiles (gitignored) |
+| `SESSION_HEALTHCHECK_SECONDS` | No | `75` | Interval at which the scheduler health-checks live persistent bank sessions |
+| `PERSISTENT_POLL_INTERVAL_MS` | No | `60000` | How often a running persistent session polls the bank for new transactions |
 | `VITE_API_BASE_URL` | No | `/api` | Frontend API base URL (read by Vite from `client/.env*` or exported shell env); set only when the API is served from a different origin |
+
+> The persistent-session variables (`PLAYWRIGHT_PROFILES_DIR`, `SESSION_HEALTHCHECK_SECONDS`,
+> `PERSISTENT_POLL_INTERVAL_MS`) all have sensible defaults and are not listed in `.env.example`.
+> Set them only to override the defaults.
+
+## Bank scraping & persistent sessions
+
+The backend uses [Playwright](https://playwright.dev/) (already a dependency, no extra
+install for normal app development) to drive real bank scrapes and the persistent bank
+sessions introduced by that feature. To run those flows locally against a real browser:
+
+1. Install the Chromium browser Playwright drives:
+
+   ```bash
+   npx playwright install chromium
+   ```
+
+2. Provide a display. Both `PlaywrightRunner` and `PersistentPlaywrightRunner` launch
+   Chromium with `headless: false`, so a running X server / desktop session is required.
+   On **WSL2** there is no display by default — use WSLg (Windows 11) or a separate X
+   server, otherwise the browser launch fails.
+
+3. Apply migrations up to and including `028`–`031`, which add the persistent-session
+   schema and seeds (`pnpm migrate` applies all of these).
+
+Per-account browser profiles are stored under `PLAYWRIGHT_PROFILES_DIR`
+(default `./playwright-profiles`, gitignored). See the env reference above for
+`SESSION_HEALTHCHECK_SECONDS` and `PERSISTENT_POLL_INTERVAL_MS`.
+
+## Running tests
+
+```bash
+# Unit tests (vitest)
+pnpm test
+
+# Integration tests — separate config, run serially, need a Postgres test DB
+pnpm test:integration
+```
+
+`pnpm test:integration` uses `vitest.integration.config.ts`. Its setup
+(`tests/integration/setup.ts`) connects to `DATABASE_URL_TEST` if set, otherwise derives
+a `reconbanker_test` database from `DATABASE_URL` (falling back to
+`postgres://reconbanker:reconbanker@localhost:5432/reconbanker_test`). It creates that
+database if missing, runs all migrations against it, and seeds canonical fixtures, so the
+Docker Compose Postgres started above is sufficient — no manual test-DB creation needed.
 
 ## Production build
 

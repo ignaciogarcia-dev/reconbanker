@@ -128,6 +128,22 @@ Returns bank details including associated scripts.
 
 Returns accounts for the authenticated user.
 
+`status` reflects the account's onboarding/scrape state. `scrapeBlockedAt` is an ISO timestamp (or `null`) set when a fatal failure has blocked the account from automatic scrape/session triggers; `scrapeBlockedReason` carries the human-readable cause (or `null`). Both fields are returned in camelCase. Clear a block with `POST /accounts/:accountId/restart`.
+
+**Response** `200`
+```json
+[
+  {
+    "id": "uuid",
+    "bank": "itau",
+    "name": "Main account",
+    "status": "ready",
+    "scrapeBlockedAt": null,
+    "scrapeBlockedReason": null
+  }
+]
+```
+
 ---
 
 ### POST /accounts
@@ -148,7 +164,19 @@ Create an account for the authenticated user.
 
 ### GET /accounts/:accountId
 
-Returns account detail for the authenticated user.
+Returns account detail for the authenticated user. Same shape as a single entry in `GET /accounts`, including `scrapeBlockedAt` and `scrapeBlockedReason`.
+
+**Response** `200`
+```json
+{
+  "id": "uuid",
+  "bank": "itau",
+  "name": "Main account",
+  "status": "ready",
+  "scrapeBlockedAt": null,
+  "scrapeBlockedReason": null
+}
+```
 
 ---
 
@@ -186,9 +214,13 @@ Returns the account's reconciliation and webhook configuration, or `null` when n
   "notify_on_expired": false,
   "webhook_extra_fields": null,
   "silent_ingestion": false,
+  "session_type": "one-shot",
+  "login_mode": "simple",
   "bank_username": "user"
 }
 ```
+
+`session_type` is `one-shot` or `persistent`. `login_mode` is `simple` or `assisted`. The bank password is never returned.
 
 ---
 
@@ -212,17 +244,40 @@ Create or update account configuration.
   "bank_password": "secret",
   "notify_on_expired": false,
   "webhook_extra_fields": { "source": "reconbanker" },
-  "silent_ingestion": false
+  "silent_ingestion": false,
+  "session_type": "persistent",
+  "login_mode": "assisted"
 }
 ```
 
+Only `webhook_url` is required; all other fields are optional. Defaults applied when omitted: `retry_limit` `3`, `polling_method` `GET`, `auth_type` `bearer`, `notify_on_expired` `false`, `silent_ingestion` `false`, `session_type` `one-shot`, `login_mode` `simple`.
+
+`session_type` must be `one-shot` or `persistent`; `login_mode` must be `simple` or `assisted`. `bank_password` is accepted on write but never echoed back in the response.
+
+`polling_body` is only retained when `polling_method` is `POST`; it may be a JSON object or a JSON object encoded as a string.
+
 `webhook_extra_fields` may be a JSON object, a JSON object encoded as a string, or `null`. It cannot override reserved webhook keys such as `external_id`, `status`, `amount`, `currency`, `name`, `id`, or `received_at`.
+
+**Response** `200` — the saved config, same shape as `GET /accounts/:accountId/config`.
 
 ---
 
 ### POST /accounts/:accountId/scrape
 
-Trigger a manual bank scrape for this account.
+Trigger a manual bank scrape for this account. Requires ownership of the account.
+
+This is a deliberate human override and is **not** gated by a fatal scrape block: it enqueues a scrape even when `scrapeBlockedAt` is set, without clearing the block. Use `POST /accounts/:accountId/restart` when you want to clear the block as well.
+
+**Response** `202`
+```json
+{ "queued": true }
+```
+
+---
+
+### POST /accounts/:accountId/restart
+
+Clears a fatal scrape/session block on the account (e.g. after fixing bad credentials) and re-enqueues a scrape. Requires ownership of the account. Works for both `one-shot` and `persistent` session types.
 
 **Response** `202`
 ```json
@@ -329,6 +384,11 @@ Returns script details.
 ### POST /scripts/:scriptId/promote
 
 Promote a script from `review` to `active` status. The previously active script for that bank is deactivated.
+
+**Response** `200`
+```json
+{ "promoted": true }
+```
 
 ---
 
