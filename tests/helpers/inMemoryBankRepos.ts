@@ -41,7 +41,7 @@ export class InMemoryBankTransactionRepository implements IBankTransactionReposi
 }
 
 export class InMemoryScrapeRunRepository implements IScrapeRunRepository {
-  runs: Array<{ runId: string; accountId: string; scriptId: string; status: string; count?: number; error?: string }> = []
+  runs: Array<{ runId: string; accountId: string; scriptId: string; status: string; count?: number; error?: string; failureType?: string }> = []
   withTx() { return this }
   async create(runId: string, accountId: string, scriptId: string) {
     this.runs.push({ runId, accountId, scriptId, status: 'running' })
@@ -49,7 +49,7 @@ export class InMemoryScrapeRunRepository implements IScrapeRunRepository {
   async markSuccess(runId: string, count: number) {
     const r = this.runs.find((x) => x.runId === runId); if (r) { r.status = 'success'; r.count = count }
   }
-  async markFailed(runId: string, error: string) {
-    const r = this.runs.find((x) => x.runId === runId); if (r) { r.status = 'failed'; r.error = error }
+  async markFailed(runId: string, error: string, failureType: string = 'unknown') {
+    const r = this.runs.find((x) => x.runId === runId); if (r) { r.status = 'failed'; r.error = error; r.failureType = failureType }
   }
 }
