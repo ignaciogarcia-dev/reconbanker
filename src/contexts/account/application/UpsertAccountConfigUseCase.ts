@@ -45,6 +45,8 @@ export class UpsertAccountConfigUseCase {
       notifyOnExpired: input.notifyOnExpired,
       webhookExtraFields: input.webhookExtraFields,
       silentIngestion: input.silentIngestion,
+      sessionType: input.sessionType,
+      loginMode: input.loginMode,
     })
 
     if (input.bankUsername && input.bankPassword) {

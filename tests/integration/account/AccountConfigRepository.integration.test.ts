@@ -29,6 +29,8 @@ describe('AccountConfigRepository (integration)', () => {
       notifyOnExpired: true,
       webhookExtraFields: { custom: { nested: true }, list: [1, 2, 3] },
       silentIngestion: true,
+      sessionType: 'one-shot',
+      loginMode: 'simple',
       ...overrides,
     }
   }

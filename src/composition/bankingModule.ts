@@ -44,7 +44,7 @@ export function buildBankingModule(container: ContainerBase): BankingModule {
   const configRepo = container.account.accountConfigRepository
   const userRepo = container.user.userRepository
 
-  const accountReader = new AccountForBankingReaderAdapter(accountRepo)
+  const accountReader = new AccountForBankingReaderAdapter(accountRepo, configRepo)
   const configReader = new NotificationConfigReaderAdapter(configRepo)
   const userModeReader = new UserOperationModeReaderAdapter(userRepo)
   const scriptEngine = new ScriptEngineAdapter()

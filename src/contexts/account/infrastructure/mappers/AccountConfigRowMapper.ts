@@ -1,4 +1,4 @@
-import { AccountConfig, AuthType, PollingMethod } from '../../domain/AccountConfig.js'
+import { AccountConfig, AuthType, PollingMethod, SessionType, LoginMode } from '../../domain/AccountConfig.js'
 
 export interface AccountConfigRow {
   id: string
@@ -15,6 +15,8 @@ export interface AccountConfigRow {
   notify_on_expired: boolean
   webhook_extra_fields: Record<string, unknown> | null
   silent_ingestion: boolean | null
+  session_type: SessionType
+  login_mode: LoginMode
 }
 
 export const AccountConfigRowMapper = {
@@ -34,6 +36,8 @@ export const AccountConfigRowMapper = {
       notifyOnExpired: row.notify_on_expired,
       webhookExtraFields: row.webhook_extra_fields,
       silentIngestion: row.silent_ingestion ?? false,
+      sessionType: row.session_type,
+      loginMode: row.login_mode,
     }
   },
 }

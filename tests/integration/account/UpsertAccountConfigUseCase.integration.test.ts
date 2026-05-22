@@ -39,6 +39,8 @@ function baseInput(accountId: string, userId: string, overrides: Partial<UpsertA
     notifyOnExpired: false,
     webhookExtraFields: null,
     silentIngestion: false,
+    sessionType: 'one-shot',
+    loginMode: 'simple',
     bankUsername: null,
     bankPassword: null,
     ...overrides,
