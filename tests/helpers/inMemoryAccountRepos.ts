@@ -28,6 +28,7 @@ export class InMemoryAccountRepository implements IAccountRepository {
   }
   async save(account: Account) { this.store.set(account.id, account) }
   async delete(id: string) { this.store.delete(id) }
+  async clearScrapeBlock(_id: string) { /* no-op for in-memory tests */ }
 }
 
 export class InMemoryBankRepository implements IBankRepository {
