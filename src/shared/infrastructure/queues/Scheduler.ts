@@ -1,6 +1,10 @@
 import { Queues } from './QueueRegistry.js'
 import { enqueueBankScrape } from './BankScrapeQueue.js'
 import { db } from '../db/client.js'
+import {
+  SCRAPABLE_ONE_SHOT_ACCOUNTS_SQL,
+  PERSISTENT_SESSION_CANDIDATES_SQL,
+} from './schedulerQueries.js'
 import type { Container } from '../../../composition/container.js'
 
 export class Scheduler {
@@ -60,14 +64,7 @@ export class Scheduler {
   }
 
   private async enqueueScraping(): Promise<void> {
-    const { rows: accounts } = await db.query(
-      `SELECT a.id
-         FROM accounts a
-         LEFT JOIN account_config ac ON ac.account_id = a.id
-        WHERE a.status = 'active'
-          AND a.scrape_blocked_reason IS NULL
-          AND COALESCE(ac.session_type, 'one-shot') = 'one-shot'`
-    )
+    const { rows: accounts } = await db.query(SCRAPABLE_ONE_SHOT_ACCOUNTS_SQL)
 
     let queued = 0
     let skipped = 0
@@ -84,14 +81,7 @@ export class Scheduler {
   }
 
   private async ensurePersistentSessions(): Promise<void> {
-    const { rows: accounts } = await db.query(
-      `SELECT a.id
-         FROM accounts a
-         JOIN account_config ac ON ac.account_id = a.id
-        WHERE a.status = 'active'
-          AND a.scrape_blocked_reason IS NULL
-          AND ac.session_type = 'persistent'`
-    )
+    const { rows: accounts } = await db.query(PERSISTENT_SESSION_CANDIDATES_SQL)
 
     let launched = 0
     for (const account of accounts) {
