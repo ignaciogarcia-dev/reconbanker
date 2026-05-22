@@ -16,6 +16,8 @@ interface AccountConfigRow {
   notify_on_expired: boolean
   webhook_extra_fields: Record<string, unknown> | null
   silent_ingestion: boolean
+  session_type: AccountConfig['sessionType']
+  login_mode: AccountConfig['loginMode']
   bank_username: string | null
 }
 
@@ -51,6 +53,8 @@ function toAccountConfig(row: AccountConfigRow): AccountConfig {
     notifyOnExpired: row.notify_on_expired,
     webhookExtraFields: row.webhook_extra_fields,
     silentIngestion: row.silent_ingestion,
+    sessionType: row.session_type,
+    loginMode: row.login_mode,
     bankUsername: row.bank_username,
   }
 }
@@ -69,6 +73,8 @@ function toBackendBody(input: UpsertAccountConfigInput) {
     notify_on_expired: input.notifyOnExpired,
     webhook_extra_fields: input.webhookExtraFields,
     silent_ingestion: input.silentIngestion,
+    session_type: input.sessionType,
+    login_mode: input.loginMode,
     bank_username: input.bankUsername,
     bank_password: input.bankPassword,
   }
