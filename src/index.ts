@@ -61,6 +61,7 @@ log.info('workers started', {
 
 process.on('SIGTERM', async () => {
   scheduler.stop()
+  container.banking.sessionManager.stopAll()
   await Promise.all([
     orderIngestionWorker.close(),
     bankScrapeWorker.close(),
