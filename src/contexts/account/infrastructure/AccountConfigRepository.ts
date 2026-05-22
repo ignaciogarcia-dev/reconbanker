@@ -23,8 +23,9 @@ export class AccountConfigRepository implements IAccountConfigRepository {
       `INSERT INTO account_config
          (id, account_id, pending_orders_endpoint, webhook_url,
           retry_limit, polling_method, polling_body, auth_type, auth_token,
-          webhook_auth_type, webhook_auth_token, notify_on_expired, webhook_extra_fields, silent_ingestion)
-       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+          webhook_auth_type, webhook_auth_token, notify_on_expired, webhook_extra_fields, silent_ingestion,
+          session_type, login_mode)
+       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
        ON CONFLICT (account_id) DO UPDATE SET
          pending_orders_endpoint = $2,
          webhook_url             = $3,
@@ -38,6 +39,8 @@ export class AccountConfigRepository implements IAccountConfigRepository {
          notify_on_expired       = $11,
          webhook_extra_fields    = $12,
          silent_ingestion        = $13,
+         session_type            = $14,
+         login_mode              = $15,
          updated_at              = now()
        RETURNING *`,
       [
@@ -54,6 +57,8 @@ export class AccountConfigRepository implements IAccountConfigRepository {
         input.notifyOnExpired,
         input.webhookExtraFields,
         input.silentIngestion,
+        input.sessionType,
+        input.loginMode,
       ]
     )
     return AccountConfigRowMapper.toDto(rows[0])
