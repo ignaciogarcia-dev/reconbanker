@@ -22,7 +22,7 @@ function buildSut(opts: {
   const sendWebhookFn = vi.fn().mockResolvedValue(undefined)
   const useCase = new NotifyBankMovementUseCase({
     bankTxRepo,
-    accountReader: { findById: async () => ({ id: 'acc-1', userId: 'user-1', bank: 'b' }) },
+    accountReader: { findById: async () => ({ id: 'acc-1', userId: 'user-1', bank: 'b', sessionType: 'one-shot', loginMode: 'simple' }) },
     configReader: {
       findByAccountId: async () => ({
         accountId: 'acc-1',
@@ -73,7 +73,7 @@ describe('NotifyBankMovementUseCase', () => {
     const sendWebhookFn = vi.fn().mockRejectedValue(new Error('5xx'))
     const useCase = new NotifyBankMovementUseCase({
       bankTxRepo,
-      accountReader: { findById: async () => ({ id: 'acc-1', userId: 'user-1', bank: 'b' }) },
+      accountReader: { findById: async () => ({ id: 'acc-1', userId: 'user-1', bank: 'b', sessionType: 'one-shot', loginMode: 'simple' }) },
       configReader: {
         findByAccountId: async () => ({
           accountId: 'acc-1', webhookUrl: 'https://hook',
