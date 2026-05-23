@@ -5,12 +5,13 @@ import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/ui/tooltip'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
 import { cn } from '@/shared/lib/utils'
 import { Radio } from '@base-ui/react/radio'
 import { RadioGroup } from '@base-ui/react/radio-group'
-import { ArrowLeft, Save, Info, Trash2, AlertTriangle, RotateCcw, ShieldAlert, Check, Bell, BellOff, TrendingDown, Lock, FileCheck, Settings as SettingsIcon, Terminal } from 'lucide-react'
+import { ArrowLeft, Save, Info, Trash2, AlertTriangle, RotateCcw, ShieldAlert, Check, Bell, BellOff, TrendingDown, Lock, FileCheck, Settings as SettingsIcon, Terminal, KeyRound, Activity, Webhook, ShieldCheck } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useUser } from '@/features/user/hooks/useUser'
 import { useAccount, useDeleteAccount, useRestartAccount } from '../hooks/useAccounts'
@@ -59,6 +60,7 @@ export function AccountConfig() {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteConfirmName, setDeleteConfirmName] = useState('')
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<string>('credentials')
 
   const { data: account } = useAccount(accountId)
   const { data, isLoading } = useAccountConfig(accountId)
@@ -193,7 +195,7 @@ export function AccountConfig() {
   if (isLoading) return <div className="p-8 text-muted-foreground text-sm">{t('accountConfig.loading')}</div>
 
   return (
-    <div className="p-8 space-y-6 max-w-2xl">
+    <div className="px-6 lg:px-8 py-8 space-y-6 pb-28">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <Button variant="ghost" size="sm" onClick={() => navigate('/accounts')}>
@@ -252,103 +254,212 @@ export function AccountConfig() {
         </div>
       )}
 
-      {/* Bank credentials */}
-      <Card>
-        <CardHeader><CardTitle>{t('accountConfig.bankCredentials')}</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>{t('accountConfig.username')}</Label>
-            <Input placeholder={t('accountConfig.usernamePlaceholder')} {...field('bankUsername')} />
-          </div>
-          <div className="space-y-2">
-            <Label>{t('accountConfig.password')}</Label>
-            <Input type="password" placeholder={t('accountConfig.passwordPlaceholder')} {...field('bankPassword')} />
-          </div>
-        </CardContent>
-      </Card>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-6">
+        <TabsList className="h-10 w-fit gap-1 p-1">
+          <TabsTrigger value="credentials" className="flex-none gap-2 px-4">
+            <KeyRound className="size-4" />
+            {t('accountConfig.tabs.credentials')}
+          </TabsTrigger>
+          <TabsTrigger value="session" className="flex-none gap-2 px-4">
+            <Activity className="size-4" />
+            {t('accountConfig.tabs.session')}
+          </TabsTrigger>
+          <TabsTrigger value="webhooks" className="flex-none gap-2 px-4">
+            <Webhook className="size-4" />
+            {t('accountConfig.tabs.webhooks')}
+          </TabsTrigger>
+          {mode === 'reconcile' && (
+            <TabsTrigger value="auth-orders" className="flex-none gap-2 px-4">
+              <ShieldCheck className="size-4" />
+              {t('accountConfig.tabs.authOrders')}
+            </TabsTrigger>
+          )}
+        </TabsList>
 
-      {/* Session behaviour */}
-      <Card>
-        <CardHeader><CardTitle>{t('accountConfig.session')}</CardTitle></CardHeader>
-        <CardContent className="space-y-5">
-          <div className="space-y-2">
-            <Label>{t('accountConfig.sessionType')}</Label>
-            <RadioGroup
-              value={form.sessionType}
-              onValueChange={v => setForm(f => ({ ...f, sessionType: v as SessionType }))}
-              className="flex flex-col gap-3"
-            >
-              <OptionCard
-                value="one-shot"
-                title={t('accountConfig.sessionTypeOneShot')}
-                description={t('accountConfig.sessionTypeOneShotDesc')}
-              />
-              <OptionCard
-                value="persistent"
-                title={t('accountConfig.sessionTypePersistent')}
-                description={t('accountConfig.sessionTypePersistentDesc')}
-              />
-            </RadioGroup>
-          </div>
-          <div className="space-y-2">
-            <Label>{t('accountConfig.loginMode')}</Label>
-            <RadioGroup
-              value={form.loginMode}
-              onValueChange={v => setForm(f => ({ ...f, loginMode: v as LoginMode }))}
-              className="flex flex-col gap-3"
-            >
-              <OptionCard
-                value="simple"
-                title={t('accountConfig.loginModeSimple')}
-                description={t('accountConfig.loginModeSimpleDesc')}
-              />
-              <OptionCard
-                value="assisted"
-                title={t('accountConfig.loginModeAssisted')}
-                description={t('accountConfig.loginModeAssistedDesc')}
-              />
-            </RadioGroup>
-          </div>
-        </CardContent>
-      </Card>
+        {/* Bank credentials */}
+        <TabsContent value="credentials" className="space-y-6">
+          <Card>
+            <CardHeader><CardTitle>{t('accountConfig.bankCredentials')}</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>{t('accountConfig.username')}</Label>
+                <Input placeholder={t('accountConfig.usernamePlaceholder')} {...field('bankUsername')} />
+              </div>
+              <div className="space-y-2">
+                <Label>{t('accountConfig.password')}</Label>
+                <Input type="password" placeholder={t('accountConfig.passwordPlaceholder')} {...field('bankPassword')} />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      {/* Auth */}
-      <Card>
-        <CardHeader><CardTitle>{t('accountConfig.auth')}</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>{t('accountConfig.authType')}</Label>
-            <Select
-              value={form.authType}
-              onValueChange={v => setForm(f => ({ ...f, authType: v as AuthType }))}
-            >
-              <SelectTrigger>
-                <SelectValue>{form.authType === 'bearer' ? 'Bearer token' : 'API Key'}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="bearer">Bearer token</SelectItem>
-                <SelectItem value="api_key">API Key</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>{t('accountConfig.tokenKey')}</Label>
-            <Input type="password" {...field('authToken')} />
-          </div>
-        </CardContent>
-      </Card>
+        {/* Session behaviour */}
+        <TabsContent value="session" className="space-y-6">
+          <Card>
+            <CardHeader><CardTitle>{t('accountConfig.session')}</CardTitle></CardHeader>
+            <CardContent className="space-y-5">
+              <div className="space-y-2">
+                <Label>{t('accountConfig.sessionType')}</Label>
+                <RadioGroup
+                  value={form.sessionType}
+                  onValueChange={v => setForm(f => ({ ...f, sessionType: v as SessionType }))}
+                  className="flex flex-col gap-3"
+                >
+                  <OptionCard
+                    value="one-shot"
+                    title={t('accountConfig.sessionTypeOneShot')}
+                    description={t('accountConfig.sessionTypeOneShotDesc')}
+                  />
+                  <OptionCard
+                    value="persistent"
+                    title={t('accountConfig.sessionTypePersistent')}
+                    description={t('accountConfig.sessionTypePersistentDesc')}
+                  />
+                </RadioGroup>
+              </div>
+              <div className="space-y-2">
+                <Label>{t('accountConfig.loginMode')}</Label>
+                <RadioGroup
+                  value={form.loginMode}
+                  onValueChange={v => setForm(f => ({ ...f, loginMode: v as LoginMode }))}
+                  className="flex flex-col gap-3"
+                >
+                  <OptionCard
+                    value="simple"
+                    title={t('accountConfig.loginModeSimple')}
+                    description={t('accountConfig.loginModeSimpleDesc')}
+                  />
+                  <OptionCard
+                    value="assisted"
+                    title={t('accountConfig.loginModeAssisted')}
+                    description={t('accountConfig.loginModeAssistedDesc')}
+                  />
+                </RadioGroup>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      {/* Order ingestion (reconcile mode only) */}
-      {mode === 'reconcile' && (
-      <Card>
-        <CardHeader><CardTitle>{t('accountConfig.orderIngestion')}</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
-          <div className="rounded-md border border-border bg-muted/40 p-3 flex gap-2 text-sm text-foreground">
-            <Info className="size-4 mt-0.5 shrink-0" />
-            <div>
-              <p className="font-medium mb-1">{t('accountConfig.endpointFormat')}</p>
-              <p className="text-xs text-muted-foreground mb-2">{t('accountConfig.endpointFormatDesc')}</p>
-              <pre className="text-xs bg-background rounded p-2 font-mono whitespace-pre-wrap">{`[
+        {/* Webhooks */}
+        <TabsContent value="webhooks" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('accountConfig.webhooks')}</CardTitle>
+              <CardAction>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        type="button"
+                        aria-pressed={form.silentIngestion}
+                        aria-label={t(
+                          form.silentIngestion
+                            ? 'accountConfig.notificationsSilenced'
+                            : 'accountConfig.notificationsActive',
+                        )}
+                        onClick={() => setForm(f => ({ ...f, silentIngestion: !f.silentIngestion }))}
+                      >
+                        {form.silentIngestion ? <BellOff className="size-4" /> : <Bell className="size-4" />}
+                      </Button>
+                    }
+                  />
+                  <TooltipContent className="max-w-xs text-left">
+                    {t('accountConfig.silentIngestionDesc')}
+                  </TooltipContent>
+                </Tooltip>
+              </CardAction>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-md border border-border bg-muted/40 p-3 flex gap-2 text-sm text-foreground">
+                <Info className="size-4 mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium mb-1">{t('accountConfig.webhookPayload')}</p>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    {mode === 'reconcile'
+                      ? t('accountConfig.webhookPayloadDesc')
+                      : t('accountConfig.webhookPayloadPassthroughDesc')}
+                  </p>
+                  <pre className="text-xs bg-background rounded p-2 font-mono whitespace-pre-wrap">
+                    {mode === 'reconcile'
+                      ? `{
+  "external_id": "order-123",
+  "amount": 1500.00,
+  "currency": "UYU",
+  "name": "Juan Pérez"
+}`
+                      : `{
+  "id": "uuid-del-movimiento",
+  "amount": 1500.00,
+  "currency": "UYU",
+  "name": "Juan Pérez",
+  "received_at": "2026-04-24T12:00:00.000Z"
+}`}
+                  </pre>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>{t('accountConfig.webhookUrl')}</Label>
+                <Input placeholder="https://..." {...field('webhookUrl')} />
+              </div>
+              <div className="space-y-2">
+                <Label>{t('accountConfig.webhookExtraFields')}</Label>
+                <p className="text-xs text-muted-foreground">{t('accountConfig.webhookExtraFieldsDesc')}</p>
+                <textarea
+                  className="w-full min-h-24 rounded-md border bg-transparent px-3 py-2 text-sm font-mono resize-y"
+                  placeholder='{"source": "reconbanker"}'
+                  value={form.webhookExtraFields}
+                  onChange={e => {
+                    setForm(f => ({ ...f, webhookExtraFields: e.target.value }))
+                    if (extraFieldsError) setExtraFieldsError(null)
+                  }}
+                />
+                {extraFieldsError && (
+                  <p className="text-xs text-destructive">{extraFieldsError}</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Auth & Orders (reconcile mode only) */}
+        {mode === 'reconcile' && (
+          <TabsContent value="auth-orders" className="space-y-6">
+            <Card>
+              <CardHeader><CardTitle>{t('accountConfig.auth')}</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>{t('accountConfig.authType')}</Label>
+                  <Select
+                    value={form.authType}
+                    onValueChange={v => setForm(f => ({ ...f, authType: v as AuthType }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue>{form.authType === 'bearer' ? 'Bearer token' : 'API Key'}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bearer">Bearer token</SelectItem>
+                      <SelectItem value="api_key">API Key</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>{t('accountConfig.tokenKey')}</Label>
+                  <Input type="password" {...field('authToken')} />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader><CardTitle>{t('accountConfig.orderIngestion')}</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <div className="rounded-md border border-border bg-muted/40 p-3 flex gap-2 text-sm text-foreground">
+                  <Info className="size-4 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-medium mb-1">{t('accountConfig.endpointFormat')}</p>
+                    <p className="text-xs text-muted-foreground mb-2">{t('accountConfig.endpointFormatDesc')}</p>
+                    <pre className="text-xs bg-background rounded p-2 font-mono whitespace-pre-wrap">{`[
   {
     "external_id": "order-123",
     "amount": 1500.00,
@@ -356,126 +467,52 @@ export function AccountConfig() {
     "name": "Juan Pérez"
   }
 ]`}</pre>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label>{t('accountConfig.pendingEndpoint')}</Label>
-            <Input placeholder="https://..." {...field('pendingOrdersEndpoint')} />
-          </div>
-          <div className="space-y-2">
-            <Label>{t('accountConfig.httpMethod')}</Label>
-            <Select
-              value={form.pollingMethod}
-              onValueChange={v => setForm(f => ({ ...f, pollingMethod: v as PollingMethod }))}
-            >
-              <SelectTrigger>
-                <SelectValue>{form.pollingMethod}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="GET">GET</SelectItem>
-                <SelectItem value="POST">POST</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {form.pollingMethod === 'POST' && (
-            <div className="space-y-2">
-              <Label>{t('accountConfig.body')}</Label>
-              <textarea
-                className="w-full min-h-24 rounded-md border bg-transparent px-3 py-2 text-sm font-mono resize-y"
-                placeholder='{"key": "value"}'
-                {...field('pollingBody')}
-              />
-            </div>
-          )}
-        </CardContent>
-      </Card>
-      )}
-
-      {/* Webhooks */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('accountConfig.webhooks')}</CardTitle>
-          <CardAction>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    type="button"
-                    aria-pressed={form.silentIngestion}
-                    aria-label={t(
-                      form.silentIngestion
-                        ? 'accountConfig.notificationsSilenced'
-                        : 'accountConfig.notificationsActive',
-                    )}
-                    onClick={() => setForm(f => ({ ...f, silentIngestion: !f.silentIngestion }))}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>{t('accountConfig.pendingEndpoint')}</Label>
+                  <Input placeholder="https://..." {...field('pendingOrdersEndpoint')} />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t('accountConfig.httpMethod')}</Label>
+                  <Select
+                    value={form.pollingMethod}
+                    onValueChange={v => setForm(f => ({ ...f, pollingMethod: v as PollingMethod }))}
                   >
-                    {form.silentIngestion ? <BellOff className="size-4" /> : <Bell className="size-4" />}
-                  </Button>
-                }
-              />
-              <TooltipContent className="max-w-xs text-left">
-                {t('accountConfig.silentIngestionDesc')}
-              </TooltipContent>
-            </Tooltip>
-          </CardAction>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="rounded-md border border-border bg-muted/40 p-3 flex gap-2 text-sm text-foreground">
-            <Info className="size-4 mt-0.5 shrink-0" />
-            <div>
-              <p className="font-medium mb-1">{t('accountConfig.webhookPayload')}</p>
-              <p className="text-xs text-muted-foreground mb-2">
-                {mode === 'reconcile'
-                  ? t('accountConfig.webhookPayloadDesc')
-                  : t('accountConfig.webhookPayloadPassthroughDesc')}
-              </p>
-              <pre className="text-xs bg-background rounded p-2 font-mono whitespace-pre-wrap">
-                {mode === 'reconcile'
-                  ? `{
-  "external_id": "order-123",
-  "amount": 1500.00,
-  "currency": "UYU",
-  "name": "Juan Pérez"
-}`
-                  : `{
-  "id": "uuid-del-movimiento",
-  "amount": 1500.00,
-  "currency": "UYU",
-  "name": "Juan Pérez",
-  "received_at": "2026-04-24T12:00:00.000Z"
-}`}
-              </pre>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label>{t('accountConfig.webhookUrl')}</Label>
-            <Input placeholder="https://..." {...field('webhookUrl')} />
-          </div>
-          <div className="space-y-2">
-            <Label>{t('accountConfig.webhookExtraFields')}</Label>
-            <p className="text-xs text-muted-foreground">{t('accountConfig.webhookExtraFieldsDesc')}</p>
-            <textarea
-              className="w-full min-h-24 rounded-md border bg-transparent px-3 py-2 text-sm font-mono resize-y"
-              placeholder='{"source": "reconbanker"}'
-              value={form.webhookExtraFields}
-              onChange={e => {
-                setForm(f => ({ ...f, webhookExtraFields: e.target.value }))
-                if (extraFieldsError) setExtraFieldsError(null)
-              }}
-            />
-            {extraFieldsError && (
-              <p className="text-xs text-destructive">{extraFieldsError}</p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+                    <SelectTrigger>
+                      <SelectValue>{form.pollingMethod}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="GET">GET</SelectItem>
+                      <SelectItem value="POST">POST</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {form.pollingMethod === 'POST' && (
+                  <div className="space-y-2">
+                    <Label>{t('accountConfig.body')}</Label>
+                    <textarea
+                      className="w-full min-h-24 rounded-md border bg-transparent px-3 py-2 text-sm font-mono resize-y"
+                      placeholder='{"key": "value"}'
+                      {...field('pollingBody')}
+                    />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+      </Tabs>
 
-      <Button onClick={handleSave} disabled={save.isPending} className="gap-2">
-        <Save className="size-4" />
-        {save.isPending ? t('accountConfig.saving') : saved ? t('accountConfig.saved') : t('accountConfig.save')}
-      </Button>
+      {/* Sticky save bar — stays visible regardless of active tab */}
+      <div className="sticky bottom-0 -mx-6 lg:-mx-8 mt-2 border-t border-border/60 bg-background/80 px-6 lg:px-8 py-3 supports-backdrop-filter:backdrop-blur">
+        <div className="flex justify-end">
+          <Button onClick={handleSave} disabled={save.isPending} className="gap-2">
+            <Save className="size-4" />
+            {save.isPending ? t('accountConfig.saving') : saved ? t('accountConfig.saved') : t('accountConfig.save')}
+          </Button>
+        </div>
+      </div>
 
       <Dialog open={deleteOpen} onOpenChange={openDeleteDialog}>
         <DialogContent className="sm:max-w-md gap-0 p-0 overflow-hidden">
