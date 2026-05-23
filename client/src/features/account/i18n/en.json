@@ -72,6 +72,12 @@
     "silentIngestionDesc": "Ingest movements without sending notifications. Use it when starting the system for the first time so existing movements from the day do not trigger webhooks. Turn it off when you want to receive notifications normally.",
     "notificationsActive": "Notifications active",
     "notificationsSilenced": "Notifications silenced",
+    "tabs": {
+      "credentials": "Credentials",
+      "session": "Session",
+      "webhooks": "Webhooks",
+      "authOrders": "Auth & Orders"
+    },
     "session": "Session",
     "sessionType": "Session type",
     "sessionTypeOneShot": "One-shot",
