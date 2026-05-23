@@ -3,14 +3,14 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
-import { Switch } from '@/shared/ui/switch'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/ui/tooltip'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
 import { cn } from '@/shared/lib/utils'
 import { Radio } from '@base-ui/react/radio'
 import { RadioGroup } from '@base-ui/react/radio-group'
-import { ArrowLeft, Save, Info, Trash2, AlertTriangle, RotateCcw, ShieldAlert, Check } from 'lucide-react'
+import { ArrowLeft, Save, Info, Trash2, AlertTriangle, RotateCcw, ShieldAlert, Check, Bell, BellOff } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useUser } from '@/features/user/hooks/useUser'
 import { useAccount, useDeleteAccount, useRestartAccount } from '../hooks/useAccounts'
@@ -381,7 +381,34 @@ export function AccountConfig() {
 
       {/* Webhooks */}
       <Card>
-        <CardHeader><CardTitle>{t('accountConfig.webhooks')}</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>{t('accountConfig.webhooks')}</CardTitle>
+          <CardAction>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    type="button"
+                    aria-pressed={form.silentIngestion}
+                    aria-label={t(
+                      form.silentIngestion
+                        ? 'accountConfig.notificationsSilenced'
+                        : 'accountConfig.notificationsActive',
+                    )}
+                    onClick={() => setForm(f => ({ ...f, silentIngestion: !f.silentIngestion }))}
+                  >
+                    {form.silentIngestion ? <BellOff className="size-4" /> : <Bell className="size-4" />}
+                  </Button>
+                }
+              />
+              <TooltipContent className="max-w-xs text-left">
+                {t('accountConfig.silentIngestionDesc')}
+              </TooltipContent>
+            </Tooltip>
+          </CardAction>
+        </CardHeader>
         <CardContent className="space-y-4">
           <div className="rounded-md border border-border bg-muted/40 p-3 flex gap-2 text-sm text-foreground">
             <Info className="size-4 mt-0.5 shrink-0" />
@@ -413,18 +440,6 @@ export function AccountConfig() {
           <div className="space-y-2">
             <Label>{t('accountConfig.webhookUrl')}</Label>
             <Input placeholder="https://..." {...field('webhookUrl')} />
-          </div>
-          <div className="rounded-md border border-border bg-muted/30 p-3 flex items-start gap-4">
-            <Switch
-              checked={form.silentIngestion}
-              onCheckedChange={(checked: boolean) =>
-                setForm(f => ({ ...f, silentIngestion: checked }))
-              }
-            />
-            <div className="flex-1">
-              <p className="font-medium text-sm">{t('accountConfig.silentIngestion')}</p>
-              <p className="text-xs text-muted-foreground mt-1">{t('accountConfig.silentIngestionDesc')}</p>
-            </div>
           </div>
           <div className="space-y-2">
             <Label>{t('accountConfig.webhookExtraFields')}</Label>
