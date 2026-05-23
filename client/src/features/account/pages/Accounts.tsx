@@ -93,6 +93,22 @@ export function Accounts() {
             </DialogHeader>
             <div className="flex flex-col gap-3.5">
               <Field
+                label={t('accounts.dialog.name')}
+                htmlFor={nameId}
+                helpId={nameHelpId}
+                hint={t('accounts.dialog.nameHint')}
+                error={errors.name}
+              >
+                <Input
+                  id={nameId}
+                  placeholder={t('accounts.dialog.namePlaceholder')}
+                  value={form.name}
+                  onChange={e => updateForm('name', e.target.value)}
+                  aria-invalid={errors.name ? true : undefined}
+                  aria-describedby={nameHelpId}
+                />
+              </Field>
+              <Field
                 label={t('accounts.dialog.bank')}
                 htmlFor={bankId}
                 helpId={bankHelpId}
@@ -116,22 +132,6 @@ export function Accounts() {
                     ))}
                   </SelectContent>
                 </Select>
-              </Field>
-              <Field
-                label={t('accounts.dialog.name')}
-                htmlFor={nameId}
-                helpId={nameHelpId}
-                hint={t('accounts.dialog.nameHint')}
-                error={errors.name}
-              >
-                <Input
-                  id={nameId}
-                  placeholder={t('accounts.dialog.namePlaceholder')}
-                  value={form.name}
-                  onChange={e => updateForm('name', e.target.value)}
-                  aria-invalid={errors.name ? true : undefined}
-                  aria-describedby={nameHelpId}
-                />
               </Field>
             </div>
             <div className="flex items-center justify-end gap-2 pt-1">
