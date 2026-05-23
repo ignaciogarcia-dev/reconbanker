@@ -33,7 +33,130 @@ interface AccountConfigForm {
   loginMode: LoginMode
 }
 
-const RESERVED_WEBHOOK_KEYS = ['external_id', 'status', 'amount', 'currency', 'name', 'id', 'received_at']
+export type { AccountConfigForm }
+export type FormErrors = Partial<Record<keyof AccountConfigForm, string>>
+type TranslateFn = ReturnType<typeof useTranslation>['t']
+
+export const RESERVED_WEBHOOK_KEYS = ['external_id', 'status', 'amount', 'currency', 'name', 'id', 'received_at']
+
+export const FIELD_TO_TAB: Partial<Record<keyof AccountConfigForm, string>> = {
+  bankUsername: 'credentials',
+  bankPassword: 'credentials',
+  webhookUrl: 'webhooks',
+  webhookExtraFields: 'webhooks',
+  authToken: 'auth-orders',
+  pendingOrdersEndpoint: 'auth-orders',
+  pollingBody: 'auth-orders',
+}
+
+// Stable order — used to determine which tab to switch to (first error wins).
+export const FIELD_ORDER: (keyof AccountConfigForm)[] = [
+  'bankUsername',
+  'bankPassword',
+  'webhookUrl',
+  'webhookExtraFields',
+  'pendingOrdersEndpoint',
+  'authToken',
+  'pollingBody',
+]
+
+function isValidUrl(value: string): boolean {
+  try {
+    // eslint-disable-next-line no-new
+    new URL(value)
+    return true
+  } catch {
+    return false
+  }
+}
+
+interface ValidationContext {
+  mode: string | null | undefined
+  hasSavedCredential: boolean
+  t: TranslateFn
+}
+
+export function validateAccountConfigForm(form: AccountConfigForm, ctx: ValidationContext): FormErrors {
+  const { mode, hasSavedCredential, t } = ctx
+  const errors: FormErrors = {}
+
+  // Bank credentials
+  if (form.bankUsername.trim() === '') {
+    errors.bankUsername = t('accountConfig.errors.required')
+  }
+  if (!hasSavedCredential && form.bankPassword === '') {
+    errors.bankPassword = t('accountConfig.errors.required')
+  }
+
+  // Webhook URL — backend min(1) and URL format
+  const webhookUrl = form.webhookUrl.trim()
+  if (webhookUrl === '') {
+    errors.webhookUrl = t('accountConfig.errors.required')
+  } else if (!isValidUrl(webhookUrl)) {
+    errors.webhookUrl = t('accountConfig.errors.invalidUrl')
+  }
+
+  // Webhook extra fields (optional, but must be valid JSON object with no reserved keys)
+  const extraRaw = form.webhookExtraFields.trim()
+  if (extraRaw !== '') {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(extraRaw)
+    } catch {
+      errors.webhookExtraFields = t('accountConfig.errors.invalidJson')
+    }
+    if (errors.webhookExtraFields === undefined) {
+      if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        errors.webhookExtraFields = t('accountConfig.errors.mustBeObject')
+      } else {
+        const conflicts = Object.keys(parsed as object).filter(k => RESERVED_WEBHOOK_KEYS.includes(k))
+        if (conflicts.length > 0) {
+          errors.webhookExtraFields = t('accountConfig.errors.reservedKeys', { keys: conflicts.join(', ') })
+        }
+      }
+    }
+  }
+
+  // Reconcile-mode requirements: pending orders endpoint + auth token
+  if (mode === 'reconcile') {
+    const endpoint = form.pendingOrdersEndpoint.trim()
+    if (endpoint === '') {
+      errors.pendingOrdersEndpoint = t('accountConfig.errors.pendingEndpointRequired')
+    } else if (!isValidUrl(endpoint)) {
+      errors.pendingOrdersEndpoint = t('accountConfig.errors.invalidUrl')
+    }
+
+    if (form.authToken.trim() === '') {
+      errors.authToken = t('accountConfig.errors.required')
+    }
+  }
+
+  // Polling body — only validate when POST + non-empty
+  if (form.pollingMethod === 'POST') {
+    const body = form.pollingBody.trim()
+    if (body !== '') {
+      try {
+        JSON.parse(body)
+      } catch {
+        errors.pollingBody = t('accountConfig.errors.invalidJson')
+      }
+    }
+  }
+
+  return errors
+}
+
+function mapServerErrorToField(message: string): keyof AccountConfigForm | null {
+  const m = message.toLowerCase()
+  if (m.includes('webhook_extra_fields') || m.includes('extra_fields')) return 'webhookExtraFields'
+  if (m.includes('webhook_url') || m.includes('webhook url')) return 'webhookUrl'
+  if (m.includes('polling_body')) return 'pollingBody'
+  if (m.includes('pending_orders_endpoint') || m.includes('pending orders')) return 'pendingOrdersEndpoint'
+  if (m.includes('auth_token')) return 'authToken'
+  if (m.includes('bank_password')) return 'bankPassword'
+  if (m.includes('bank_username')) return 'bankUsername'
+  return null
+}
 
 export function AccountConfig() {
   const { accountId } = useParams<{ accountId: string }>()
@@ -56,7 +179,8 @@ export function AccountConfig() {
     loginMode: 'simple',
   })
   const [saved, setSaved] = useState(false)
-  const [extraFieldsError, setExtraFieldsError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<FormErrors>({})
+  const [serverError, setServerError] = useState<string | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteConfirmName, setDeleteConfirmName] = useState('')
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -88,25 +212,6 @@ export function AccountConfig() {
     }))
   }, [data])
 
-  function validateExtraFields(): string | null {
-    const raw = form.webhookExtraFields.trim()
-    if (!raw) return null
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(raw)
-    } catch {
-      return t('accountConfig.webhookExtraFieldsInvalidJson')
-    }
-    if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return t('accountConfig.webhookExtraFieldsMustBeObject')
-    }
-    const conflicts = Object.keys(parsed as object).filter(k => RESERVED_WEBHOOK_KEYS.includes(k))
-    if (conflicts.length > 0) {
-      return t('accountConfig.webhookExtraFieldsReserved', { keys: conflicts.join(', ') })
-    }
-    return null
-  }
-
   const save = useUpsertAccountConfig(accountId ?? '')
 
   const remove = useDeleteAccount()
@@ -132,16 +237,35 @@ export function AccountConfig() {
         return parsed as Record<string, unknown>
       }
     } catch {
-      // Ignored — caller validates separately.
+      // Ignored — validation already gates this path.
     }
     return null
   }
 
+  function clearFieldError(key: keyof AccountConfigForm) {
+    setErrors(prev => {
+      if (!prev[key]) return prev
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+  }
+
   function handleSave() {
     if (!accountId) return
-    const err = validateExtraFields()
-    setExtraFieldsError(err)
-    if (err) return
+    setServerError(null)
+    const hasSavedCredential = !!(data?.bankUsername && data.bankUsername.trim() !== '')
+    const next = validateAccountConfigForm(form, { mode, hasSavedCredential, t })
+    if (Object.keys(next).length > 0) {
+      setErrors(next)
+      const firstField = FIELD_ORDER.find(k => next[k] !== undefined)
+      if (firstField) {
+        const targetTab = FIELD_TO_TAB[firstField]
+        if (targetTab && targetTab !== activeTab) setActiveTab(targetTab)
+      }
+      return
+    }
+    setErrors({})
     save.mutate(
       {
         pendingOrdersEndpoint: form.pendingOrdersEndpoint.trim() === '' ? null : form.pendingOrdersEndpoint,
@@ -166,6 +290,20 @@ export function AccountConfig() {
           setSaved(true)
           setTimeout(() => setSaved(false), 2000)
         },
+        onError: (err: unknown) => {
+          const message =
+            (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+            (err as { message?: string })?.message ??
+            t('accountConfig.errors.generic')
+          const field = mapServerErrorToField(message)
+          if (field) {
+            setErrors(prev => ({ ...prev, [field]: message }))
+            const targetTab = FIELD_TO_TAB[field]
+            if (targetTab && targetTab !== activeTab) setActiveTab(targetTab)
+          } else {
+            setServerError(message)
+          }
+        },
       }
     )
   }
@@ -187,8 +325,11 @@ export function AccountConfig() {
   function field<K extends keyof AccountConfigForm>(key: K) {
     return {
       value: String(form[key]),
-      onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-        setForm(f => ({ ...f, [key]: e.target.value })),
+      'aria-invalid': errors[key] ? true : undefined,
+      onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        setForm(f => ({ ...f, [key]: e.target.value }))
+        clearFieldError(key)
+      },
     }
   }
 
@@ -287,10 +428,16 @@ export function AccountConfig() {
               <div className="space-y-2">
                 <Label>{t('accountConfig.username')}</Label>
                 <Input placeholder={t('accountConfig.usernamePlaceholder')} {...field('bankUsername')} />
+                {errors.bankUsername && (
+                  <p className="text-xs text-destructive">{errors.bankUsername}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>{t('accountConfig.password')}</Label>
                 <Input type="password" placeholder={t('accountConfig.passwordPlaceholder')} {...field('bankPassword')} />
+                {errors.bankPassword && (
+                  <p className="text-xs text-destructive">{errors.bankPassword}</p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -405,21 +552,28 @@ export function AccountConfig() {
               <div className="space-y-2">
                 <Label>{t('accountConfig.webhookUrl')}</Label>
                 <Input placeholder="https://..." {...field('webhookUrl')} />
+                {errors.webhookUrl && (
+                  <p className="text-xs text-destructive">{errors.webhookUrl}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>{t('accountConfig.webhookExtraFields')}</Label>
                 <p className="text-xs text-muted-foreground">{t('accountConfig.webhookExtraFieldsDesc')}</p>
                 <textarea
-                  className="w-full min-h-24 rounded-md border bg-transparent px-3 py-2 text-sm font-mono resize-y"
+                  className={cn(
+                    'w-full min-h-24 rounded-md border bg-transparent px-3 py-2 text-sm font-mono resize-y',
+                    errors.webhookExtraFields && 'border-destructive ring-3 ring-destructive/20',
+                  )}
                   placeholder='{"source": "reconbanker"}'
+                  aria-invalid={errors.webhookExtraFields ? true : undefined}
                   value={form.webhookExtraFields}
                   onChange={e => {
                     setForm(f => ({ ...f, webhookExtraFields: e.target.value }))
-                    if (extraFieldsError) setExtraFieldsError(null)
+                    clearFieldError('webhookExtraFields')
                   }}
                 />
-                {extraFieldsError && (
-                  <p className="text-xs text-destructive">{extraFieldsError}</p>
+                {errors.webhookExtraFields && (
+                  <p className="text-xs text-destructive">{errors.webhookExtraFields}</p>
                 )}
               </div>
             </CardContent>
@@ -450,6 +604,9 @@ export function AccountConfig() {
                 <div className="space-y-2">
                   <Label>{t('accountConfig.tokenKey')}</Label>
                   <Input type="password" {...field('authToken')} />
+                  {errors.authToken && (
+                    <p className="text-xs text-destructive">{errors.authToken}</p>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -475,6 +632,9 @@ export function AccountConfig() {
                 <div className="space-y-2">
                   <Label>{t('accountConfig.pendingEndpoint')}</Label>
                   <Input placeholder="https://..." {...field('pendingOrdersEndpoint')} />
+                  {errors.pendingOrdersEndpoint && (
+                    <p className="text-xs text-destructive">{errors.pendingOrdersEndpoint}</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>{t('accountConfig.httpMethod')}</Label>
@@ -495,10 +655,21 @@ export function AccountConfig() {
                   <div className="space-y-2">
                     <Label>{t('accountConfig.body')}</Label>
                     <textarea
-                      className="w-full min-h-24 rounded-md border bg-transparent px-3 py-2 text-sm font-mono resize-y"
+                      className={cn(
+                        'w-full min-h-24 rounded-md border bg-transparent px-3 py-2 text-sm font-mono resize-y',
+                        errors.pollingBody && 'border-destructive ring-3 ring-destructive/20',
+                      )}
                       placeholder='{"key": "value"}'
-                      {...field('pollingBody')}
+                      aria-invalid={errors.pollingBody ? true : undefined}
+                      value={form.pollingBody}
+                      onChange={e => {
+                        setForm(f => ({ ...f, pollingBody: e.target.value }))
+                        clearFieldError('pollingBody')
+                      }}
                     />
+                    {errors.pollingBody && (
+                      <p className="text-xs text-destructive">{errors.pollingBody}</p>
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -509,6 +680,23 @@ export function AccountConfig() {
 
       {/* Sticky save bar — stays visible regardless of active tab */}
       <div className="sticky bottom-0 -mx-6 lg:-mx-8 mt-2 border-t border-border/60 bg-background/80 px-6 lg:px-8 py-3 supports-backdrop-filter:backdrop-blur">
+        {serverError && (
+          <div className="mb-3 relative overflow-hidden rounded-md border border-destructive/30 bg-destructive/5">
+            <div className="absolute inset-y-0 left-0 w-1 bg-destructive" />
+            <div className="flex items-center gap-2.5 pl-4 pr-3 py-2">
+              <ShieldAlert className="size-4 shrink-0 text-destructive" />
+              <p className="text-xs text-destructive flex-1 min-w-0 break-words">{serverError}</p>
+              <button
+                type="button"
+                onClick={() => setServerError(null)}
+                className="text-xs text-destructive/70 hover:text-destructive shrink-0"
+                aria-label={t('accountConfig.errors.dismiss')}
+              >
+                {t('accountConfig.errors.dismiss')}
+              </button>
+            </div>
+          </div>
+        )}
         <div className="flex justify-end">
           <Button onClick={handleSave} disabled={save.isPending} className="gap-2">
             <Save className="size-4" />
