@@ -266,15 +266,19 @@ export function AccountConfig() {
       return
     }
     setErrors({})
+    const trimmedEndpoint = form.pendingOrdersEndpoint.trim()
+    const trimmedWebhook = form.webhookUrl.trim()
+    const trimmedAuthToken = form.authToken.trim()
+    const trimmedBankUsername = form.bankUsername.trim()
     save.mutate(
       {
-        pendingOrdersEndpoint: form.pendingOrdersEndpoint.trim() === '' ? null : form.pendingOrdersEndpoint,
-        webhookUrl: form.webhookUrl,
+        pendingOrdersEndpoint: trimmedEndpoint === '' ? null : trimmedEndpoint,
+        webhookUrl: trimmedWebhook,
         retryLimit: data?.retryLimit ?? 3,
         pollingMethod: form.pollingMethod,
         pollingBody: parseJsonOrNull(form.pollingBody),
         authType: form.authType,
-        authToken: form.authToken === '' ? null : form.authToken,
+        authToken: trimmedAuthToken === '' ? null : trimmedAuthToken,
         webhookAuthType: data?.webhookAuthType ?? null,
         webhookAuthToken: data?.webhookAuthToken ?? null,
         notifyOnExpired: data?.notifyOnExpired ?? false,
@@ -282,7 +286,7 @@ export function AccountConfig() {
         silentIngestion: form.silentIngestion,
         sessionType: form.sessionType,
         loginMode: form.loginMode,
-        bankUsername: form.bankUsername === '' ? null : form.bankUsername,
+        bankUsername: trimmedBankUsername === '' ? null : trimmedBankUsername,
         bankPassword: form.bankPassword === '' ? null : form.bankPassword,
       },
       {
