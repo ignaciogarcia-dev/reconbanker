@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { Route, Routes } from 'react-router-dom'
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { server } from '../../../../tests/msw/server'
@@ -367,5 +367,303 @@ describe('AccountConfig page', () => {
     await waitFor(() => {
       expect(screen.getByText('Database is on fire')).toBeInTheDocument()
     })
+  })
+
+  it('dismisses the server-error banner when the Cerrar button is clicked', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.get('/api/accounts/:accountId/config', ({ params }) =>
+        HttpResponse.json({
+          id: 'cfg-1',
+          account_id: params.accountId,
+          pending_orders_endpoint: null,
+          webhook_url: 'https://hook.example.com/x',
+          retry_limit: 3,
+          polling_method: 'GET',
+          polling_body: null,
+          auth_type: 'bearer',
+          auth_token: null,
+          webhook_auth_type: null,
+          webhook_auth_token: null,
+          notify_on_expired: false,
+          webhook_extra_fields: null,
+          silent_ingestion: false,
+          session_type: 'one-shot',
+          login_mode: 'simple',
+          bank_username: 'alice',
+        })
+      ),
+      http.put('/api/accounts/:accountId/config', () =>
+        HttpResponse.json({ error: 'Boom' }, { status: 500 })
+      )
+    )
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByText('Configuración de cuenta')).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole('button', { name: /Guardar configuración/i }))
+    await waitFor(() => {
+      expect(screen.getByText('Boom')).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole('button', { name: /Cerrar/i }))
+    await waitFor(() => {
+      expect(screen.queryByText('Boom')).not.toBeInTheDocument()
+    })
+  })
+
+  it('hydrates the form fields from the loaded config', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.get('/api/accounts/:accountId/config', ({ params }) =>
+        HttpResponse.json({
+          id: 'cfg-1',
+          account_id: params.accountId,
+          pending_orders_endpoint: 'https://orders.example.com',
+          webhook_url: 'https://hook.example.com/x',
+          retry_limit: 3,
+          polling_method: 'GET',
+          polling_body: null,
+          auth_type: 'bearer',
+          auth_token: 'sekret',
+          webhook_auth_type: null,
+          webhook_auth_token: null,
+          notify_on_expired: false,
+          webhook_extra_fields: null,
+          silent_ingestion: false,
+          session_type: 'one-shot',
+          login_mode: 'simple',
+          bank_username: 'alice',
+        })
+      )
+    )
+    renderAccountConfig()
+    // Credentials tab is active by default — verify bankUsername hydrated.
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('alice')).toBeInTheDocument()
+    })
+    // Switch to the Webhooks tab and verify webhookUrl hydrated.
+    await user.click(screen.getByRole('tab', { name: /Webhooks/i }))
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('https://hook.example.com/x')).toBeInTheDocument()
+    })
+  })
+
+  it('renders the bell icon as active by default and toggles to silenced on click', async () => {
+    const user = userEvent.setup()
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByText('Configuración de cuenta')).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole('tab', { name: /Webhooks/i }))
+    // Initial state: silentIngestion=false → button label is "Notificaciones activas".
+    const bellBtn = await screen.findByRole('button', { name: /Notificaciones activas/i })
+    expect(bellBtn).toHaveAttribute('aria-pressed', 'false')
+    await user.click(bellBtn)
+    await waitFor(() => {
+      const silenced = screen.getByRole('button', { name: /Notificaciones silenciadas/i })
+      expect(silenced).toHaveAttribute('aria-pressed', 'true')
+    })
+  })
+
+  it('switches between tabs when their triggers are clicked', async () => {
+    const user = userEvent.setup()
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByText('Credenciales bancarias')).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole('tab', { name: /^Sesión$/i }))
+    await waitFor(() => {
+      expect(screen.getByText('Tipo de sesión')).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole('tab', { name: /Webhooks/i }))
+    await waitFor(() => {
+      expect(screen.getByText('Webhook URL (notificaciones)')).toBeInTheDocument()
+    })
+  })
+
+  it('does not show the Auth & Orders tab in passthrough mode', async () => {
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByText('Configuración de cuenta')).toBeInTheDocument()
+    })
+    expect(screen.queryByRole('tab', { name: /Auth y Órdenes/i })).not.toBeInTheDocument()
+  })
+
+  it('shows the Auth & Orders tab in reconcile mode', async () => {
+    server.use(
+      http.get('/api/me', () =>
+        HttpResponse.json({
+          id: 'u-1',
+          email: 'test@x',
+          name: 'T',
+          operation_mode: 'reconcile',
+        })
+      )
+    )
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /Auth y Órdenes/i })).toBeInTheDocument()
+    })
+  })
+
+  it('selects a Session radio card and reflects the choice in data-checked', async () => {
+    const user = userEvent.setup()
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByText('Configuración de cuenta')).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole('tab', { name: /^Sesión$/i }))
+
+    // "Persistente" is the not-default session option.
+    const persistent = await screen.findByText('Persistente')
+    // Walk up to find the Radio.Root container (rendered as a button by default).
+    const card = persistent.closest('[data-slot]') ?? persistent.closest('button')
+    expect(card).toBeTruthy()
+    await user.click(persistent)
+    await waitFor(() => {
+      // After click, the Radio.Root for "persistent" should have data-checked.
+      const allButtons = screen.getAllByRole('radio')
+      const checked = allButtons.find(el => el.getAttribute('data-checked') !== null)
+      expect(checked).toBeTruthy()
+      expect(checked?.textContent).toContain('Persistente')
+    })
+  })
+
+  it('renders the Session blocked banner and calls restart when the button is clicked', async () => {
+    const user = userEvent.setup()
+    let restartCalls = 0
+    server.use(
+      http.get('/api/accounts/:accountId', ({ params }) =>
+        HttpResponse.json({
+          id: params.accountId,
+          bank: 'mi-dinero',
+          name: 'Cuenta 1',
+          status: 'blocked',
+          scrapeBlockedReason: 'No valid credentials',
+          scrapeBlockedAt: '2026-05-23T18:00:00Z',
+        })
+      ),
+      http.post('/api/accounts/:accountId/restart', () => {
+        restartCalls += 1
+        return HttpResponse.json({ queued: true })
+      })
+    )
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByText('Sesión bloqueada')).toBeInTheDocument()
+      expect(screen.getByText('No valid credentials')).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole('button', { name: /Reiniciar/i }))
+    await waitFor(() => expect(restartCalls).toBe(1))
+  })
+
+  it('shows the "Saved!" confirmation after a successful save', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.get('/api/accounts/:accountId/config', ({ params }) =>
+        HttpResponse.json({
+          id: 'cfg-1',
+          account_id: params.accountId,
+          pending_orders_endpoint: null,
+          webhook_url: 'https://hook.example.com/x',
+          retry_limit: 3,
+          polling_method: 'GET',
+          polling_body: null,
+          auth_type: 'bearer',
+          auth_token: null,
+          webhook_auth_type: null,
+          webhook_auth_token: null,
+          notify_on_expired: false,
+          webhook_extra_fields: null,
+          silent_ingestion: false,
+          session_type: 'one-shot',
+          login_mode: 'simple',
+          bank_username: 'alice',
+        })
+      )
+    )
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('alice')).toBeInTheDocument()
+    })
+    // bankPassword is empty but hasSavedCredential=true so it's allowed.
+    await user.click(screen.getByRole('button', { name: /Guardar configuración/i }))
+    await waitFor(() => {
+      expect(screen.getByText('¡Guardado!')).toBeInTheDocument()
+    })
+  })
+
+  it('maps a server error string to the correct field and switches tab', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.get('/api/accounts/:accountId/config', ({ params }) =>
+        HttpResponse.json({
+          id: 'cfg-1',
+          account_id: params.accountId,
+          pending_orders_endpoint: null,
+          webhook_url: 'https://hook.example.com/x',
+          retry_limit: 3,
+          polling_method: 'GET',
+          polling_body: null,
+          auth_type: 'bearer',
+          auth_token: null,
+          webhook_auth_type: null,
+          webhook_auth_token: null,
+          notify_on_expired: false,
+          webhook_extra_fields: null,
+          silent_ingestion: false,
+          session_type: 'one-shot',
+          login_mode: 'simple',
+          bank_username: 'alice',
+        })
+      ),
+      http.put('/api/accounts/:accountId/config', () =>
+        HttpResponse.json({ error: 'webhook_url is malformed' }, { status: 400 })
+      )
+    )
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('alice')).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole('button', { name: /Guardar configuración/i }))
+    // Should switch to webhooks tab and show the inline message under webhookUrl.
+    await waitFor(() => {
+      expect(screen.getByText('webhook_url is malformed')).toBeInTheDocument()
+      expect(screen.getByText('Webhook URL (notificaciones)')).toBeInTheDocument()
+    })
+  })
+
+  it('opens the delete dialog from the page header', async () => {
+    const user = userEvent.setup()
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByText('Configuración de cuenta')).toBeInTheDocument()
+    })
+    await user.click(screen.getAllByRole('button', { name: /Eliminar cuenta/i })[0])
+    await waitFor(() => {
+      expect(screen.getByText('Eliminar cuenta definitivamente')).toBeInTheDocument()
+    })
+  })
+
+  it('keeps the destructive Delete button disabled until the account name is typed', async () => {
+    const user = userEvent.setup()
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByText('Configuración de cuenta')).toBeInTheDocument()
+    })
+    await user.click(screen.getAllByRole('button', { name: /Eliminar cuenta/i })[0])
+    const dialogTitle = await screen.findByText('Eliminar cuenta definitivamente')
+    const dialog = dialogTitle.closest('[role="dialog"]') as HTMLElement
+    expect(dialog).toBeTruthy()
+
+    const confirmBtn = within(dialog)
+      .getAllByRole('button')
+      .find(b => /Eliminar definitivamente/i.test(b.textContent ?? ''))
+    expect(confirmBtn).toBeTruthy()
+    expect(confirmBtn).toBeDisabled()
+
+    const input = within(dialog).getByRole('textbox')
+    await user.type(input, 'Cuenta 1')
+    await waitFor(() => expect(confirmBtn).not.toBeDisabled())
   })
 })
