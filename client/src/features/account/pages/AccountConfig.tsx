@@ -223,27 +223,30 @@ export function AccountConfig() {
       {account?.scrapeBlockedReason && (
         <div className="relative overflow-hidden rounded-xl border border-destructive/30 bg-destructive/5">
           <div className="absolute inset-y-0 left-0 w-1 bg-destructive" />
-          <div className="flex flex-col gap-4 p-5 pl-6 sm:flex-row sm:items-start sm:justify-between">
-            <div className="flex gap-3">
-              <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
-                <ShieldAlert className="size-5" />
-              </div>
-              <div className="space-y-1.5">
+          <div className="flex flex-col gap-3 px-5 py-3 pl-6 sm:flex-row sm:items-center sm:gap-4">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+              <ShieldAlert className="size-4" />
+            </div>
+            <div className="min-w-0 flex-1 space-y-1">
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                 <p className="font-semibold leading-none text-destructive">{t('accountConfig.blocked.title')}</p>
-                <p className="text-sm text-muted-foreground">{t('accountConfig.blocked.description')}</p>
-                <code className="mt-1 inline-block rounded bg-destructive/10 px-2 py-1 font-mono text-xs text-destructive">
+                <p className="text-xs text-muted-foreground">{t('accountConfig.blocked.description')}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <code className="rounded bg-destructive/10 px-2 py-0.5 font-mono text-xs text-destructive break-all">
                   {account.scrapeBlockedReason}
                 </code>
                 {account.scrapeBlockedAt && (
-                  <p className="text-xs text-muted-foreground">
-                    {t('accountConfig.blocked.since', { when: new Date(account.scrapeBlockedAt).toLocaleString() })}
-                  </p>
+                  <span className="text-xs text-muted-foreground">
+                    · {t('accountConfig.blocked.since', { when: new Date(account.scrapeBlockedAt).toLocaleString() })}
+                  </span>
                 )}
               </div>
             </div>
             <Button
               variant="destructive"
-              className="shrink-0 gap-2"
+              size="sm"
+              className="shrink-0 gap-2 sm:self-center"
               disabled={restart.isPending}
               onClick={() => accountId && restart.mutate(accountId)}
             >
