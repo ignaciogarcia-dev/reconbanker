@@ -22,6 +22,8 @@ describe('accountConfig api', () => {
           notify_on_expired: false,
           webhook_extra_fields: { source: 'fe' },
           silent_ingestion: true,
+          session_type: 'one-shot',
+          login_mode: 'simple',
           bank_username: 'alice',
         })
       )
@@ -42,6 +44,8 @@ describe('accountConfig api', () => {
       notifyOnExpired: false,
       webhookExtraFields: { source: 'fe' },
       silentIngestion: true,
+      sessionType: 'one-shot',
+      loginMode: 'simple',
       bankUsername: 'alice',
     })
   })
@@ -67,7 +71,9 @@ describe('accountConfig api', () => {
           auth_type: 'bearer', auth_token: null,
           webhook_auth_type: null, webhook_auth_token: null,
           notify_on_expired: false, webhook_extra_fields: null,
-          silent_ingestion: false, bank_username: null,
+          silent_ingestion: false,
+          session_type: 'persistent', login_mode: 'assisted',
+          bank_username: null,
         })
       })
     )
@@ -78,6 +84,7 @@ describe('accountConfig api', () => {
       webhookAuthType: null, webhookAuthToken: null,
       notifyOnExpired: false, webhookExtraFields: null,
       silentIngestion: false,
+      sessionType: 'persistent', loginMode: 'assisted',
       bankUsername: 'alice', bankPassword: 'secret',
     })
     expect(received).toEqual({
@@ -87,7 +94,71 @@ describe('accountConfig api', () => {
       webhook_auth_type: null, webhook_auth_token: null,
       notify_on_expired: false, webhook_extra_fields: null,
       silent_ingestion: false,
+      session_type: 'persistent', login_mode: 'assisted',
       bank_username: 'alice', bank_password: 'secret',
+    })
+  })
+
+  it('maps the snake_case PUT response back to camelCase', async () => {
+    server.use(
+      http.put('/api/accounts/acc-1/config', () =>
+        HttpResponse.json({
+          id: 'cfg-1',
+          account_id: 'acc-1',
+          pending_orders_endpoint: 'https://orders.example.com',
+          webhook_url: 'https://hook',
+          retry_limit: 5,
+          polling_method: 'POST',
+          polling_body: { token: 't' },
+          auth_type: 'api_key',
+          auth_token: 'tok',
+          webhook_auth_type: null,
+          webhook_auth_token: null,
+          notify_on_expired: true,
+          webhook_extra_fields: { source: 'cli' },
+          silent_ingestion: true,
+          session_type: 'persistent',
+          login_mode: 'assisted',
+          bank_username: 'bob',
+        })
+      )
+    )
+    const result = await upsertAccountConfig('acc-1', {
+      pendingOrdersEndpoint: 'https://orders.example.com',
+      webhookUrl: 'https://hook',
+      retryLimit: 5,
+      pollingMethod: 'POST',
+      pollingBody: { token: 't' },
+      authType: 'api_key',
+      authToken: 'tok',
+      webhookAuthType: null,
+      webhookAuthToken: null,
+      notifyOnExpired: true,
+      webhookExtraFields: { source: 'cli' },
+      silentIngestion: true,
+      sessionType: 'persistent',
+      loginMode: 'assisted',
+      bankUsername: 'bob',
+      bankPassword: null,
+    })
+    expect(result).toEqual({
+      id: 'cfg-1',
+      accountId: 'acc-1',
+      pendingOrdersEndpoint: 'https://orders.example.com',
+      webhookUrl: 'https://hook',
+      retryLimit: 5,
+      pollingMethod: 'POST',
+      pollingBody: { token: 't' },
+      authType: 'api_key',
+      authToken: 'tok',
+      webhookAuthType: null,
+      webhookAuthToken: null,
+      notifyOnExpired: true,
+      webhookExtraFields: { source: 'cli' },
+      silentIngestion: true,
+      sessionType: 'persistent',
+      loginMode: 'assisted',
+      bankUsername: 'bob',
     })
   })
 })
