@@ -18,6 +18,7 @@ export function Accounts() {
   const { t } = useTranslation(['account', 'common'])
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState({ bankId: '', name: '' })
+  const [errors, setErrors] = useState<{ name?: string; bankId?: string }>({})
 
   const { data: accounts = [], isLoading } = useAccounts()
   const { data: banks = [] } = useBanks()
@@ -25,10 +26,18 @@ export function Accounts() {
   const create = useCreateAccount()
 
   function handleCreate() {
+    const nextErrors: { name?: string; bankId?: string } = {}
+    if (!form.name.trim()) nextErrors.name = t('accounts.dialog.errors.nameRequired')
+    if (!form.bankId) nextErrors.bankId = t('accounts.dialog.errors.bankRequired')
+    if (nextErrors.name || nextErrors.bankId) {
+      setErrors(nextErrors)
+      return
+    }
     create.mutate(form, {
       onSuccess: () => {
         setOpen(false)
         setForm({ bankId: '', name: '' })
+        setErrors({})
       },
     })
   }
@@ -40,7 +49,16 @@ export function Accounts() {
           <h2 className="text-2xl font-semibold">{t('accounts.title')}</h2>
           <p className="text-muted-foreground">{t('accounts.subtitle')}</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog
+          open={open}
+          onOpenChange={(next) => {
+            setOpen(next)
+            if (!next) {
+              setForm({ bankId: '', name: '' })
+              setErrors({})
+            }
+          }}
+        >
           <DialogTrigger className={buttonVariants()}>
             <Plus className="size-4 mr-2" />{t('accounts.newAccount')}
           </DialogTrigger>
@@ -48,11 +66,30 @@ export function Accounts() {
             <DialogHeader>
               <DialogTitle>{t('accounts.dialog.title')}</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4 pt-2">
-              <div className="space-y-2">
+            <div className="space-y-3 pt-2">
+              <div className="grid w-full gap-2">
+                <Label>{t('accounts.dialog.name')}</Label>
+                <Input
+                  placeholder={t('accounts.dialog.namePlaceholder')}
+                  value={form.name}
+                  onChange={e => {
+                    setForm(f => ({ ...f, name: e.target.value }))
+                    if (errors.name) setErrors(prev => ({ ...prev, name: undefined }))
+                  }}
+                  aria-invalid={errors.name ? true : undefined}
+                />
+                <p className="text-xs text-destructive min-h-4" aria-live="polite">{errors.name ?? ''}</p>
+              </div>
+              <div className="grid w-full gap-2">
                 <Label>{t('accounts.dialog.bank')}</Label>
-                <Select value={form.bankId} onValueChange={v => setForm(f => ({ ...f, bankId: v ?? '' }))}>
-                  <SelectTrigger>
+                <Select
+                  value={form.bankId}
+                  onValueChange={v => {
+                    setForm(f => ({ ...f, bankId: v ?? '' }))
+                    if (errors.bankId) setErrors(prev => ({ ...prev, bankId: undefined }))
+                  }}
+                >
+                  <SelectTrigger aria-invalid={errors.bankId ? true : undefined}>
                     <SelectValue placeholder={t('accounts.dialog.selectBank')}>
                       {banks.find(b => b.id === form.bankId)?.name ?? null}
                     </SelectValue>
@@ -63,19 +100,12 @@ export function Accounts() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>{t('accounts.dialog.name')}</Label>
-                <Input
-                  placeholder={t('accounts.dialog.namePlaceholder')}
-                  value={form.name}
-                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                />
+                <p className="text-xs text-destructive min-h-4" aria-live="polite">{errors.bankId ?? ''}</p>
               </div>
               <Button
                 className="w-full"
                 onClick={handleCreate}
-                disabled={!form.bankId || create.isPending}
+                disabled={create.isPending}
               >
                 {create.isPending ? t('accounts.dialog.creating') : t('accounts.dialog.create')}
               </Button>
