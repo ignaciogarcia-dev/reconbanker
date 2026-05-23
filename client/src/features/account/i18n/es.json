@@ -14,15 +14,19 @@
     "needsAttention": "Requiere atención",
     "dialog": {
       "title": "Nueva cuenta",
+      "description": "Asociá un banco a una etiqueta que tu equipo reconozca.",
       "bank": "Banco",
       "selectBank": "Seleccioná un banco",
+      "bankHint": "Sólo aparecen los bancos listos para automatizar.",
       "name": "Nombre",
       "namePlaceholder": "ej: Cuenta principal",
+      "nameHint": "Una etiqueta que vas a ver en toda la app.",
+      "cancel": "Cancelar",
       "creating": "Creando...",
       "create": "Crear cuenta",
       "errors": {
-        "nameRequired": "El nombre de la cuenta es obligatorio",
-        "bankRequired": "Seleccioná un banco"
+        "bankRequired": "Elegí uno.",
+        "nameRequired": "Requerido."
       }
     }
   },

@@ -14,15 +14,19 @@
     "needsAttention": "Needs attention",
     "dialog": {
       "title": "New account",
+      "description": "Link a bank to a friendly label your team will recognize.",
       "bank": "Bank",
       "selectBank": "Select a bank",
+      "bankHint": "Only banks ready for automation appear here.",
       "name": "Name",
       "namePlaceholder": "e.g. Main account",
+      "nameHint": "A label you'll see throughout the app.",
+      "cancel": "Cancel",
       "creating": "Creating...",
       "create": "Create account",
       "errors": {
-        "nameRequired": "Account name is required",
-        "bankRequired": "Select a bank"
+        "bankRequired": "Choose one.",
+        "nameRequired": "Required."
       }
     }
   },
