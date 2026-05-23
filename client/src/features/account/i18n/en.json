@@ -16,10 +16,14 @@
       "title": "New account",
       "bank": "Bank",
       "selectBank": "Select a bank",
-      "name": "Name (optional)",
+      "name": "Name",
       "namePlaceholder": "e.g. Main account",
       "creating": "Creating...",
-      "create": "Create account"
+      "create": "Create account",
+      "errors": {
+        "nameRequired": "Account name is required",
+        "bankRequired": "Select a bank"
+      }
     }
   },
   "banks": {

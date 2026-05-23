@@ -16,10 +16,14 @@
       "title": "Nueva cuenta",
       "bank": "Banco",
       "selectBank": "Seleccioná un banco",
-      "name": "Nombre (opcional)",
+      "name": "Nombre",
       "namePlaceholder": "ej: Cuenta principal",
       "creating": "Creando...",
-      "create": "Crear cuenta"
+      "create": "Crear cuenta",
+      "errors": {
+        "nameRequired": "El nombre de la cuenta es obligatorio",
+        "bankRequired": "Seleccioná un banco"
+      }
     }
   },
   "banks": {
