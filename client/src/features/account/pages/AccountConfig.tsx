@@ -7,7 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
 import { Switch } from '@/shared/ui/switch'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
-import { ArrowLeft, Save, Info, Trash2, AlertTriangle, RotateCcw, ShieldAlert } from 'lucide-react'
+import { cn } from '@/shared/lib/utils'
+import { Radio } from '@base-ui/react/radio'
+import { RadioGroup } from '@base-ui/react/radio-group'
+import { ArrowLeft, Save, Info, Trash2, AlertTriangle, RotateCcw, ShieldAlert, Check } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useUser } from '@/features/user/hooks/useUser'
 import { useAccount, useDeleteAccount, useRestartAccount } from '../hooks/useAccounts'
@@ -255,46 +258,44 @@ export function AccountConfig() {
       {/* Session behaviour */}
       <Card>
         <CardHeader><CardTitle>{t('accountConfig.session')}</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-5">
           <div className="space-y-2">
             <Label>{t('accountConfig.sessionType')}</Label>
-            <Select
+            <RadioGroup
               value={form.sessionType}
               onValueChange={v => setForm(f => ({ ...f, sessionType: v as SessionType }))}
+              className="flex flex-col gap-3"
             >
-              <SelectTrigger>
-                <SelectValue>
-                  {form.sessionType === 'persistent'
-                    ? t('accountConfig.sessionTypePersistent')
-                    : t('accountConfig.sessionTypeOneShot')}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="one-shot">{t('accountConfig.sessionTypeOneShot')}</SelectItem>
-                <SelectItem value="persistent">{t('accountConfig.sessionTypePersistent')}</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">{t('accountConfig.sessionTypeDesc')}</p>
+              <OptionCard
+                value="one-shot"
+                title={t('accountConfig.sessionTypeOneShot')}
+                description={t('accountConfig.sessionTypeOneShotDesc')}
+              />
+              <OptionCard
+                value="persistent"
+                title={t('accountConfig.sessionTypePersistent')}
+                description={t('accountConfig.sessionTypePersistentDesc')}
+              />
+            </RadioGroup>
           </div>
           <div className="space-y-2">
             <Label>{t('accountConfig.loginMode')}</Label>
-            <Select
+            <RadioGroup
               value={form.loginMode}
               onValueChange={v => setForm(f => ({ ...f, loginMode: v as LoginMode }))}
+              className="flex flex-col gap-3"
             >
-              <SelectTrigger>
-                <SelectValue>
-                  {form.loginMode === 'assisted'
-                    ? t('accountConfig.loginModeAssisted')
-                    : t('accountConfig.loginModeSimple')}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="simple">{t('accountConfig.loginModeSimple')}</SelectItem>
-                <SelectItem value="assisted">{t('accountConfig.loginModeAssisted')}</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">{t('accountConfig.loginModeDesc')}</p>
+              <OptionCard
+                value="simple"
+                title={t('accountConfig.loginModeSimple')}
+                description={t('accountConfig.loginModeSimpleDesc')}
+              />
+              <OptionCard
+                value="assisted"
+                title={t('accountConfig.loginModeAssisted')}
+                description={t('accountConfig.loginModeAssistedDesc')}
+              />
+            </RadioGroup>
           </div>
         </CardContent>
       </Card>
@@ -525,5 +526,38 @@ export function AccountConfig() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+function OptionCard({ value, title, description }: {
+  value: string
+  title: string
+  description: string
+}) {
+  return (
+    <Radio.Root
+      value={value}
+      className={cn(
+        'group relative flex cursor-pointer flex-col gap-1 rounded-lg border border-input bg-transparent p-3 text-left',
+        'transition-colors hover:bg-muted/50',
+        'data-[checked]:border-ring data-[checked]:bg-muted/30',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-medium">{title}</span>
+        <span
+          className={cn(
+            'flex size-4 items-center justify-center rounded-full border border-input transition-colors',
+            'group-data-[checked]:border-foreground group-data-[checked]:bg-foreground group-data-[checked]:text-background',
+          )}
+        >
+          <Radio.Indicator>
+            <Check className="size-3" />
+          </Radio.Indicator>
+        </span>
+      </div>
+      <p className="text-xs text-muted-foreground">{description}</p>
+    </Radio.Root>
   )
 }
