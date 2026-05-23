@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/ui/di
 import { cn } from '@/shared/lib/utils'
 import { Radio } from '@base-ui/react/radio'
 import { RadioGroup } from '@base-ui/react/radio-group'
-import { ArrowLeft, Save, Info, Trash2, AlertTriangle, RotateCcw, ShieldAlert, Check, Bell, BellOff } from 'lucide-react'
+import { ArrowLeft, Save, Info, Trash2, AlertTriangle, RotateCcw, ShieldAlert, Check, Bell, BellOff, TrendingDown, Lock, FileCheck, Settings as SettingsIcon, Terminal } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useUser } from '@/features/user/hooks/useUser'
 import { useAccount, useDeleteAccount, useRestartAccount } from '../hooks/useAccounts'
@@ -478,52 +478,93 @@ export function AccountConfig() {
       </Button>
 
       <Dialog open={deleteOpen} onOpenChange={openDeleteDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="text-destructive flex items-center gap-2">
-              <AlertTriangle className="size-4" />
+        <DialogContent className="sm:max-w-md gap-0 p-0 overflow-hidden">
+          <DialogHeader className="gap-1.5 border-b border-destructive/15 bg-destructive/5 px-5 py-4">
+            <DialogTitle className="text-destructive flex items-center gap-2.5 text-base font-semibold tracking-tight">
+              <AlertTriangle className="size-5" strokeWidth={2.25} />
               {t('accountConfig.danger.dialogTitle')}
             </DialogTitle>
+            <p className="text-xs text-destructive/80 pl-[1.875rem]">
+              {t('accountConfig.danger.dialogSubtitle')}
+            </p>
           </DialogHeader>
-          <div className="space-y-4 pt-2">
-            <p className="text-sm text-muted-foreground">
-              {t('accountConfig.danger.dialogIntro')}
-            </p>
-            <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
-              <li>{t('accountConfig.danger.itemMovements')}</li>
-              <li>{t('accountConfig.danger.itemCredentials')}</li>
-              <li>{t('accountConfig.danger.itemConciliations')}</li>
-              <li>{t('accountConfig.danger.itemConfig')}</li>
-              <li>{t('accountConfig.danger.itemScrapeLogs')}</li>
-            </ul>
-            <p className="text-sm">
-              {t('accountConfig.danger.typeToConfirm')}{' '}
-              <span className="font-mono font-medium text-foreground">{account?.name}</span>
-            </p>
-            <div className="space-y-2">
-              <Label>{t('accountConfig.danger.nameLabel')}</Label>
-              <Input
-                value={deleteConfirmName}
-                onChange={e => {
-                  setDeleteConfirmName(e.target.value)
-                  if (deleteError) setDeleteError(null)
-                }}
-                placeholder={account?.name ?? ''}
-                autoFocus
-              />
+
+          <div className="px-5 py-5 space-y-5">
+            <div className="space-y-2.5">
+              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">
+                {t('accountConfig.danger.impactHeading')}
+              </p>
+              <ul className="space-y-2">
+                {[
+                  { Icon: TrendingDown, label: t('accountConfig.danger.itemMovements') },
+                  { Icon: Lock, label: t('accountConfig.danger.itemCredentials') },
+                  { Icon: FileCheck, label: t('accountConfig.danger.itemConciliations') },
+                  { Icon: SettingsIcon, label: t('accountConfig.danger.itemConfig') },
+                  { Icon: Terminal, label: t('accountConfig.danger.itemScrapeLogs') },
+                ].map(({ Icon, label }) => (
+                  <li key={label} className="flex items-start gap-2.5 text-sm text-muted-foreground">
+                    <Icon className="size-4 mt-0.5 shrink-0 text-muted-foreground/70" strokeWidth={1.75} />
+                    <span className="leading-snug">{label}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
-            {deleteError && <p className="text-xs text-destructive">{deleteError}</p>}
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => openDeleteDialog(false)} disabled={remove.isPending}>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-medium">
+                {t('accountConfig.danger.typeToConfirmShort')}
+              </Label>
+              <div className="relative">
+                <Input
+                  value={deleteConfirmName}
+                  onChange={e => {
+                    setDeleteConfirmName(e.target.value)
+                    if (deleteError) setDeleteError(null)
+                  }}
+                  placeholder={account?.name ?? ''}
+                  aria-invalid={!!deleteError || undefined}
+                  aria-label={t('accountConfig.danger.nameLabel')}
+                  autoFocus
+                  className={cn(
+                    'pr-8 font-mono',
+                    confirmMatches && 'border-emerald-500 focus-visible:border-emerald-500 focus-visible:ring-emerald-500/20'
+                  )}
+                />
+                {confirmMatches && (
+                  <Check
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 size-4 text-emerald-500 animate-in fade-in zoom-in-75 duration-200"
+                    strokeWidth={2.5}
+                    aria-hidden
+                  />
+                )}
+              </div>
+              {deleteError && (
+                <p className="text-xs text-destructive animate-in fade-in duration-150">
+                  {deleteError}
+                </p>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <Button
+                variant="ghost"
+                onClick={() => openDeleteDialog(false)}
+                disabled={remove.isPending}
+              >
                 {t('accountConfig.danger.cancel')}
               </Button>
               <Button
                 variant="destructive"
                 onClick={handleDelete}
                 disabled={!confirmMatches || remove.isPending}
-                className="gap-2"
+                className="gap-1.5"
               >
-                <Trash2 className="size-4" />
+                {confirmMatches && (
+                  <Trash2
+                    className="size-4 animate-in fade-in slide-in-from-left-1 duration-200"
+                    strokeWidth={2}
+                  />
+                )}
                 {remove.isPending ? t('accountConfig.danger.deleting') : t('accountConfig.danger.confirmDelete')}
               </Button>
             </div>
