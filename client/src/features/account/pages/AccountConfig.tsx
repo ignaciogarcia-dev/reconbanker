@@ -146,7 +146,7 @@ export function validateAccountConfigForm(form: AccountConfigForm, ctx: Validati
   return errors
 }
 
-function mapServerErrorToField(message: string): keyof AccountConfigForm | null {
+export function mapServerErrorToField(message: string): keyof AccountConfigForm | null {
   const m = message.toLowerCase()
   if (m.includes('webhook_extra_fields') || m.includes('extra_fields')) return 'webhookExtraFields'
   if (m.includes('webhook_url') || m.includes('webhook url')) return 'webhookUrl'
