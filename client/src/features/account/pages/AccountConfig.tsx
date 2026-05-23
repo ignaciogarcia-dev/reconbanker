@@ -194,15 +194,27 @@ export function AccountConfig() {
 
   return (
     <div className="p-8 space-y-6 max-w-2xl">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/accounts')}>
-          <ArrowLeft className="size-4 mr-1" />
-          {t('accountConfig.back')}
-        </Button>
-        <div>
-          <h2 className="text-2xl font-semibold">{t('accountConfig.title')}</h2>
-          <p className="text-muted-foreground text-sm">ID: {accountId}</p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/accounts')}>
+            <ArrowLeft className="size-4 mr-1" />
+            {t('accountConfig.back')}
+          </Button>
+          <div className="min-w-0">
+            <h2 className="text-2xl font-semibold">{t('accountConfig.title')}</h2>
+            <p className="text-muted-foreground text-sm truncate">ID: {accountId}</p>
+          </div>
         </div>
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={() => openDeleteDialog(true)}
+          disabled={!account}
+          className="gap-2 shrink-0"
+        >
+          <Trash2 className="size-4" />
+          {t('accountConfig.danger.deleteButton')}
+        </Button>
       </div>
 
       {/* Session blocked — fatal failure stopped automatic scraping/sessions */}
@@ -464,28 +476,6 @@ export function AccountConfig() {
         <Save className="size-4" />
         {save.isPending ? t('accountConfig.saving') : saved ? t('accountConfig.saved') : t('accountConfig.save')}
       </Button>
-
-      {/* Danger zone */}
-      <Card className="border-destructive/40">
-        <CardHeader>
-          <CardTitle className="text-destructive flex items-center gap-2">
-            <AlertTriangle className="size-4" />
-            {t('accountConfig.danger.title')}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">{t('accountConfig.danger.description')}</p>
-          <Button
-            variant="destructive"
-            onClick={() => openDeleteDialog(true)}
-            disabled={!account}
-            className="gap-2"
-          >
-            <Trash2 className="size-4" />
-            {t('accountConfig.danger.deleteButton')}
-          </Button>
-        </CardContent>
-      </Card>
 
       <Dialog open={deleteOpen} onOpenChange={openDeleteDialog}>
         <DialogContent>
