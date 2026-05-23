@@ -479,7 +479,7 @@ export function AccountConfig() {
 
       <Dialog open={deleteOpen} onOpenChange={openDeleteDialog}>
         <DialogContent className="sm:max-w-md gap-0 p-0 overflow-hidden">
-          <DialogHeader className="gap-1.5 border-b border-destructive/15 bg-destructive/5 px-5 py-4">
+          <DialogHeader className="gap-1.5 px-5 py-4">
             <DialogTitle className="text-destructive flex items-center gap-2.5 text-base font-semibold tracking-tight">
               <AlertTriangle className="size-5" strokeWidth={2.25} />
               {t('accountConfig.danger.dialogTitle')}
