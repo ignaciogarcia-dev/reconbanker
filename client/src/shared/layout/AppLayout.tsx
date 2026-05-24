@@ -55,9 +55,7 @@ export function AppLayout() {
     me?.operationMode !== 'passthrough' && {
       to: '/conciliations', label: t('nav.conciliations'), icon: GitMerge,
     },
-    me?.operationMode !== 'reconcile' && {
-      to: '/movements', label: t('nav.movements'), icon: ArrowDownUp,
-    },
+    { to: '/movements', label: t('nav.movements'), icon: ArrowDownUp },
     { to: '/scripts', label: t('nav.scripts'), icon: Code2 },
   ].filter(Boolean) as { to: string; label: string; icon: typeof LayoutDashboard }[]
 
