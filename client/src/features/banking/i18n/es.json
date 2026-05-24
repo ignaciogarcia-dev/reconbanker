@@ -1,7 +1,7 @@
 {
   "movements": {
     "title": "Movimientos bancarios",
-    "subtitle": "Auditá los movimientos de cuentas con notificación directa y reenviá el webhook si es necesario.",
+    "subtitle": "Auditá los movimientos detectados en cada cuenta y reenviá el webhook si es necesario.",
     "loading": "Cargando...",
     "emptyNoAccounts": "No tenés cuentas configuradas. Configurá tu primera cuenta para ver los movimientos acá.",
     "emptyTable": "Aún no hay movimientos",
