@@ -533,15 +533,6 @@ export function AccountConfig() {
                 )}
               </CardContent>
             </Card>
-
-            <AuthCard
-              form={form}
-              errors={errors}
-              t={t}
-              field={field}
-              setForm={setForm}
-              hintKey="accountConfig.authHintPollingAndWebhook"
-            />
           </TabsContent>
         )}
       </Tabs>
