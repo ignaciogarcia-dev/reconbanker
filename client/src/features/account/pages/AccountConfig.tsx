@@ -340,7 +340,8 @@ export function AccountConfig() {
   if (isLoading) return <div className="p-8 text-muted-foreground text-sm">{t('accountConfig.loading')}</div>
 
   return (
-    <div className="px-6 lg:px-8 py-8 space-y-6 pb-28">
+    <div className="flex min-h-full flex-col">
+      <div className="flex flex-1 flex-col gap-6 px-6 pt-8 pb-6 lg:px-8">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <Button variant="ghost" size="sm" onClick={() => navigate('/accounts')}>
@@ -354,10 +355,9 @@ export function AccountConfig() {
         </div>
         <Button
           variant="destructive"
-          size="sm"
           onClick={() => openDeleteDialog(true)}
           disabled={!account}
-          className="gap-2 shrink-0"
+          className="h-9 shrink-0 gap-2 px-4"
         >
           <Trash2 className="size-4" />
           {t('accountConfig.danger.deleteButton')}
@@ -681,9 +681,9 @@ export function AccountConfig() {
           </TabsContent>
         )}
       </Tabs>
+      </div>
 
-      {/* Sticky save bar — stays visible regardless of active tab */}
-      <div className="sticky bottom-0 -mx-6 lg:-mx-8 mt-2 border-t border-border/60 bg-background/80 px-6 lg:px-8 py-3 supports-backdrop-filter:backdrop-blur">
+      <div className="sticky bottom-0 z-10 shrink-0 border-t border-border/60 bg-background/95 px-6 py-4 lg:px-8 supports-backdrop-filter:backdrop-blur">
         {serverError && (
           <div className="mb-3 relative overflow-hidden rounded-md border border-destructive/30 bg-destructive/5">
             <div className="absolute inset-y-0 left-0 w-1 bg-destructive" />
@@ -702,7 +702,12 @@ export function AccountConfig() {
           </div>
         )}
         <div className="flex justify-end">
-          <Button onClick={handleSave} disabled={save.isPending} className="gap-2">
+          <Button
+            onClick={handleSave}
+            disabled={save.isPending}
+            size="lg"
+            className="h-10 min-w-44 gap-2 px-6 font-medium"
+          >
             <Save className="size-4" />
             {save.isPending ? t('accountConfig.saving') : saved ? t('accountConfig.saved') : t('accountConfig.save')}
           </Button>
