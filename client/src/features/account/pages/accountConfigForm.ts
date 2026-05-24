@@ -32,14 +32,15 @@ export const FIELD_TO_TAB: Partial<Record<keyof AccountConfigForm, string>> = {
 }
 
 // Stable order — used to determine which tab to switch to (first error wins).
+// Mirrors the visual tab order: credentials → orders → webhook.
 export const FIELD_ORDER: (keyof AccountConfigForm)[] = [
   'bankUsername',
   'bankPassword',
-  'webhookUrl',
-  'webhookExtraFields',
   'pendingOrdersEndpoint',
   'authToken',
   'pollingBody',
+  'webhookUrl',
+  'webhookExtraFields',
 ]
 
 export function resolveTabForField(
