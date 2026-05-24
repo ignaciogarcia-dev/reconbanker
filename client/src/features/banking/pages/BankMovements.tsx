@@ -114,11 +114,10 @@ function MovementsTable({ accountId }: { accountId: string }) {
 
 export function BankMovements() {
   const { t } = useTranslation('banking')
-  const { data: me, isLoading: loadingMe } = useUser()
+  const { isLoading: loadingMe } = useUser()
   const { data: accounts = [], isLoading: loadingAccounts } = useAccounts()
 
   const isLoading = loadingMe || loadingAccounts
-  const wrongMode = !isLoading && me?.operationMode !== 'passthrough'
 
   return (
     <div className="p-8 space-y-6">
@@ -129,12 +128,6 @@ export function BankMovements() {
 
       {isLoading ? (
         <p className="text-muted-foreground text-sm">{t('movements.loading')}</p>
-      ) : wrongMode ? (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            {t('movements.emptyWrongMode')}
-          </CardContent>
-        </Card>
       ) : accounts.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
