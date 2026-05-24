@@ -1,7 +1,7 @@
 {
   "movements": {
     "title": "Bank movements",
-    "subtitle": "Audit movements for direct notification accounts and re-send the webhook when needed.",
+    "subtitle": "Audit the movements detected in each account and re-send the webhook when needed.",
     "loading": "Loading...",
     "emptyNoAccounts": "You don't have any accounts configured. Set up your first account to see movements here.",
     "emptyTable": "No movements yet",
