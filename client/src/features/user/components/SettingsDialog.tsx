@@ -321,12 +321,8 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                       >
                         <div
                           role="alert"
-                          className="flex items-start gap-2 rounded-lg p-3 text-[12px] leading-relaxed"
-                          style={{
-                            background: 'oklch(0.55 0.18 28 / 0.08)',
-                            boxShadow: 'inset 0 0 0 1px oklch(0.55 0.18 28 / 0.25)',
-                            color: 'oklch(0.85 0.05 28)',
-                          }}
+                          className="flex items-start gap-2 text-[12px] leading-relaxed"
+                          style={{ color: 'oklch(0.7 0.22 25)' }}
                         >
                           <AlertTriangle className="size-3.5 shrink-0 mt-0.5" aria-hidden />
                           <span>{t('settings.mode.changeWarning')}</span>
