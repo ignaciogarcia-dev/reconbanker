@@ -79,6 +79,29 @@
       "dismiss": "Cerrar"
     },
     "silentIngestionDesc": "Ingestá movimientos sin enviar notificaciones. Usalo al arrancar el sistema por primera vez para que los movimientos existentes del día no disparen webhooks. Desactivalo cuando quieras recibir notificaciones normalmente.",
+    "hints": {
+      "bankUsername": "Usuario que usás para entrar al home banking.",
+      "bankUsernameNew": "Usuario que usás para entrar al home banking.",
+      "bankPassword": "Contraseña del home banking. Se almacena cifrada.",
+      "bankPasswordSaved": "Dejá vacío para no cambiar la contraseña guardada.",
+      "webhookUrl": "Endpoint HTTPS al que vamos a enviar los POST de notificación.",
+      "pendingOrdersEndpoint": "Endpoint HTTPS donde devolvés las órdenes pendientes a conciliar.",
+      "pollingMethod": "Verbo HTTP con el que consultamos tu endpoint de órdenes pendientes.",
+      "pollingBody": "JSON opcional para mandar en el body cuando usás POST.",
+      "authToken": "Token o API Key para autenticar las requests salientes.",
+      "webhookExtraFields": "Campos extra que se mergean al payload del webhook.",
+      "silentIngestion": "Modo silencioso al arrancar por primera vez."
+    },
+    "tooltips": {
+      "authTypeBearer": "Bearer: enviamos el token en el header como `Authorization: Bearer <token>`.",
+      "authTypeApiKey": "API Key: enviamos la key tal cual en el header `X-Api-Key`.",
+      "pollingMethodGet": "GET: consulta sin body, ideal para endpoints REST simples.",
+      "pollingMethodPost": "POST: permite enviar filtros o credenciales en el body JSON."
+    },
+    "progress": {
+      "fieldsRequired": "{{done}}/{{total}}",
+      "allComplete": "Configuración completa"
+    },
     "notificationsActive": "Notificaciones activas",
     "notificationsSilenced": "Notificaciones silenciadas",
     "tabs": {

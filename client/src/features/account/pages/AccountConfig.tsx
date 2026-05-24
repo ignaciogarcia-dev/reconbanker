@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/ui/di
 import { cn } from '@/shared/lib/utils'
 import { Radio } from '@base-ui/react/radio'
 import { RadioGroup } from '@base-ui/react/radio-group'
-import { ArrowLeft, Save, Info, Trash2, AlertTriangle, RotateCcw, ShieldAlert, Check, Bell, BellOff, TrendingDown, Lock, FileCheck, Settings as SettingsIcon, Terminal, KeyRound, Webhook, ListChecks } from 'lucide-react'
+import { ArrowLeft, Save, Info, Trash2, AlertTriangle, RotateCcw, ShieldAlert, Check, Bell, BellOff, TrendingDown, Lock, FileCheck, Settings as SettingsIcon, Terminal, KeyRound, Webhook, ListChecks, AlertCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useUser } from '@/features/user/hooks/useUser'
 import { useAccount, useDeleteAccount, useRestartAccount } from '../hooks/useAccounts'
@@ -58,6 +58,51 @@ export function AccountConfig() {
 
   const { data: account } = useAccount(accountId)
   const { data, isLoading } = useAccountConfig(accountId)
+
+  const hasSavedCredential = !!(data?.bankUsername && data.bankUsername.trim() !== '')
+
+  const liveErrors = useMemo(
+    () => validateAccountConfigForm(form, { mode, hasSavedCredential, t }),
+    [form, mode, hasSavedCredential, t],
+  )
+
+  function requiredFieldsFor(tab: string): (keyof AccountConfigForm)[] {
+    switch (tab) {
+      case 'credentials-session':
+        return hasSavedCredential ? ['bankUsername'] : ['bankUsername', 'bankPassword']
+      case 'orders':
+        return ['pendingOrdersEndpoint', 'authToken']
+      case 'webhook':
+        return ['webhookUrl']
+      default:
+        return []
+    }
+  }
+
+  function tabProgress(tab: string): { done: number; total: number } {
+    const required = requiredFieldsFor(tab)
+    const done = required.filter(k => {
+      const value = form[k]
+      const stringValue = typeof value === 'string' ? value : String(value)
+      return stringValue.trim() !== '' && !liveErrors[k]
+    }).length
+    return { done, total: required.length }
+  }
+
+  const visibleTabs: string[] = mode === 'reconcile'
+    ? ['credentials-session', 'orders', 'webhook']
+    : ['credentials-session', 'webhook']
+
+  const tabLabelKey: Record<string, string> = {
+    'credentials-session': 'accountConfig.tabs.credentialsSession',
+    'orders': 'accountConfig.tabs.orders',
+    'webhook': 'accountConfig.tabs.webhook',
+  }
+
+  const allTabsComplete = visibleTabs.every(tab => {
+    const { done, total } = tabProgress(tab)
+    return done === total
+  })
 
   useEffect(() => {
     if (!data) return
@@ -124,7 +169,6 @@ export function AccountConfig() {
   function handleSave() {
     if (!accountId) return
     setServerError(null)
-    const hasSavedCredential = !!(data?.bankUsername && data.bankUsername.trim() !== '')
     const next = validateAccountConfigForm(form, { mode, hasSavedCredential, t })
     if (Object.keys(next).length > 0) {
       setErrors(next)
@@ -295,20 +339,24 @@ export function AccountConfig() {
           <Card>
             <CardHeader><CardTitle>{t('accountConfig.bankCredentials')}</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>{t('accountConfig.username')}</Label>
+              <FormField
+                label={t('accountConfig.username')}
+                required
+                hint={t('accountConfig.hints.bankUsername')}
+                error={errors.bankUsername}
+              >
                 <Input placeholder={t('accountConfig.usernamePlaceholder')} {...field('bankUsername')} />
-                {errors.bankUsername && (
-                  <p className="text-xs text-destructive">{errors.bankUsername}</p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label>{t('accountConfig.password')}</Label>
+              </FormField>
+              <FormField
+                label={t('accountConfig.password')}
+                required={!hasSavedCredential}
+                hint={hasSavedCredential
+                  ? t('accountConfig.hints.bankPasswordSaved')
+                  : t('accountConfig.hints.bankPassword')}
+                error={errors.bankPassword}
+              >
                 <Input type="password" placeholder={t('accountConfig.passwordPlaceholder')} {...field('bankPassword')} />
-                {errors.bankPassword && (
-                  <p className="text-xs text-destructive">{errors.bankPassword}</p>
-                )}
-              </div>
+              </FormField>
             </CardContent>
           </Card>
 
@@ -427,16 +475,19 @@ export function AccountConfig() {
                   </pre>
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label>{t('accountConfig.webhookUrl')}</Label>
+              <FormField
+                label={t('accountConfig.webhookUrl')}
+                required
+                hint={t('accountConfig.hints.webhookUrl')}
+                error={errors.webhookUrl}
+              >
                 <Input placeholder="https://..." {...field('webhookUrl')} />
-                {errors.webhookUrl && (
-                  <p className="text-xs text-destructive">{errors.webhookUrl}</p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label>{t('accountConfig.webhookExtraFields')}</Label>
-                <p className="text-xs text-muted-foreground">{t('accountConfig.webhookExtraFieldsDesc')}</p>
+              </FormField>
+              <FormField
+                label={t('accountConfig.webhookExtraFields')}
+                hint={t('accountConfig.webhookExtraFieldsDesc')}
+                error={errors.webhookExtraFields}
+              >
                 <textarea
                   className={cn(
                     'w-full min-h-24 rounded-md border bg-transparent px-3 py-2 text-sm font-mono resize-y',
@@ -450,10 +501,7 @@ export function AccountConfig() {
                     clearFieldError('webhookExtraFields')
                   }}
                 />
-                {errors.webhookExtraFields && (
-                  <p className="text-xs text-destructive">{errors.webhookExtraFields}</p>
-                )}
-              </div>
+              </FormField>
             </CardContent>
           </Card>
         </TabsContent>
@@ -488,15 +536,33 @@ export function AccountConfig() {
 ]`}</pre>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>{t('accountConfig.pendingEndpoint')}</Label>
+                <FormField
+                  label={t('accountConfig.pendingEndpoint')}
+                  required
+                  hint={t('accountConfig.hints.pendingOrdersEndpoint')}
+                  error={errors.pendingOrdersEndpoint}
+                >
                   <Input placeholder="https://..." {...field('pendingOrdersEndpoint')} />
-                  {errors.pendingOrdersEndpoint && (
-                    <p className="text-xs text-destructive">{errors.pendingOrdersEndpoint}</p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label>{t('accountConfig.httpMethod')}</Label>
+                </FormField>
+                <FormField
+                  label={
+                    <span className="flex items-center gap-1.5">
+                      {t('accountConfig.httpMethod')}
+                      <Tooltip>
+                        <TooltipTrigger render={
+                          <button type="button" aria-label="info" className="text-muted-foreground/60 hover:text-foreground">
+                            <Info className="size-3" />
+                          </button>
+                        } />
+                        <TooltipContent className="max-w-xs text-left space-y-1">
+                          <p>{t('accountConfig.tooltips.pollingMethodGet')}</p>
+                          <p>{t('accountConfig.tooltips.pollingMethodPost')}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </span>
+                  }
+                  hint={t('accountConfig.hints.pollingMethod')}
+                >
                   <Select
                     value={form.pollingMethod}
                     onValueChange={v => setForm(f => ({ ...f, pollingMethod: v as PollingMethod }))}
@@ -509,10 +575,13 @@ export function AccountConfig() {
                       <SelectItem value="POST">POST</SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
+                </FormField>
                 {form.pollingMethod === 'POST' && (
-                  <div className="space-y-2">
-                    <Label>{t('accountConfig.body')}</Label>
+                  <FormField
+                    label={t('accountConfig.body')}
+                    hint={t('accountConfig.hints.pollingBody')}
+                    error={errors.pollingBody}
+                  >
                     <textarea
                       className={cn(
                         'w-full min-h-24 rounded-md border bg-transparent px-3 py-2 text-sm font-mono resize-y',
@@ -526,10 +595,7 @@ export function AccountConfig() {
                         clearFieldError('pollingBody')
                       }}
                     />
-                    {errors.pollingBody && (
-                      <p className="text-xs text-destructive">{errors.pollingBody}</p>
-                    )}
-                  </div>
+                  </FormField>
                 )}
               </CardContent>
             </Card>
@@ -556,12 +622,53 @@ export function AccountConfig() {
             </div>
           </div>
         )}
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
+            {mode && (allTabsComplete ? (
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/5 px-3 py-1 text-sm">
+                <Check className="size-3.5 text-emerald-500" strokeWidth={2.5} aria-hidden />
+                <span className="font-medium">{t('accountConfig.progress.allComplete')}</span>
+              </div>
+            ) : (
+              visibleTabs.map(tab => {
+                const { done, total } = tabProgress(tab)
+                const complete = done === total
+                const isActive = activeTab === tab
+                return (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setActiveTab(tab)}
+                    className={cn(
+                      'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-sm transition-colors outline-none',
+                      complete
+                        ? 'bg-emerald-500/5 hover:bg-emerald-500/10'
+                        : 'bg-amber-500/5 hover:bg-amber-500/10',
+                      isActive && (complete ? 'bg-emerald-500/15' : 'bg-amber-500/15'),
+                    )}
+                  >
+                    {complete ? (
+                      <Check className="size-3.5 text-emerald-500" strokeWidth={2.5} aria-hidden />
+                    ) : (
+                      <AlertCircle className="size-3.5 text-amber-500" aria-hidden />
+                    )}
+                    <span className="text-foreground">{t(tabLabelKey[tab])}</span>
+                    <span className={cn(
+                      'font-mono text-[11px] tabular-nums',
+                      complete ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground',
+                    )}>
+                      {t('accountConfig.progress.fieldsRequired', { done, total })}
+                    </span>
+                  </button>
+                )
+              })
+            ))}
+          </div>
           <Button
             onClick={handleSave}
             disabled={save.isPending}
             size="lg"
-            className="h-10 min-w-44 gap-2 px-6 font-medium"
+            className="h-10 min-w-44 shrink-0 gap-2 px-6 font-medium"
           >
             <Save className="size-4" />
             {save.isPending ? t('accountConfig.saving') : saved ? t('accountConfig.saved') : t('accountConfig.save')}
@@ -713,14 +820,69 @@ interface AuthCardProps {
   hintKey: string
 }
 
+interface FormFieldProps {
+  label: React.ReactNode
+  required?: boolean
+  hint?: string
+  error?: string
+  children: React.ReactNode
+}
+
+function FormField({ label, required, hint, error, children }: FormFieldProps) {
+  const hasError = Boolean(error)
+  return (
+    <div className="grid gap-1.5">
+      <Label className={cn('text-[13px] transition-colors flex items-center gap-1', hasError && 'text-destructive')}>
+        <span>{label}</span>
+        {required && (
+          <span className="text-destructive" aria-hidden>*</span>
+        )}
+      </Label>
+      {children}
+      {(hasError || hint) && (
+        <p
+          aria-live="polite"
+          className={cn(
+            'flex items-center gap-1 text-[11px] leading-4 min-h-4 transition-colors',
+            hasError ? 'text-destructive' : 'text-muted-foreground',
+          )}
+        >
+          {hasError ? (
+            <AlertCircle className="size-3 shrink-0" aria-hidden />
+          ) : (
+            <Info className="size-3 shrink-0 opacity-60" aria-hidden />
+          )}
+          <span>{hasError ? error : hint}</span>
+        </p>
+      )}
+    </div>
+  )
+}
+
 function AuthCard({ form, errors, t, field, setForm, hintKey }: AuthCardProps) {
   return (
     <Card>
       <CardHeader><CardTitle>{t('accountConfig.auth')}</CardTitle></CardHeader>
       <CardContent className="space-y-4">
         <p className="text-xs text-muted-foreground">{t(hintKey)}</p>
-        <div className="space-y-2">
-          <Label>{t('accountConfig.authType')}</Label>
+        <FormField
+          label={
+            <span className="flex items-center gap-1.5">
+              {t('accountConfig.authType')}
+              <Tooltip>
+                <TooltipTrigger render={
+                  <button type="button" aria-label="info" className="text-muted-foreground/60 hover:text-foreground">
+                    <Info className="size-3" />
+                  </button>
+                } />
+                <TooltipContent className="max-w-xs text-left space-y-1">
+                  <p>{t('accountConfig.tooltips.authTypeBearer')}</p>
+                  <p>{t('accountConfig.tooltips.authTypeApiKey')}</p>
+                </TooltipContent>
+              </Tooltip>
+            </span>
+          }
+        >
           <Select
             value={form.authType}
             onValueChange={v => setForm(f => ({ ...f, authType: v as AuthType }))}
@@ -733,14 +895,15 @@ function AuthCard({ form, errors, t, field, setForm, hintKey }: AuthCardProps) {
               <SelectItem value="api_key">API Key</SelectItem>
             </SelectContent>
           </Select>
-        </div>
-        <div className="space-y-2">
-          <Label>{t('accountConfig.tokenKey')}</Label>
+        </FormField>
+        <FormField
+          label={t('accountConfig.tokenKey')}
+          required
+          hint={t('accountConfig.hints.authToken')}
+          error={errors.authToken}
+        >
           <Input type="password" {...field('authToken')} />
-          {errors.authToken && (
-            <p className="text-xs text-destructive">{errors.authToken}</p>
-          )}
-        </div>
+        </FormField>
       </CardContent>
     </Card>
   )
