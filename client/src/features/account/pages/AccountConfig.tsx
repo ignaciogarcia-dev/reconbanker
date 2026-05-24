@@ -456,17 +456,6 @@ export function AccountConfig() {
               </div>
             </CardContent>
           </Card>
-
-          {mode !== 'reconcile' && (
-            <AuthCard
-              form={form}
-              errors={errors}
-              t={t}
-              field={field}
-              setForm={setForm}
-              hintKey="accountConfig.authHintWebhookOnly"
-            />
-          )}
         </TabsContent>
 
         {/* Orders (reconcile mode only) */}
