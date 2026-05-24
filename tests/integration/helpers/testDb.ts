@@ -42,6 +42,9 @@ export const CANONICAL_BANK_ID = 'a1000000-0000-0000-0000-000000000001'
 export async function truncateAll(): Promise<void> {
   const p = getTestPool()
   await p.query(`TRUNCATE ${ALL_DOMAIN_TABLES.join(', ')} RESTART IDENTITY CASCADE`)
+  // Break self-referential FKs (bank_scripts.base_script_id) so the DELETE below
+  // can drop ancestor rows without violating the constraint.
+  await p.query(`UPDATE bank_scripts SET base_script_id = NULL`)
   // Drop any test-created bank_scripts (keep only the canonical seed).
   await p.query(`DELETE FROM bank_scripts WHERE id <> $1`, [CANONICAL_SCRIPT_ID])
   // Drop any test-created banks (keep only the canonical seed).
