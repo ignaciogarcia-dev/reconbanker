@@ -10,8 +10,8 @@
     "register": "Registrarse"
   },
   "register": {
-    "title": "Crear cuenta admin",
-    "subtitle": "Registrá un nuevo usuario administrador",
+    "title": "Crear cuenta",
+    "subtitle": "Registrá un nuevo usuario",
     "name": "Nombre (opcional)",
     "email": "Email",
     "password": "Contraseña",
