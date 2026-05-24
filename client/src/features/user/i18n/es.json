@@ -17,6 +17,7 @@
     "password": "Contraseña",
     "submit": "Registrar",
     "loading": "Registrando...",
+    "success": "Cuenta creada exitosamente. Ingresá con tus credenciales.",
     "defaultError": "Error al registrar el usuario",
     "hasAccount": "¿Ya tenés cuenta?",
     "login": "Ingresar"

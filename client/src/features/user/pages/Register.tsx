@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { toast } from 'sonner'
 import { register } from '../api/auth'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
@@ -22,6 +23,7 @@ export function Register() {
     setLoading(true)
     try {
       await register({ email, password, name: name || undefined })
+      toast.success(t('register.success'))
       navigate('/login')
     } catch (err: unknown) {
       const message = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
