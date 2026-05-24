@@ -461,6 +461,15 @@ export function AccountConfig() {
         {/* Orders (reconcile mode only) */}
         {mode === 'reconcile' && (
           <TabsContent value="orders" className="space-y-6">
+            <AuthCard
+              form={form}
+              errors={errors}
+              t={t}
+              field={field}
+              setForm={setForm}
+              hintKey="accountConfig.authHintPollingAndWebhook"
+            />
+
             <Card>
               <CardHeader><CardTitle>{t('accountConfig.orderIngestion')}</CardTitle></CardHeader>
               <CardContent className="space-y-4">
