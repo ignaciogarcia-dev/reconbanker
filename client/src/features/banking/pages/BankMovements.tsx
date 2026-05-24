@@ -1,5 +1,4 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useUser } from '@/features/user/hooks/useUser'
 import { useAccounts } from '@/features/account/hooks/useAccounts'
 import { useBankMovements, useReNotifyMovement, bankMovementsQueryKey } from '../hooks/useBankMovements'
 import { Badge } from '@/shared/ui/badge'
@@ -9,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import { useTranslation } from 'react-i18next'
-import { Bell, CheckCircle2, Clock } from 'lucide-react'
+import { Bell, CheckCircle2, Clock, Inbox } from 'lucide-react'
 
 function MovementsTable({ accountId }: { accountId: string }) {
   const { t } = useTranslation('banking')
@@ -98,8 +97,12 @@ function MovementsTable({ accountId }: { accountId: string }) {
         ))}
         {movements.length === 0 && (
           <TableRow>
-            <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-              {t('movements.emptyTable')}
+            <TableCell colSpan={7} className="py-12">
+              <div className="flex flex-col items-center justify-center gap-1.5 text-center">
+                <Inbox className="size-6 text-muted-foreground/40" aria-hidden />
+                <p className="text-sm font-medium">{t('movements.emptyTable')}</p>
+                <p className="text-xs text-muted-foreground max-w-md text-balance px-4">{t('movements.emptyTableDesc')}</p>
+              </div>
             </TableCell>
           </TableRow>
         )}
@@ -110,11 +113,7 @@ function MovementsTable({ accountId }: { accountId: string }) {
 
 export function BankMovements() {
   const { t } = useTranslation('banking')
-  const { data: me, isLoading: loadingMe } = useUser()
-  const { data: accounts = [], isLoading: loadingAccounts } = useAccounts()
-
-  const isLoading = loadingMe || loadingAccounts
-  const wrongMode = !isLoading && me?.operationMode !== 'passthrough'
+  const { data: accounts = [], isLoading } = useAccounts()
 
   return (
     <div className="p-8 space-y-6">
@@ -125,12 +124,6 @@ export function BankMovements() {
 
       {isLoading ? (
         <p className="text-muted-foreground text-sm">{t('movements.loading')}</p>
-      ) : wrongMode ? (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            {t('movements.emptyWrongMode')}
-          </CardContent>
-        </Card>
       ) : accounts.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">

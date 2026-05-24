@@ -1,11 +1,11 @@
 {
   "movements": {
     "title": "Bank movements",
-    "subtitle": "Audit movements for direct notification accounts and re-send the webhook when needed.",
+    "subtitle": "Audit the movements detected in each account and re-send the webhook when needed.",
     "loading": "Loading...",
-    "emptyNoAccounts": "You don't have any direct notification accounts. Set an account to direct notification to see its movements here.",
-    "emptyWrongMode": "Your account operates in Reconciliation mode. Bank movements are only available in Direct notification mode. Change the mode from Settings to see them.",
-    "emptyTable": "No movements recorded for this account.",
+    "emptyNoAccounts": "You don't have any accounts configured. Set up your first account to see movements here.",
+    "emptyTable": "No movements yet",
+    "emptyTableDesc": "Once the first movement is detected in this account, it will appear here.",
     "colExternalId": "External ID",
     "colAmount": "Amount",
     "colCurrency": "Currency",

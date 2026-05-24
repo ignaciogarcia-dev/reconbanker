@@ -17,7 +17,7 @@
     "password": "Password",
     "submit": "Register",
     "loading": "Registering...",
-    "success": "Account created successfully. Sign in with your credentials.",
+    "success": "Account created successfully.",
     "defaultError": "Error registering user",
     "hasAccount": "Already have an account?",
     "login": "Sign in"
