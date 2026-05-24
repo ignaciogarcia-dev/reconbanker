@@ -4,3 +4,5 @@ dist/
 *.log
 logs/
 playwright-profiles/
+coverage/
+.vitest-reports/
