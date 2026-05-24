@@ -52,7 +52,7 @@ function TimeSeriesChart({
       >
         <LineChartIcon className="size-6 text-muted-foreground/40" aria-hidden />
         <p className="text-sm font-medium">{t('dashboard.chartEmptyTitle')}</p>
-        <p className="text-xs text-muted-foreground max-w-xs">{t('dashboard.chartEmptyDesc')}</p>
+        <p className="text-xs text-muted-foreground max-w-md text-balance px-4">{t('dashboard.chartEmptyDesc')}</p>
       </div>
     )
   }
