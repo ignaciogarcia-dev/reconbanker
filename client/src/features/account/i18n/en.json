@@ -129,7 +129,7 @@
     },
     "save": "Save configuration",
     "saving": "Saving...",
-    "saved": "Saved!",
+    "saved": "Configuration saved",
     "danger": {
       "deleteButton": "Delete account",
       "dialogTitle": "Delete account permanently",

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
@@ -48,7 +49,6 @@ export function AccountConfig() {
     sessionType: 'one-shot',
     loginMode: 'simple',
   })
-  const [saved, setSaved] = useState(false)
   const [errors, setErrors] = useState<FormErrors>({})
   const [serverError, setServerError] = useState<string | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -205,8 +205,8 @@ export function AccountConfig() {
       },
       {
         onSuccess: () => {
-          setSaved(true)
-          setTimeout(() => setSaved(false), 2000)
+          toast.success(t('accountConfig.saved'))
+          navigate('/accounts')
         },
         onError: (err: unknown) => {
           const message =
@@ -671,7 +671,7 @@ export function AccountConfig() {
             className="h-10 min-w-44 shrink-0 gap-2 px-6 font-medium"
           >
             <Save className="size-4" />
-            {save.isPending ? t('accountConfig.saving') : saved ? t('accountConfig.saved') : t('accountConfig.save')}
+            {save.isPending ? t('accountConfig.saving') : t('accountConfig.save')}
           </Button>
         </div>
       </div>

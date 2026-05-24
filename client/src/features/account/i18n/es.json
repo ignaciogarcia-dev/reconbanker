@@ -129,7 +129,7 @@
     },
     "save": "Guardar configuración",
     "saving": "Guardando...",
-    "saved": "¡Guardado!",
+    "saved": "Configuración guardada",
     "danger": {
       "deleteButton": "Eliminar cuenta",
       "dialogTitle": "Eliminar cuenta definitivamente",

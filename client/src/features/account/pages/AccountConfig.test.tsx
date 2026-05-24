@@ -608,7 +608,11 @@ describe('AccountConfig page', () => {
     // bankPassword is empty but hasSavedCredential=true so it's allowed.
     await user.click(screen.getByRole('button', { name: /Guardar configuración/i }))
     await waitFor(() => {
-      expect(screen.getByText('¡Guardado!')).toBeInTheDocument()
+      expect(screen.getByText('Configuración guardada')).toBeInTheDocument()
+    })
+    // Redirect to /accounts unmounts the page.
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: /Guardar configuración/i })).not.toBeInTheDocument()
     })
   })
 
