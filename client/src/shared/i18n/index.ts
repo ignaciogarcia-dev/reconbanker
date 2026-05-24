@@ -38,4 +38,13 @@ i18n.use(initReactI18next).init({
   interpolation: { escapeValue: false },
 })
 
+// Sync <html lang> with the active language so the browser uses the correct
+// locale for native widgets like <input type="date"> (dd/mm/yyyy vs mm/dd/yyyy).
+if (typeof document !== 'undefined') {
+  document.documentElement.lang = i18n.language
+  i18n.on('languageChanged', lng => {
+    document.documentElement.lang = lng
+  })
+}
+
 export default i18n
