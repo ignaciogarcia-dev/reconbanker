@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import { useTranslation } from 'react-i18next'
-import { Bell, CheckCircle2, Clock } from 'lucide-react'
+import { Bell, CheckCircle2, Clock, Inbox } from 'lucide-react'
 
 function MovementsTable({ accountId }: { accountId: string }) {
   const { t } = useTranslation('banking')
@@ -98,8 +98,12 @@ function MovementsTable({ accountId }: { accountId: string }) {
         ))}
         {movements.length === 0 && (
           <TableRow>
-            <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-              {t('movements.emptyTable')}
+            <TableCell colSpan={7} className="py-12">
+              <div className="flex flex-col items-center justify-center gap-1.5 text-center">
+                <Inbox className="size-6 text-muted-foreground/40" aria-hidden />
+                <p className="text-sm font-medium">{t('movements.emptyTable')}</p>
+                <p className="text-xs text-muted-foreground max-w-md text-balance px-4">{t('movements.emptyTableDesc')}</p>
+              </div>
             </TableCell>
           </TableRow>
         )}
