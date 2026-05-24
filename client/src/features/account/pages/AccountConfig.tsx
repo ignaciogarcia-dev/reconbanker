@@ -278,16 +278,16 @@ export function AccountConfig() {
             <KeyRound className="size-4" />
             {t('accountConfig.tabs.credentialsSession')}
           </TabsTrigger>
-          <TabsTrigger value="webhook" className="flex-none gap-2 px-4">
-            <Webhook className="size-4" />
-            {t('accountConfig.tabs.webhook')}
-          </TabsTrigger>
           {mode === 'reconcile' && (
             <TabsTrigger value="orders" className="flex-none gap-2 px-4">
               <ListChecks className="size-4" />
               {t('accountConfig.tabs.orders')}
             </TabsTrigger>
           )}
+          <TabsTrigger value="webhook" className="flex-none gap-2 px-4">
+            <Webhook className="size-4" />
+            {t('accountConfig.tabs.webhook')}
+          </TabsTrigger>
         </TabsList>
 
         {/* Bank credentials + session behaviour */}
@@ -359,6 +359,17 @@ export function AccountConfig() {
 
         {/* Webhook */}
         <TabsContent value="webhook" className="space-y-6">
+          {mode !== 'reconcile' && (
+            <AuthCard
+              form={form}
+              errors={errors}
+              t={t}
+              field={field}
+              setForm={setForm}
+              hintKey="accountConfig.authHintWebhookOnly"
+            />
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle>{t('accountConfig.webhooks')}</CardTitle>
