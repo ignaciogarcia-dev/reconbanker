@@ -78,7 +78,7 @@ function OrdersTable({ requests, accounts, showAccount }: { requests: Conciliati
                 return (
                   <Badge className={style?.className ?? ''}>
                     {Icon && <Icon />}
-                    {t(`enums.conciliationStatus.${r.status}`)}
+                    {t(`common:enums.conciliationStatus.${r.status}`)}
                   </Badge>
                 )
               })()}
@@ -158,7 +158,7 @@ export function Conciliations() {
         (r.senderName && r.senderName.toLowerCase().includes(q)) ||
         String(r.expectedAmount).includes(q) ||
         r.currency.toLowerCase().includes(q) ||
-        t(`enums.conciliationStatus.${r.status}`).toLowerCase().includes(q)
+        t(`common:enums.conciliationStatus.${r.status}`).toLowerCase().includes(q)
       )
     }
 
@@ -247,13 +247,13 @@ export function Conciliations() {
                         <Select value={draft.status} onValueChange={v => setDraft(d => ({ ...d, status: v ?? '' }))}>
                           <SelectTrigger className={draft.status ? 'w-full [&>svg:last-child]:hidden pr-8' : 'w-full'}>
                             <SelectValue placeholder={t('conciliations.allStatuses')}>
-                              {draft.status ? t(`enums.conciliationStatus.${draft.status}`) : t('conciliations.allStatuses')}
+                              {draft.status ? t(`common:enums.conciliationStatus.${draft.status}`) : t('conciliations.allStatuses')}
                             </SelectValue>
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="">{t('conciliations.allStatuses')}</SelectItem>
                             {STATUS_KEYS.map(s => (
-                              <SelectItem key={s} value={s}>{t(`enums.conciliationStatus.${s}`)}</SelectItem>
+                              <SelectItem key={s} value={s}>{t(`common:enums.conciliationStatus.${s}`)}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
