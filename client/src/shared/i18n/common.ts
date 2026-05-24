@@ -68,6 +68,9 @@ export const commonEs = {
     es: 'Español',
     en: 'English',
   },
+  validation: {
+    required: 'Completá este campo',
+  },
 }
 
 export const commonEn = {
@@ -138,5 +141,8 @@ export const commonEn = {
     label: 'Language',
     es: 'Español',
     en: 'English',
+  },
+  validation: {
+    required: 'Please fill out this field',
   },
 }
