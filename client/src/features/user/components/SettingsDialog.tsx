@@ -312,24 +312,39 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                         </div>
                       </div>
 
-                      {/* Save action — fade in/out */}
+                      {/* Inline destructive warning + Save — fade in together when an alternate mode is selected */}
                       <div
                         className={cn(
-                          'flex justify-end pt-1 transition-opacity duration-300 ease-out',
+                          'space-y-3 pt-1 transition-opacity duration-300 ease-out',
                           canSave ? 'opacity-100' : 'pointer-events-none opacity-0',
                         )}
                       >
-                        <Button
-                          onClick={() => setConfirmOpen(true)}
-                          disabled={!canSave || setMode.isPending}
-                          className="text-[11px] uppercase tracking-[0.18em]"
+                        <div
+                          role="alert"
+                          className="flex items-start gap-2 rounded-lg p-3 text-[12px] leading-relaxed"
                           style={{
-                            background: 'oklch(0.95 0 0)',
-                            color: 'oklch(0.12 0 0)',
+                            background: 'oklch(0.55 0.18 28 / 0.08)',
+                            boxShadow: 'inset 0 0 0 1px oklch(0.55 0.18 28 / 0.25)',
+                            color: 'oklch(0.85 0.05 28)',
                           }}
                         >
-                          {t('settings.mode.save')}
-                        </Button>
+                          <AlertTriangle className="size-3.5 shrink-0 mt-0.5" aria-hidden />
+                          <span>{t('settings.mode.changeWarning')}</span>
+                        </div>
+
+                        <div className="flex justify-end">
+                          <Button
+                            onClick={() => setConfirmOpen(true)}
+                            disabled={!canSave || setMode.isPending}
+                            className="text-[11px] uppercase tracking-[0.18em]"
+                            style={{
+                              background: 'oklch(0.95 0 0)',
+                              color: 'oklch(0.12 0 0)',
+                            }}
+                          >
+                            {t('settings.mode.save')}
+                          </Button>
+                        </div>
                       </div>
 
                     </div>

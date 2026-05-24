@@ -32,6 +32,8 @@ export function Accounts() {
   const { data: accounts = [], isLoading } = useAccounts()
   const { data: banks = [] } = useBanks()
 
+  const bankNameByCode = Object.fromEntries(banks.map(b => [b.code, b.name]))
+
   const create = useCreateAccount()
 
   function validate(values: typeof form): FormErrors {
@@ -169,7 +171,7 @@ export function Accounts() {
                 {accounts.map((a) => (
                   <TableRow key={a.id}>
                     <TableCell className="font-medium">{a.name ?? '—'}</TableCell>
-                    <TableCell>{a.bank}</TableCell>
+                    <TableCell>{bankNameByCode[a.bank] ?? a.bank}</TableCell>
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-1.5">
                         <Badge variant={a.status === 'active' ? 'default' : 'secondary'}>

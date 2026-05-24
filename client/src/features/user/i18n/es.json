@@ -45,6 +45,7 @@
       "saving": "Guardando...",
       "saved": "Modo de operación actualizado",
       "saveError": "No se pudo actualizar el modo de operación",
+      "changeWarning": "Cambiar de modo eliminará permanentemente todos los movimientos y conciliaciones.",
       "confirmTitle": "Confirmá el cambio de modo",
       "confirmBody": "Al cambiar de modo se eliminarán de forma permanente todos los movimientos y conciliaciones registrados hasta ahora. Por motivos de seguridad y cumplimiento, los datos procesados bajo un modo no pueden conservarse al pasar al otro. Esta acción es irreversible.",
       "confirmCancel": "Cancelar",

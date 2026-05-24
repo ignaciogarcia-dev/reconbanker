@@ -7,6 +7,7 @@ import { CheckCircle } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useScripts, usePromoteScript } from '../hooks/useScripts'
+import { useBanks } from '@/features/account/hooks/useBanks'
 import type { ScriptStatus } from '../types'
 
 const statusVariant: Record<ScriptStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
@@ -23,8 +24,14 @@ type ScriptTab = 'active' | 'all'
 export function Scripts() {
   const { t } = useTranslation(['script-engine', 'common'])
   const { data: scripts = [], isLoading } = useScripts()
+  const { data: banks = [] } = useBanks()
   const promote = usePromoteScript()
   const [tab, setTab] = useState<ScriptTab>('active')
+
+  const bankNameByCode = useMemo(
+    () => Object.fromEntries(banks.map(b => [b.code, b.name])),
+    [banks],
+  )
 
   const filteredScripts = useMemo(
     () => (tab === 'active' ? scripts.filter((s) => s.status === 'active') : scripts),
@@ -66,7 +73,7 @@ export function Scripts() {
                 <TableBody>
                   {filteredScripts.map((s) => (
                     <TableRow key={s.id}>
-                      <TableCell className="font-medium">{s.bank}</TableCell>
+                      <TableCell className="font-medium">{bankNameByCode[s.bank] ?? s.bank}</TableCell>
                       <TableCell className="font-mono text-xs">{t(`common:enums.flowType.${s.flowType}`)}</TableCell>
                       <TableCell className="font-mono text-xs">{s.version}</TableCell>
                       <TableCell>{t(`common:enums.scriptOrigin.${s.origin}`)}</TableCell>
