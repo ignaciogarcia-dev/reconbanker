@@ -54,6 +54,8 @@
     "auth": "Autenticación",
     "authType": "Tipo de auth",
     "tokenKey": "Token / API Key",
+    "authHintPollingAndWebhook": "Se usa para llamar al endpoint de órdenes pendientes y también se envía en el header Authorization de los webhooks salientes.",
+    "authHintWebhookOnly": "Si lo configurás, se envía en el header Authorization de los webhooks salientes para que tu endpoint pueda verificar la request.",
     "orderIngestion": "Ingesta de órdenes",
     "endpointFormat": "Formato esperado del endpoint",
     "endpointFormatDesc": "El endpoint debe devolver un array JSON con el siguiente esquema:",
@@ -80,10 +82,9 @@
     "notificationsActive": "Notificaciones activas",
     "notificationsSilenced": "Notificaciones silenciadas",
     "tabs": {
-      "credentials": "Credenciales",
-      "session": "Sesión",
-      "webhooks": "Webhooks",
-      "authOrders": "Auth y Órdenes"
+      "credentialsSession": "Credenciales y sesión",
+      "webhook": "Webhook",
+      "orders": "Órdenes"
     },
     "session": "Sesión",
     "sessionType": "Tipo de sesión",

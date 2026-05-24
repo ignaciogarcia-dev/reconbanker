@@ -11,152 +11,22 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/ui/di
 import { cn } from '@/shared/lib/utils'
 import { Radio } from '@base-ui/react/radio'
 import { RadioGroup } from '@base-ui/react/radio-group'
-import { ArrowLeft, Save, Info, Trash2, AlertTriangle, RotateCcw, ShieldAlert, Check, Bell, BellOff, TrendingDown, Lock, FileCheck, Settings as SettingsIcon, Terminal, KeyRound, Activity, Webhook, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Save, Info, Trash2, AlertTriangle, RotateCcw, ShieldAlert, Check, Bell, BellOff, TrendingDown, Lock, FileCheck, Settings as SettingsIcon, Terminal, KeyRound, Webhook, ListChecks } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useUser } from '@/features/user/hooks/useUser'
 import { useAccount, useDeleteAccount, useRestartAccount } from '../hooks/useAccounts'
 import { useAccountConfig, useUpsertAccountConfig } from '../hooks/useAccountConfig'
 import type { AuthType, PollingMethod, SessionType, LoginMode } from '../types'
+import {
+  FIELD_ORDER,
+  mapServerErrorToField,
+  resolveTabForField,
+  validateAccountConfigForm,
+  type AccountConfigForm,
+  type FormErrors,
+} from './accountConfigForm'
 
-interface AccountConfigForm {
-  pendingOrdersEndpoint: string
-  webhookUrl: string
-  pollingMethod: PollingMethod
-  pollingBody: string
-  authType: AuthType
-  authToken: string
-  bankUsername: string
-  bankPassword: string
-  webhookExtraFields: string
-  silentIngestion: boolean
-  sessionType: SessionType
-  loginMode: LoginMode
-}
-
-export type { AccountConfigForm }
-export type FormErrors = Partial<Record<keyof AccountConfigForm, string>>
 type TranslateFn = ReturnType<typeof useTranslation>['t']
-
-export const RESERVED_WEBHOOK_KEYS = ['external_id', 'status', 'amount', 'currency', 'name', 'id', 'received_at']
-
-export const FIELD_TO_TAB: Partial<Record<keyof AccountConfigForm, string>> = {
-  bankUsername: 'credentials',
-  bankPassword: 'credentials',
-  webhookUrl: 'webhooks',
-  webhookExtraFields: 'webhooks',
-  authToken: 'auth-orders',
-  pendingOrdersEndpoint: 'auth-orders',
-  pollingBody: 'auth-orders',
-}
-
-// Stable order — used to determine which tab to switch to (first error wins).
-export const FIELD_ORDER: (keyof AccountConfigForm)[] = [
-  'bankUsername',
-  'bankPassword',
-  'webhookUrl',
-  'webhookExtraFields',
-  'pendingOrdersEndpoint',
-  'authToken',
-  'pollingBody',
-]
-
-function isValidUrl(value: string): boolean {
-  try {
-    // eslint-disable-next-line no-new
-    new URL(value)
-    return true
-  } catch {
-    return false
-  }
-}
-
-interface ValidationContext {
-  mode: string | null | undefined
-  hasSavedCredential: boolean
-  t: TranslateFn
-}
-
-export function validateAccountConfigForm(form: AccountConfigForm, ctx: ValidationContext): FormErrors {
-  const { mode, hasSavedCredential, t } = ctx
-  const errors: FormErrors = {}
-
-  // Bank credentials
-  if (form.bankUsername.trim() === '') {
-    errors.bankUsername = t('accountConfig.errors.required')
-  }
-  if (!hasSavedCredential && form.bankPassword === '') {
-    errors.bankPassword = t('accountConfig.errors.required')
-  }
-
-  // Webhook URL — backend min(1) and URL format
-  const webhookUrl = form.webhookUrl.trim()
-  if (webhookUrl === '') {
-    errors.webhookUrl = t('accountConfig.errors.required')
-  } else if (!isValidUrl(webhookUrl)) {
-    errors.webhookUrl = t('accountConfig.errors.invalidUrl')
-  }
-
-  // Webhook extra fields (optional, but must be valid JSON object with no reserved keys)
-  const extraRaw = form.webhookExtraFields.trim()
-  if (extraRaw !== '') {
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(extraRaw)
-    } catch {
-      errors.webhookExtraFields = t('accountConfig.errors.invalidJson')
-    }
-    if (errors.webhookExtraFields === undefined) {
-      if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        errors.webhookExtraFields = t('accountConfig.errors.mustBeObject')
-      } else {
-        const conflicts = Object.keys(parsed as object).filter(k => RESERVED_WEBHOOK_KEYS.includes(k))
-        if (conflicts.length > 0) {
-          errors.webhookExtraFields = t('accountConfig.errors.reservedKeys', { keys: conflicts.join(', ') })
-        }
-      }
-    }
-  }
-
-  // Reconcile-mode requirements: pending orders endpoint + auth token
-  if (mode === 'reconcile') {
-    const endpoint = form.pendingOrdersEndpoint.trim()
-    if (endpoint === '') {
-      errors.pendingOrdersEndpoint = t('accountConfig.errors.pendingEndpointRequired')
-    } else if (!isValidUrl(endpoint)) {
-      errors.pendingOrdersEndpoint = t('accountConfig.errors.invalidUrl')
-    }
-
-    if (form.authToken.trim() === '') {
-      errors.authToken = t('accountConfig.errors.required')
-    }
-  }
-
-  // Polling body — only validate when POST + non-empty
-  if (form.pollingMethod === 'POST') {
-    const body = form.pollingBody.trim()
-    if (body !== '') {
-      try {
-        JSON.parse(body)
-      } catch {
-        errors.pollingBody = t('accountConfig.errors.invalidJson')
-      }
-    }
-  }
-
-  return errors
-}
-
-export function mapServerErrorToField(message: string): keyof AccountConfigForm | null {
-  const m = message.toLowerCase()
-  if (m.includes('webhook_extra_fields') || m.includes('extra_fields')) return 'webhookExtraFields'
-  if (m.includes('webhook_url') || m.includes('webhook url')) return 'webhookUrl'
-  if (m.includes('polling_body')) return 'pollingBody'
-  if (m.includes('pending_orders_endpoint') || m.includes('pending orders')) return 'pendingOrdersEndpoint'
-  if (m.includes('auth_token')) return 'authToken'
-  if (m.includes('bank_password')) return 'bankPassword'
-  if (m.includes('bank_username')) return 'bankUsername'
-  return null
-}
 
 export function AccountConfig() {
   const { accountId } = useParams<{ accountId: string }>()
@@ -184,7 +54,7 @@ export function AccountConfig() {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteConfirmName, setDeleteConfirmName] = useState('')
   const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<string>('credentials')
+  const [activeTab, setActiveTab] = useState<string>('credentials-session')
 
   const { data: account } = useAccount(accountId)
   const { data, isLoading } = useAccountConfig(accountId)
@@ -260,7 +130,7 @@ export function AccountConfig() {
       setErrors(next)
       const firstField = FIELD_ORDER.find(k => next[k] !== undefined)
       if (firstField) {
-        const targetTab = FIELD_TO_TAB[firstField]
+        const targetTab = resolveTabForField(firstField, mode)
         if (targetTab && targetTab !== activeTab) setActiveTab(targetTab)
       }
       return
@@ -302,7 +172,7 @@ export function AccountConfig() {
           const field = mapServerErrorToField(message)
           if (field) {
             setErrors(prev => ({ ...prev, [field]: message }))
-            const targetTab = FIELD_TO_TAB[field]
+            const targetTab = resolveTabForField(field, mode)
             if (targetTab && targetTab !== activeTab) setActiveTab(targetTab)
           } else {
             setServerError(message)
@@ -340,7 +210,8 @@ export function AccountConfig() {
   if (isLoading) return <div className="p-8 text-muted-foreground text-sm">{t('accountConfig.loading')}</div>
 
   return (
-    <div className="px-6 lg:px-8 py-8 space-y-6 pb-28">
+    <div className="flex min-h-full flex-col">
+      <div className="flex flex-1 flex-col gap-6 px-6 pt-8 pb-6 lg:px-8">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <Button variant="ghost" size="sm" onClick={() => navigate('/accounts')}>
@@ -354,10 +225,9 @@ export function AccountConfig() {
         </div>
         <Button
           variant="destructive"
-          size="sm"
           onClick={() => openDeleteDialog(true)}
           disabled={!account}
-          className="gap-2 shrink-0"
+          className="h-9 shrink-0 gap-2 px-4"
         >
           <Trash2 className="size-4" />
           {t('accountConfig.danger.deleteButton')}
@@ -404,28 +274,24 @@ export function AccountConfig() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-6">
         <TabsList className="h-10 w-fit gap-1 p-1">
-          <TabsTrigger value="credentials" className="flex-none gap-2 px-4">
+          <TabsTrigger value="credentials-session" className="flex-none gap-2 px-4">
             <KeyRound className="size-4" />
-            {t('accountConfig.tabs.credentials')}
-          </TabsTrigger>
-          <TabsTrigger value="session" className="flex-none gap-2 px-4">
-            <Activity className="size-4" />
-            {t('accountConfig.tabs.session')}
-          </TabsTrigger>
-          <TabsTrigger value="webhooks" className="flex-none gap-2 px-4">
-            <Webhook className="size-4" />
-            {t('accountConfig.tabs.webhooks')}
+            {t('accountConfig.tabs.credentialsSession')}
           </TabsTrigger>
           {mode === 'reconcile' && (
-            <TabsTrigger value="auth-orders" className="flex-none gap-2 px-4">
-              <ShieldCheck className="size-4" />
-              {t('accountConfig.tabs.authOrders')}
+            <TabsTrigger value="orders" className="flex-none gap-2 px-4">
+              <ListChecks className="size-4" />
+              {t('accountConfig.tabs.orders')}
             </TabsTrigger>
           )}
+          <TabsTrigger value="webhook" className="flex-none gap-2 px-4">
+            <Webhook className="size-4" />
+            {t('accountConfig.tabs.webhook')}
+          </TabsTrigger>
         </TabsList>
 
-        {/* Bank credentials */}
-        <TabsContent value="credentials" className="space-y-6">
+        {/* Bank credentials + session behaviour */}
+        <TabsContent value="credentials-session" className="space-y-6">
           <Card>
             <CardHeader><CardTitle>{t('accountConfig.bankCredentials')}</CardTitle></CardHeader>
             <CardContent className="space-y-4">
@@ -445,10 +311,7 @@ export function AccountConfig() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
 
-        {/* Session behaviour */}
-        <TabsContent value="session" className="space-y-6">
           <Card>
             <CardHeader><CardTitle>{t('accountConfig.session')}</CardTitle></CardHeader>
             <CardContent className="space-y-5">
@@ -494,8 +357,19 @@ export function AccountConfig() {
           </Card>
         </TabsContent>
 
-        {/* Webhooks */}
-        <TabsContent value="webhooks" className="space-y-6">
+        {/* Webhook */}
+        <TabsContent value="webhook" className="space-y-6">
+          {mode !== 'reconcile' && (
+            <AuthCard
+              form={form}
+              errors={errors}
+              t={t}
+              field={field}
+              setForm={setForm}
+              hintKey="accountConfig.authHintWebhookOnly"
+            />
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle>{t('accountConfig.webhooks')}</CardTitle>
@@ -584,36 +458,17 @@ export function AccountConfig() {
           </Card>
         </TabsContent>
 
-        {/* Auth & Orders (reconcile mode only) */}
+        {/* Orders (reconcile mode only) */}
         {mode === 'reconcile' && (
-          <TabsContent value="auth-orders" className="space-y-6">
-            <Card>
-              <CardHeader><CardTitle>{t('accountConfig.auth')}</CardTitle></CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>{t('accountConfig.authType')}</Label>
-                  <Select
-                    value={form.authType}
-                    onValueChange={v => setForm(f => ({ ...f, authType: v as AuthType }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue>{form.authType === 'bearer' ? 'Bearer token' : 'API Key'}</SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="bearer">Bearer token</SelectItem>
-                      <SelectItem value="api_key">API Key</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>{t('accountConfig.tokenKey')}</Label>
-                  <Input type="password" {...field('authToken')} />
-                  {errors.authToken && (
-                    <p className="text-xs text-destructive">{errors.authToken}</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+          <TabsContent value="orders" className="space-y-6">
+            <AuthCard
+              form={form}
+              errors={errors}
+              t={t}
+              field={field}
+              setForm={setForm}
+              hintKey="accountConfig.authHintPollingAndWebhook"
+            />
 
             <Card>
               <CardHeader><CardTitle>{t('accountConfig.orderIngestion')}</CardTitle></CardHeader>
@@ -681,9 +536,9 @@ export function AccountConfig() {
           </TabsContent>
         )}
       </Tabs>
+      </div>
 
-      {/* Sticky save bar — stays visible regardless of active tab */}
-      <div className="sticky bottom-0 -mx-6 lg:-mx-8 mt-2 border-t border-border/60 bg-background/80 px-6 lg:px-8 py-3 supports-backdrop-filter:backdrop-blur">
+      <div className="sticky bottom-0 z-10 shrink-0 border-t border-border/60 bg-background/95 px-6 py-4 lg:px-8 supports-backdrop-filter:backdrop-blur">
         {serverError && (
           <div className="mb-3 relative overflow-hidden rounded-md border border-destructive/30 bg-destructive/5">
             <div className="absolute inset-y-0 left-0 w-1 bg-destructive" />
@@ -702,7 +557,12 @@ export function AccountConfig() {
           </div>
         )}
         <div className="flex justify-end">
-          <Button onClick={handleSave} disabled={save.isPending} className="gap-2">
+          <Button
+            onClick={handleSave}
+            disabled={save.isPending}
+            size="lg"
+            className="h-10 min-w-44 gap-2 px-6 font-medium"
+          >
             <Save className="size-4" />
             {save.isPending ? t('accountConfig.saving') : saved ? t('accountConfig.saved') : t('accountConfig.save')}
           </Button>
@@ -837,5 +697,51 @@ function OptionCard({ value, title, description }: {
       </div>
       <p className="text-xs text-muted-foreground">{description}</p>
     </Radio.Root>
+  )
+}
+
+interface AuthCardProps {
+  form: AccountConfigForm
+  errors: FormErrors
+  t: TranslateFn
+  field: <K extends keyof AccountConfigForm>(key: K) => {
+    value: string
+    'aria-invalid': true | undefined
+    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void
+  }
+  setForm: React.Dispatch<React.SetStateAction<AccountConfigForm>>
+  hintKey: string
+}
+
+function AuthCard({ form, errors, t, field, setForm, hintKey }: AuthCardProps) {
+  return (
+    <Card>
+      <CardHeader><CardTitle>{t('accountConfig.auth')}</CardTitle></CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-xs text-muted-foreground">{t(hintKey)}</p>
+        <div className="space-y-2">
+          <Label>{t('accountConfig.authType')}</Label>
+          <Select
+            value={form.authType}
+            onValueChange={v => setForm(f => ({ ...f, authType: v as AuthType }))}
+          >
+            <SelectTrigger>
+              <SelectValue>{form.authType === 'bearer' ? 'Bearer token' : 'API Key'}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="bearer">Bearer token</SelectItem>
+              <SelectItem value="api_key">API Key</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>{t('accountConfig.tokenKey')}</Label>
+          <Input type="password" {...field('authToken')} />
+          {errors.authToken && (
+            <p className="text-xs text-destructive">{errors.authToken}</p>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   )
 }
