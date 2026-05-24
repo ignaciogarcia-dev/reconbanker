@@ -321,7 +321,7 @@ export function AppLayout() {
       </aside>
 
       {/* Main content */}
-      <main className="relative z-10 flex-1 overflow-auto" style={{ color: 'oklch(0.9 0 0)' }}>
+      <main className="relative z-10 flex flex-1 flex-col overflow-auto" style={{ color: 'oklch(0.9 0 0)' }}>
         <Outlet />
       </main>
 
