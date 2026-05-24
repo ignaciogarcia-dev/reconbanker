@@ -54,6 +54,8 @@
     "auth": "Authentication",
     "authType": "Auth type",
     "tokenKey": "Token / API Key",
+    "authHintPollingAndWebhook": "Used to call the pending-orders endpoint and also sent in the Authorization header of outgoing webhooks.",
+    "authHintWebhookOnly": "If set, sent in the Authorization header of outgoing webhooks so your endpoint can verify the request.",
     "orderIngestion": "Order ingestion",
     "endpointFormat": "Expected endpoint format",
     "endpointFormatDesc": "The endpoint must return a JSON array with the following schema:",
@@ -80,10 +82,9 @@
     "notificationsActive": "Notifications active",
     "notificationsSilenced": "Notifications silenced",
     "tabs": {
-      "credentials": "Credentials",
-      "session": "Session",
-      "webhooks": "Webhooks",
-      "authOrders": "Auth & Orders"
+      "credentialsSession": "Credentials & session",
+      "webhook": "Webhook",
+      "orders": "Orders"
     },
     "session": "Session",
     "sessionType": "Session type",
