@@ -1,4 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import { useAuth } from '@/features/user/hooks/useAuth'
 import { Avatar, AvatarFallback } from '@/shared/ui/avatar'
 import {
@@ -20,7 +21,7 @@ import type { OperationMode } from '@/features/user/types'
 export function AppLayout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
-  const { t } = useTranslation('common')
+  const { t } = useTranslation(['common', 'user'])
   const { data: me } = useUser()
   const setMode = useSetOperationMode()
   const modalOpen = !!me && me.operationMode == null
@@ -29,7 +30,13 @@ export function AppLayout() {
   function handleModeConfirm(mode: OperationMode) {
     setMode.mutate(mode, {
       onSuccess: () => {
-        navigate(mode === 'passthrough' ? '/movements' : '/conciliations')
+        navigate('/')
+        toast.success(t('user:modeSelect.welcome'), {
+          action: {
+            label: t('user:modeSelect.welcomeAction'),
+            onClick: () => navigate('/accounts'),
+          },
+        })
       },
     })
   }

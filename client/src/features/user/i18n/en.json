@@ -10,13 +10,14 @@
     "register": "Register"
   },
   "register": {
-    "title": "Create admin account",
-    "subtitle": "Register a new admin user",
+    "title": "Create account",
+    "subtitle": "Register a new user",
     "name": "Name (optional)",
     "email": "Email",
     "password": "Password",
     "submit": "Register",
     "loading": "Registering...",
+    "success": "Account created successfully. Sign in with your credentials.",
     "defaultError": "Error registering user",
     "hasAccount": "Already have an account?",
     "login": "Sign in"
@@ -44,6 +45,7 @@
       "saving": "Saving...",
       "saved": "Operation mode updated",
       "saveError": "Failed to update operation mode",
+      "changeWarning": "Changing the mode will permanently delete all movements and conciliations.",
       "confirmTitle": "Confirm mode change",
       "confirmBody": "Changing the mode will permanently delete all movements and conciliations recorded so far. For security and compliance reasons, data processed under one mode cannot be carried over to the other. This action is irreversible.",
       "confirmCancel": "Cancel",
@@ -54,6 +56,8 @@
     "title": "How should ReconBanker operate?",
     "subtitle": "Choose the operation mode. You can change it later from Settings.",
     "confirm": "Continue",
+    "welcome": "Welcome! Start by creating a bank account.",
+    "welcomeAction": "Create account",
     "reconcile": {
       "title": "Reconciliation",
       "desc": "The system polls pending orders from your endpoint, matches them against bank movements, and fires the webhook on reconciliation.",

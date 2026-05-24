@@ -3,6 +3,7 @@ import { render } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from '@/features/user/providers/AuthProvider'
+import { Toaster } from '@/shared/ui/sonner'
 import '@/shared/i18n'
 
 interface Options {
@@ -26,7 +27,10 @@ export function renderWithProviders(ui: ReactElement, opts: Options = {}) {
   return render(
     <MemoryRouter initialEntries={opts.initialEntries ?? ['/']}>
       <QueryClientProvider client={queryClient}>
-        <AuthProvider>{ui}</AuthProvider>
+        <AuthProvider>
+          {ui}
+          <Toaster />
+        </AuthProvider>
       </QueryClientProvider>
     </MemoryRouter>
   )

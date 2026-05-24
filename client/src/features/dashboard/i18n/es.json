@@ -13,6 +13,8 @@
     "movementsToday": "Movimientos hoy",
     "movementsNotified": "Notificados",
     "movementsPending": "Pendientes de notificar",
-    "movementsByDay": "Movimientos a lo largo del tiempo"
+    "movementsByDay": "Movimientos a lo largo del tiempo",
+    "chartEmptyTitle": "Aún no hay datos",
+    "chartEmptyDesc": "Una vez que proceses transacciones, verás tu historial acá."
   }
 }

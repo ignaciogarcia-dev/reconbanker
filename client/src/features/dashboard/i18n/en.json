@@ -13,6 +13,8 @@
     "movementsToday": "Movements today",
     "movementsNotified": "Notified",
     "movementsPending": "Pending notification",
-    "movementsByDay": "Movements over time"
+    "movementsByDay": "Movements over time",
+    "chartEmptyTitle": "No data yet",
+    "chartEmptyDesc": "Once you process transactions, your history will appear here."
   }
 }

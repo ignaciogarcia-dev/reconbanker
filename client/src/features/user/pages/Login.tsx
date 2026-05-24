@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next'
 export function Login() {
   const { login } = useAuth()
   const navigate = useNavigate()
-  const { t } = useTranslation('user')
+  const { t } = useTranslation(['user', 'common'])
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -47,6 +47,12 @@ export function Login() {
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 required
+                onInvalid={e => {
+                  if (e.currentTarget.validity.valueMissing) {
+                    e.currentTarget.setCustomValidity(t('common:validation.required'))
+                  }
+                }}
+                onInput={e => e.currentTarget.setCustomValidity('')}
               />
             </div>
             <div className="space-y-2">
@@ -57,6 +63,12 @@ export function Login() {
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 required
+                onInvalid={e => {
+                  if (e.currentTarget.validity.valueMissing) {
+                    e.currentTarget.setCustomValidity(t('common:validation.required'))
+                  }
+                }}
+                onInput={e => e.currentTarget.setCustomValidity('')}
               />
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}

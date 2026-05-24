@@ -1,6 +1,6 @@
 import { useQueries } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
-import { Building2, GitMerge, CheckCircle, AlertCircle, Bell } from 'lucide-react'
+import { Building2, GitMerge, CheckCircle, AlertCircle, Bell, LineChart as LineChartIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useAccounts } from '@/features/account/hooks/useAccounts'
@@ -43,8 +43,18 @@ function TimeSeriesChart({
   groupedByMonth: boolean
   seriesLabel: string
 }) {
+  const { t } = useTranslation('dashboard')
   if (data.length === 0) {
-    return <p className="text-muted-foreground text-sm py-8 text-center">—</p>
+    return (
+      <div
+        className="flex flex-col items-center justify-center gap-1.5 text-center"
+        style={{ height: 240 }}
+      >
+        <LineChartIcon className="size-6 text-muted-foreground/40" aria-hidden />
+        <p className="text-sm font-medium">{t('dashboard.chartEmptyTitle')}</p>
+        <p className="text-xs text-muted-foreground max-w-md text-balance px-4">{t('dashboard.chartEmptyDesc')}</p>
+      </div>
+    )
   }
   return (
     <ResponsiveContainer width="100%" height={240}>

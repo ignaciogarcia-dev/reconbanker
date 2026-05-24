@@ -312,24 +312,35 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                         </div>
                       </div>
 
-                      {/* Save action — fade in/out */}
+                      {/* Inline destructive warning + Save — fade in together when an alternate mode is selected */}
                       <div
                         className={cn(
-                          'flex justify-end pt-1 transition-opacity duration-300 ease-out',
+                          'space-y-3 pt-1 transition-opacity duration-300 ease-out',
                           canSave ? 'opacity-100' : 'pointer-events-none opacity-0',
                         )}
                       >
-                        <Button
-                          onClick={() => setConfirmOpen(true)}
-                          disabled={!canSave || setMode.isPending}
-                          className="text-[11px] uppercase tracking-[0.18em]"
-                          style={{
-                            background: 'oklch(0.95 0 0)',
-                            color: 'oklch(0.12 0 0)',
-                          }}
+                        <div
+                          role="alert"
+                          className="flex items-start gap-2 text-[12px] leading-relaxed"
+                          style={{ color: 'oklch(0.7 0.22 25)' }}
                         >
-                          {t('settings.mode.save')}
-                        </Button>
+                          <AlertTriangle className="size-3.5 shrink-0 mt-0.5" aria-hidden />
+                          <span>{t('settings.mode.changeWarning')}</span>
+                        </div>
+
+                        <div className="flex justify-end">
+                          <Button
+                            onClick={() => setConfirmOpen(true)}
+                            disabled={!canSave || setMode.isPending}
+                            className="text-[11px] uppercase tracking-[0.18em]"
+                            style={{
+                              background: 'oklch(0.95 0 0)',
+                              color: 'oklch(0.12 0 0)',
+                            }}
+                          >
+                            {t('settings.mode.save')}
+                          </Button>
+                        </div>
                       </div>
 
                     </div>

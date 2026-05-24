@@ -79,6 +79,30 @@
       "dismiss": "Dismiss"
     },
     "silentIngestionDesc": "Ingest movements without sending notifications. Use it when starting the system for the first time so existing movements from the day do not trigger webhooks. Turn it off when you want to receive notifications normally.",
+    "hints": {
+      "bankUsername": "The username you use to sign in to home banking.",
+      "bankUsernameNew": "The username you use to sign in to home banking.",
+      "bankPassword": "Home banking password. Stored encrypted.",
+      "bankPasswordSaved": "Leave empty to keep the stored password.",
+      "webhookUrl": "HTTPS endpoint we'll POST notifications to.",
+      "pendingOrdersEndpoint": "HTTPS endpoint where you return pending orders to reconcile.",
+      "pollingMethod": "HTTP verb we use to query your pending-orders endpoint.",
+      "pollingBody": "Optional JSON body sent when method is POST.",
+      "authToken": "Token or API Key used to authenticate outgoing requests.",
+      "webhookExtraFields": "Extra fields merged into the webhook payload.",
+      "silentIngestion": "Silent mode on first boot."
+    },
+    "tooltips": {
+      "authTypeBearer": "Bearer: token sent in the header as `Authorization: Bearer <token>`.",
+      "authTypeApiKey": "API Key: key sent verbatim in the `X-Api-Key` header.",
+      "pollingMethodGet": "GET: no body, ideal for simple REST endpoints.",
+      "pollingMethodPost": "POST: lets you send filters or credentials in the JSON body."
+    },
+    "progress": {
+      "tabStatusComplete": "{{label}}, all required fields complete",
+      "tabStatusError": "{{label}}, {{count}} required field(s) missing or invalid",
+      "saveFailedSummary": "Could not save. {{count}} required field(s) pending."
+    },
     "notificationsActive": "Notifications active",
     "notificationsSilenced": "Notifications silenced",
     "tabs": {
@@ -106,7 +130,7 @@
     },
     "save": "Save configuration",
     "saving": "Saving...",
-    "saved": "Saved!",
+    "saved": "Configuration saved",
     "danger": {
       "deleteButton": "Delete account",
       "dialogTitle": "Delete account permanently",

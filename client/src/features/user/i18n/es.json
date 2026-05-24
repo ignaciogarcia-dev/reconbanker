@@ -10,13 +10,14 @@
     "register": "Registrarse"
   },
   "register": {
-    "title": "Crear cuenta admin",
-    "subtitle": "Registrá un nuevo usuario administrador",
+    "title": "Crear cuenta",
+    "subtitle": "Registrá un nuevo usuario",
     "name": "Nombre (opcional)",
     "email": "Email",
     "password": "Contraseña",
     "submit": "Registrar",
     "loading": "Registrando...",
+    "success": "Cuenta creada exitosamente. Ingresá con tus credenciales.",
     "defaultError": "Error al registrar el usuario",
     "hasAccount": "¿Ya tenés cuenta?",
     "login": "Ingresar"
@@ -44,6 +45,7 @@
       "saving": "Guardando...",
       "saved": "Modo de operación actualizado",
       "saveError": "No se pudo actualizar el modo de operación",
+      "changeWarning": "Cambiar de modo eliminará permanentemente todos los movimientos y conciliaciones.",
       "confirmTitle": "Confirmá el cambio de modo",
       "confirmBody": "Al cambiar de modo se eliminarán de forma permanente todos los movimientos y conciliaciones registrados hasta ahora. Por motivos de seguridad y cumplimiento, los datos procesados bajo un modo no pueden conservarse al pasar al otro. Esta acción es irreversible.",
       "confirmCancel": "Cancelar",
@@ -54,6 +56,8 @@
     "title": "¿Cómo querés que opere ReconBanker?",
     "subtitle": "Elegí el modo de operación. Vas a poder cambiarlo más adelante desde Configuración.",
     "confirm": "Continuar",
+    "welcome": "¡Bienvenido! Comenzá creando una cuenta bancaria.",
+    "welcomeAction": "Crear cuenta",
     "reconcile": {
       "title": "Conciliación",
       "desc": "El sistema pollea órdenes pendientes desde tu endpoint, las matchea contra los movimientos bancarios y dispara el webhook al conciliar.",
