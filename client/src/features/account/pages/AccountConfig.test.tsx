@@ -8,14 +8,15 @@ import { accountHandlers } from '../../../../tests/msw/handlers/account'
 import { userHandlers } from '../../../../tests/msw/handlers/user'
 import { renderWithProviders } from '../../../../tests/utils/render'
 import i18n from '@/shared/i18n'
+import { AccountConfig } from './AccountConfig'
 import {
-  AccountConfig,
   validateAccountConfigForm,
   mapServerErrorToField,
   FIELD_TO_TAB,
   FIELD_ORDER,
+  resolveTabForField,
   type AccountConfigForm,
-} from './AccountConfig'
+} from './accountConfigForm'
 
 function makeForm(overrides: Partial<AccountConfigForm> = {}): AccountConfigForm {
   return {
@@ -217,21 +218,26 @@ describe('mapServerErrorToField', () => {
   })
 })
 
-describe('FIELD_TO_TAB / FIELD_ORDER constants', () => {
-  it('routes credentials fields to the credentials tab', () => {
-    expect(FIELD_TO_TAB.bankUsername).toBe('credentials')
-    expect(FIELD_TO_TAB.bankPassword).toBe('credentials')
+describe('FIELD_TO_TAB / FIELD_ORDER / resolveTabForField', () => {
+  it('routes credentials fields to the credentials-session tab', () => {
+    expect(FIELD_TO_TAB.bankUsername).toBe('credentials-session')
+    expect(FIELD_TO_TAB.bankPassword).toBe('credentials-session')
   })
 
-  it('routes webhook fields to the webhooks tab', () => {
-    expect(FIELD_TO_TAB.webhookUrl).toBe('webhooks')
-    expect(FIELD_TO_TAB.webhookExtraFields).toBe('webhooks')
+  it('routes webhook fields to the webhook tab', () => {
+    expect(FIELD_TO_TAB.webhookUrl).toBe('webhook')
+    expect(FIELD_TO_TAB.webhookExtraFields).toBe('webhook')
   })
 
-  it('routes auth/orders fields to the auth-orders tab', () => {
-    expect(FIELD_TO_TAB.authToken).toBe('auth-orders')
-    expect(FIELD_TO_TAB.pendingOrdersEndpoint).toBe('auth-orders')
-    expect(FIELD_TO_TAB.pollingBody).toBe('auth-orders')
+  it('routes order ingestion fields to the orders tab', () => {
+    expect(FIELD_TO_TAB.pendingOrdersEndpoint).toBe('orders')
+    expect(FIELD_TO_TAB.pollingBody).toBe('orders')
+  })
+
+  it('resolves authToken to orders in reconcile mode and webhook in passthrough', () => {
+    expect(resolveTabForField('authToken', 'reconcile')).toBe('orders')
+    expect(resolveTabForField('authToken', 'passthrough')).toBe('webhook')
+    expect(resolveTabForField('authToken', null)).toBe('webhook')
   })
 
   it('puts bankUsername first in FIELD_ORDER', () => {
@@ -441,8 +447,8 @@ describe('AccountConfig page', () => {
     await waitFor(() => {
       expect(screen.getByDisplayValue('alice')).toBeInTheDocument()
     })
-    // Switch to the Webhooks tab and verify webhookUrl hydrated.
-    await user.click(screen.getByRole('tab', { name: /Webhooks/i }))
+    // Switch to the Webhook tab and verify webhookUrl hydrated.
+    await user.click(screen.getByRole('tab', { name: /^Webhook$/i }))
     await waitFor(() => {
       expect(screen.getByDisplayValue('https://hook.example.com/x')).toBeInTheDocument()
     })
@@ -454,7 +460,7 @@ describe('AccountConfig page', () => {
     await waitFor(() => {
       expect(screen.getByText('Configuración de cuenta')).toBeInTheDocument()
     })
-    await user.click(screen.getByRole('tab', { name: /Webhooks/i }))
+    await user.click(screen.getByRole('tab', { name: /^Webhook$/i }))
     // Initial state: silentIngestion=false → button label is "Notificaciones activas".
     const bellBtn = await screen.findByRole('button', { name: /Notificaciones activas/i })
     expect(bellBtn).toHaveAttribute('aria-pressed', 'false')
@@ -465,31 +471,29 @@ describe('AccountConfig page', () => {
     })
   })
 
-  it('switches between tabs when their triggers are clicked', async () => {
+  it('shows credentials and session in the same tab and switches to the Webhook tab', async () => {
     const user = userEvent.setup()
     renderAccountConfig()
     await waitFor(() => {
       expect(screen.getByText('Credenciales bancarias')).toBeInTheDocument()
     })
-    await user.click(screen.getByRole('tab', { name: /^Sesión$/i }))
-    await waitFor(() => {
-      expect(screen.getByText('Tipo de sesión')).toBeInTheDocument()
-    })
-    await user.click(screen.getByRole('tab', { name: /Webhooks/i }))
+    // Session card is in the same tab as credentials, both visible without switching.
+    expect(screen.getByText('Tipo de sesión')).toBeInTheDocument()
+    await user.click(screen.getByRole('tab', { name: /^Webhook$/i }))
     await waitFor(() => {
       expect(screen.getByText('Webhook URL (notificaciones)')).toBeInTheDocument()
     })
   })
 
-  it('does not show the Auth & Orders tab in passthrough mode', async () => {
+  it('does not show the Orders tab in passthrough mode', async () => {
     renderAccountConfig()
     await waitFor(() => {
       expect(screen.getByText('Configuración de cuenta')).toBeInTheDocument()
     })
-    expect(screen.queryByRole('tab', { name: /Auth y Órdenes/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /^Órdenes$/i })).not.toBeInTheDocument()
   })
 
-  it('shows the Auth & Orders tab in reconcile mode', async () => {
+  it('shows the Orders tab in reconcile mode', async () => {
     server.use(
       http.get('/api/me', () =>
         HttpResponse.json({
@@ -502,7 +506,23 @@ describe('AccountConfig page', () => {
     )
     renderAccountConfig()
     await waitFor(() => {
-      expect(screen.getByRole('tab', { name: /Auth y Órdenes/i })).toBeInTheDocument()
+      expect(screen.getByRole('tab', { name: /^Órdenes$/i })).toBeInTheDocument()
+    })
+  })
+
+  it('shows the authentication card inside the Webhook tab in passthrough mode', async () => {
+    const user = userEvent.setup()
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByText('Configuración de cuenta')).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole('tab', { name: /^Webhook$/i }))
+    await waitFor(() => {
+      // Auth card title + webhook-only helper text live inside the Webhook tab.
+      expect(screen.getByText('Autenticación')).toBeInTheDocument()
+      expect(
+        screen.getByText(/se envía en el header Authorization de los webhooks salientes/i),
+      ).toBeInTheDocument()
     })
   })
 
@@ -512,9 +532,8 @@ describe('AccountConfig page', () => {
     await waitFor(() => {
       expect(screen.getByText('Configuración de cuenta')).toBeInTheDocument()
     })
-    await user.click(screen.getByRole('tab', { name: /^Sesión$/i }))
 
-    // "Persistente" is the not-default session option.
+    // "Persistente" is the not-default session option, already visible in the default tab.
     const persistent = await screen.findByText('Persistente')
     // Walk up to find the Radio.Root container (rendered as a button by default).
     const card = persistent.closest('[data-slot]') ?? persistent.closest('button')
