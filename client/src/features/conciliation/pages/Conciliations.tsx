@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import { useTranslation } from 'react-i18next'
-import { X, SlidersHorizontal, Bell, CheckCircle2, Clock, Loader2, SearchX, HelpCircle, XCircle, History, Ban, type LucideIcon } from 'lucide-react'
+import { X, SlidersHorizontal, Bell, CheckCircle2, Clock, Loader2, SearchX, HelpCircle, XCircle, History, Ban, Inbox, type LucideIcon } from 'lucide-react'
 
 const STATUS_KEYS = ['matched', 'pending', 'processing', 'not_found', 'ambiguous', 'failed', 'expired', 'cancelled'] as const
 
@@ -123,8 +123,12 @@ function OrdersTable({ requests, accounts, showAccount }: { requests: Conciliati
         ))}
         {requests.length === 0 && (
           <TableRow>
-            <TableCell colSpan={showAccount ? 8 : 7} className="text-center text-muted-foreground py-8">
-              {t('conciliations.empty')}
+            <TableCell colSpan={showAccount ? 8 : 7} className="py-12">
+              <div className="flex flex-col items-center justify-center gap-1.5 text-center">
+                <Inbox className="size-6 text-muted-foreground/40" aria-hidden />
+                <p className="text-sm font-medium">{t('conciliations.empty')}</p>
+                <p className="text-xs text-muted-foreground max-w-md text-balance px-4">{t('conciliations.emptyDesc')}</p>
+              </div>
             </TableCell>
           </TableRow>
         )}
