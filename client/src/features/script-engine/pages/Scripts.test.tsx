@@ -13,7 +13,9 @@ describe('Scripts page', () => {
   it('renders script rows from the API', async () => {
     renderWithProviders(<Scripts />)
     await waitFor(() => {
-      expect(screen.getByText('extract_transactions')).toBeInTheDocument()
+      expect(screen.getByText('Extracción de movimientos')).toBeInTheDocument()
+      expect(screen.getByText('Activo')).toBeInTheDocument()
+      expect(screen.getByText('Sistema')).toBeInTheDocument()
     })
   })
 })

@@ -48,11 +48,11 @@ export function Scripts() {
                 {scripts.map((s) => (
                   <TableRow key={s.id}>
                     <TableCell className="font-medium">{s.bank}</TableCell>
-                    <TableCell className="font-mono text-xs">{s.flowType}</TableCell>
+                    <TableCell className="font-mono text-xs">{t(`common:enums.flowType.${s.flowType}`)}</TableCell>
                     <TableCell className="font-mono text-xs">{s.version}</TableCell>
-                    <TableCell>{s.origin}</TableCell>
+                    <TableCell>{t(`common:enums.scriptOrigin.${s.origin}`)}</TableCell>
                     <TableCell>
-                      <Badge variant={statusVariant[s.status] ?? 'outline'}>{t(`enums.scriptStatus.${s.status}`)}</Badge>
+                      <Badge variant={statusVariant[s.status] ?? 'outline'}>{t(`common:enums.scriptStatus.${s.status}`)}</Badge>
                     </TableCell>
                     <TableCell>
                       {s.status === 'review' && (
