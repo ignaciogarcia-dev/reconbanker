@@ -56,6 +56,8 @@
     "title": "¿Cómo querés que opere ReconBanker?",
     "subtitle": "Elegí el modo de operación. Vas a poder cambiarlo más adelante desde Configuración.",
     "confirm": "Continuar",
+    "welcome": "¡Bienvenido! Comenzá creando una cuenta bancaria.",
+    "welcomeAction": "Crear cuenta",
     "reconcile": {
       "title": "Conciliación",
       "desc": "El sistema pollea órdenes pendientes desde tu endpoint, las matchea contra los movimientos bancarios y dispara el webhook al conciliar.",

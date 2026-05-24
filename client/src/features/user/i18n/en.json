@@ -56,6 +56,8 @@
     "title": "How should ReconBanker operate?",
     "subtitle": "Choose the operation mode. You can change it later from Settings.",
     "confirm": "Continue",
+    "welcome": "Welcome! Start by creating a bank account.",
+    "welcomeAction": "Create account",
     "reconcile": {
       "title": "Reconciliation",
       "desc": "The system polls pending orders from your endpoint, matches them against bank movements, and fires the webhook on reconciliation.",
