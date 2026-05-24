@@ -1,5 +1,4 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useUser } from '@/features/user/hooks/useUser'
 import { useAccounts } from '@/features/account/hooks/useAccounts'
 import { useBankMovements, useReNotifyMovement, bankMovementsQueryKey } from '../hooks/useBankMovements'
 import { Badge } from '@/shared/ui/badge'
@@ -114,10 +113,7 @@ function MovementsTable({ accountId }: { accountId: string }) {
 
 export function BankMovements() {
   const { t } = useTranslation('banking')
-  const { isLoading: loadingMe } = useUser()
-  const { data: accounts = [], isLoading: loadingAccounts } = useAccounts()
-
-  const isLoading = loadingMe || loadingAccounts
+  const { data: accounts = [], isLoading } = useAccounts()
 
   return (
     <div className="p-8 space-y-6">
