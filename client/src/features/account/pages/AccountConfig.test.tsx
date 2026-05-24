@@ -689,4 +689,77 @@ describe('AccountConfig page', () => {
     await user.type(input, 'Cuenta 1')
     await waitFor(() => expect(confirmBtn).not.toBeDisabled())
   })
+
+  it('starts with all tabs in neutral status (no status icons)', async () => {
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByText('Configuración de cuenta')).toBeInTheDocument()
+    })
+    // No tab should be in error status before a Save attempt.
+    for (const tab of screen.getAllByRole('tab')) {
+      expect(tab).toHaveAttribute('data-status', 'neutral')
+    }
+    // No save-failed summary text yet.
+    expect(screen.getByTestId('save-failed-summary')).toHaveTextContent('')
+  })
+
+  it('flips a tab to complete status when all required fields are filled', async () => {
+    const user = userEvent.setup()
+    // Returns saved credentials so credentials-session needs only bankUsername (already filled).
+    server.use(
+      http.get('/api/accounts/:accountId/config', ({ params }) =>
+        HttpResponse.json({
+          id: 'cfg-1',
+          account_id: params.accountId,
+          pending_orders_endpoint: null,
+          webhook_url: '',
+          retry_limit: 3,
+          polling_method: 'GET',
+          polling_body: null,
+          auth_type: 'bearer',
+          auth_token: null,
+          webhook_auth_type: null,
+          webhook_auth_token: null,
+          notify_on_expired: false,
+          webhook_extra_fields: null,
+          silent_ingestion: false,
+          session_type: 'one-shot',
+          login_mode: 'simple',
+          bank_username: 'alice',
+        })
+      )
+    )
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('alice')).toBeInTheDocument()
+    })
+    expect(screen.getByRole('tab', { name: /Credenciales y sesión/i })).toHaveAttribute('data-status', 'complete')
+    // Webhook still needs URL, so it stays neutral until completed.
+    expect(screen.getByRole('tab', { name: /^Webhook$/i })).toHaveAttribute('data-status', 'neutral')
+    // Fill webhook URL → webhook flips to complete.
+    await user.click(screen.getByRole('tab', { name: /^Webhook$/i }))
+    const webhookInput = screen.getByPlaceholderText('https://...')
+    await user.type(webhookInput, 'https://hook.example.com/x')
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /^Webhook$/i })).toHaveAttribute('data-status', 'complete')
+    })
+  })
+
+  it('flips offending tabs to error status on Save failure and renders summary', async () => {
+    const user = userEvent.setup()
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByText('Configuración de cuenta')).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole('button', { name: /Guardar configuración/i }))
+    // bankUsername empty + webhookUrl empty → both tabs become error.
+    await waitFor(() => {
+      const credentialsTab = screen.getByRole('tab', { name: /Credenciales y sesión/i })
+      expect(credentialsTab).toHaveAttribute('data-status', 'error')
+    })
+    const webhookTab = screen.getByRole('tab', { name: /^Webhook$/i })
+    expect(webhookTab).toHaveAttribute('data-status', 'error')
+    // Summary live region renders.
+    expect(screen.getByTestId('save-failed-summary')).toHaveTextContent(/No se pudo guardar/i)
+  })
 })

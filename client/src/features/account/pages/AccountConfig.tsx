@@ -99,10 +99,60 @@ export function AccountConfig() {
     'webhook': 'accountConfig.tabs.webhook',
   }
 
-  const allTabsComplete = visibleTabs.every(tab => {
+  function tabErrorCount(tab: string): number {
+    return requiredFieldsFor(tab).filter(k => errors[k] !== undefined).length
+  }
+
+  function tabStatus(tab: string): 'neutral' | 'complete' | 'error' {
+    if (tabErrorCount(tab) > 0) return 'error'
     const { done, total } = tabProgress(tab)
-    return done === total
-  })
+    if (total > 0 && done === total) return 'complete'
+    return 'neutral'
+  }
+
+  const errorCount = Object.keys(errors).length
+
+  function TabStatusIcon({ status }: { status: 'neutral' | 'complete' | 'error' }) {
+    if (status === 'complete') {
+      return (
+        <Check
+          className="size-3.5 text-emerald-600 dark:text-emerald-400 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-150"
+          strokeWidth={2.5}
+          aria-hidden
+        />
+      )
+    }
+    if (status === 'error') {
+      return <AlertCircle className="size-3.5 text-amber-600 dark:text-amber-400" aria-hidden />
+    }
+    return null
+  }
+
+  function StatusTab({
+    value,
+    icon: Icon,
+    labelKey,
+  }: {
+    value: string
+    icon: React.ComponentType<{ className?: string; 'aria-hidden'?: boolean }>
+    labelKey: string
+  }) {
+    const status = tabStatus(value)
+    const label = t(labelKey)
+    const descriptorId = `tab-status-${value}`
+    return (
+      <TabsTrigger
+        value={value}
+        data-status={status}
+        aria-describedby={status !== 'neutral' ? descriptorId : undefined}
+        className="flex-none gap-2 px-4"
+      >
+        <Icon className="size-4" aria-hidden />
+        <span>{label}</span>
+        <TabStatusIcon status={status} />
+      </TabsTrigger>
+    )
+  }
 
   useEffect(() => {
     if (!data) return
@@ -316,22 +366,29 @@ export function AccountConfig() {
         </div>
       )}
 
+      {/* Hidden a11y descriptors referenced by each tab's aria-describedby */}
+      <div className="sr-only">
+        {visibleTabs.map(tab => {
+          const status = tabStatus(tab)
+          if (status === 'neutral') return null
+          const label = t(tabLabelKey[tab])
+          return (
+            <span key={tab} id={`tab-status-${tab}`}>
+              {status === 'complete'
+                ? t('accountConfig.progress.tabStatusComplete', { label })
+                : t('accountConfig.progress.tabStatusError', { label, count: tabErrorCount(tab) })}
+            </span>
+          )
+        })}
+      </div>
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-6">
         <TabsList className="h-10 w-fit gap-1 p-1">
-          <TabsTrigger value="credentials-session" className="flex-none gap-2 px-4">
-            <KeyRound className="size-4" />
-            {t('accountConfig.tabs.credentialsSession')}
-          </TabsTrigger>
+          <StatusTab value="credentials-session" icon={KeyRound} labelKey="accountConfig.tabs.credentialsSession" />
           {mode === 'reconcile' && (
-            <TabsTrigger value="orders" className="flex-none gap-2 px-4">
-              <ListChecks className="size-4" />
-              {t('accountConfig.tabs.orders')}
-            </TabsTrigger>
+            <StatusTab value="orders" icon={ListChecks} labelKey="accountConfig.tabs.orders" />
           )}
-          <TabsTrigger value="webhook" className="flex-none gap-2 px-4">
-            <Webhook className="size-4" />
-            {t('accountConfig.tabs.webhook')}
-          </TabsTrigger>
+          <StatusTab value="webhook" icon={Webhook} labelKey="accountConfig.tabs.webhook" />
         </TabsList>
 
         {/* Bank credentials + session behaviour */}
@@ -623,46 +680,17 @@ export function AccountConfig() {
           </div>
         )}
         <div className="flex items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-2 min-w-0">
-            {mode && (allTabsComplete ? (
-              <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/5 px-3 py-1 text-sm">
-                <Check className="size-3.5 text-emerald-500" strokeWidth={2.5} aria-hidden />
-                <span className="font-medium">{t('accountConfig.progress.allComplete')}</span>
-              </div>
-            ) : (
-              visibleTabs.map(tab => {
-                const { done, total } = tabProgress(tab)
-                const complete = done === total
-                const isActive = activeTab === tab
-                return (
-                  <button
-                    key={tab}
-                    type="button"
-                    onClick={() => setActiveTab(tab)}
-                    className={cn(
-                      'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-sm transition-colors outline-none',
-                      complete
-                        ? 'bg-emerald-500/5 hover:bg-emerald-500/10'
-                        : 'bg-amber-500/5 hover:bg-amber-500/10',
-                      isActive && (complete ? 'bg-emerald-500/15' : 'bg-amber-500/15'),
-                    )}
-                  >
-                    {complete ? (
-                      <Check className="size-3.5 text-emerald-500" strokeWidth={2.5} aria-hidden />
-                    ) : (
-                      <AlertCircle className="size-3.5 text-amber-500" aria-hidden />
-                    )}
-                    <span className="text-foreground">{t(tabLabelKey[tab])}</span>
-                    <span className={cn(
-                      'font-mono text-[11px] tabular-nums',
-                      complete ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground',
-                    )}>
-                      {t('accountConfig.progress.fieldsRequired', { done, total })}
-                    </span>
-                  </button>
-                )
-              })
-            ))}
+          <div
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            data-testid="save-failed-summary"
+            className={cn(
+              'text-xs text-muted-foreground transition-opacity',
+              errorCount === 0 && 'opacity-0',
+            )}
+          >
+            {errorCount > 0 && t('accountConfig.progress.saveFailedSummary', { count: errorCount })}
           </div>
           <Button
             onClick={handleSave}

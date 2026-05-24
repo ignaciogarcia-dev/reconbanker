@@ -99,8 +99,9 @@
       "pollingMethodPost": "POST: lets you send filters or credentials in the JSON body."
     },
     "progress": {
-      "fieldsRequired": "{{done}}/{{total}}",
-      "allComplete": "Configuration complete"
+      "tabStatusComplete": "{{label}}, all required fields complete",
+      "tabStatusError": "{{label}}, {{count}} required field(s) missing or invalid",
+      "saveFailedSummary": "Could not save. {{count}} required field(s) pending."
     },
     "notificationsActive": "Notifications active",
     "notificationsSilenced": "Notifications silenced",

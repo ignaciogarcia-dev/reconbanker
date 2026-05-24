@@ -99,8 +99,9 @@
       "pollingMethodPost": "POST: permite enviar filtros o credenciales en el body JSON."
     },
     "progress": {
-      "fieldsRequired": "{{done}}/{{total}}",
-      "allComplete": "Configuración completa"
+      "tabStatusComplete": "{{label}}, todos los campos requeridos completos",
+      "tabStatusError": "{{label}}, {{count}} campo(s) requerido(s) faltante(s) o inválido(s)",
+      "saveFailedSummary": "No se pudo guardar. {{count}} campo(s) requerido(s) pendiente(s)."
     },
     "notificationsActive": "Notificaciones activas",
     "notificationsSilenced": "Notificaciones silenciadas",
