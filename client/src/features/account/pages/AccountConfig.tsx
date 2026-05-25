@@ -293,7 +293,7 @@ export function AccountConfig() {
   function field<K extends keyof AccountConfigForm>(key: K) {
     return {
       value: String(form[key]),
-      'aria-invalid': errors[key] ? true : undefined,
+      'aria-invalid': (errors[key] ? true : undefined) as true | undefined,
       onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         setForm(f => ({ ...f, [key]: e.target.value }))
         clearFieldError(key)
