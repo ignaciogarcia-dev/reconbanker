@@ -23,4 +23,7 @@ export const scriptEngineHandlers = [
       },
     ])
   ),
+  http.post('/api/scripts/:scriptId/promote', () =>
+    HttpResponse.json({ ok: true })
+  ),
 ]
