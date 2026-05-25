@@ -11,6 +11,7 @@ export function LanguageSelector() {
   const { i18n } = useTranslation('common')
 
   function handleChange(code: string | null) {
+    /* v8 ignore next 1 -- base-ui Select always emits a string from LANGUAGES; null guard is defensive. */
     if (!code) return
     i18n.changeLanguage(code)
     localStorage.setItem('lang', code)

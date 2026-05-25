@@ -98,11 +98,13 @@ export function AppLayout() {
 
   useEffect(() => {
     timeoutRef.current = setTimeout(typePhrase, 800)
+    /* v8 ignore next 1 -- timeout is set synchronously above; the else branch is defensive. */
     return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current) }
   }, [typePhrase])
 
   useEffect(() => {
     const el = textMeasureRef.current
+    /* v8 ignore next 1 -- ref is attached on render; null guard is defensive. */
     if (!el) return
     const w = Math.min(el.scrollWidth + 24, 164)
     setBubbleWidth(displayedText.length === 0 ? '1.5rem' : `${w}px`)
@@ -110,6 +112,7 @@ export function AppLayout() {
 
   useEffect(() => {
     const el = containerRef.current
+    /* v8 ignore next 1 -- ref is attached on render; null guard is defensive. */
     if (!el) return
 
     function handleMouseMove(e: MouseEvent) {

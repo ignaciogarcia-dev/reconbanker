@@ -45,6 +45,13 @@ export const accountHandlers = [
       bank_username: null,
     })
   ),
+  http.delete('/api/accounts/:accountId', () => HttpResponse.json({ ok: true })),
+  http.post('/api/accounts/:accountId/scrape', () =>
+    HttpResponse.json({ queued: true })
+  ),
+  http.post('/api/accounts/:accountId/restart', () =>
+    HttpResponse.json({ queued: true })
+  ),
   http.put('/api/accounts/:accountId/config', async ({ request, params }) => {
     const body = (await request.json()) as Record<string, unknown>
     return HttpResponse.json({

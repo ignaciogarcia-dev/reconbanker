@@ -15,4 +15,8 @@ export const bankingHandlers = [
       },
     ])
   ),
+  http.post(
+    '/api/accounts/:accountId/movements/:movementId/notify',
+    () => HttpResponse.json({ queued: true })
+  ),
 ]

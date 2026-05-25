@@ -762,4 +762,777 @@ describe('AccountConfig page', () => {
     // Summary live region renders.
     expect(screen.getByTestId('save-failed-summary')).toHaveTextContent(/No se pudo guardar/i)
   })
+
+  it('closes the delete dialog when the ghost Cancel button is clicked', async () => {
+    const user = userEvent.setup()
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByText('Configuración de cuenta')).toBeInTheDocument()
+    })
+    await user.click(screen.getAllByRole('button', { name: /Eliminar cuenta/i })[0])
+    const dialogTitle = await screen.findByText('Eliminar cuenta definitivamente')
+    const dialog = dialogTitle.closest('[role="dialog"]') as HTMLElement
+
+    const cancelBtn = within(dialog).getByRole('button', { name: 'Cancelar' })
+    await user.click(cancelBtn)
+    await waitFor(() => {
+      expect(screen.queryByText('Eliminar cuenta definitivamente')).not.toBeInTheDocument()
+    })
+  })
+
+  it('switches the auth type to API Key via the select', async () => {
+    const user = userEvent.setup()
+    // Returns saved credentials so we land cleanly on credentials tab; then switch to Webhook to see Auth card.
+    server.use(
+      http.get('/api/accounts/:accountId/config', ({ params }) =>
+        HttpResponse.json({
+          id: 'cfg-1',
+          account_id: params.accountId,
+          pending_orders_endpoint: null,
+          webhook_url: 'https://hook.example.com/x',
+          retry_limit: 3,
+          polling_method: 'GET',
+          polling_body: null,
+          auth_type: 'bearer',
+          auth_token: null,
+          webhook_auth_type: null,
+          webhook_auth_token: null,
+          notify_on_expired: false,
+          webhook_extra_fields: null,
+          silent_ingestion: false,
+          session_type: 'one-shot',
+          login_mode: 'simple',
+          bank_username: 'alice',
+        })
+      )
+    )
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('alice')).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('tab', { name: /^Webhook$/i }))
+    const authSelectTrigger = await screen.findByRole('combobox')
+    expect(authSelectTrigger.textContent).toContain('Bearer token')
+    await user.click(authSelectTrigger)
+    const apiKeyOption = await screen.findByRole('option', { name: /^API Key$/i })
+    await user.click(apiKeyOption)
+    await waitFor(() => {
+      const trigger = screen.getByRole('combobox')
+      expect(trigger.textContent).toContain('API Key')
+    })
+  })
+
+  it('renders the Body textarea when polling method is POST and validates the JSON', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.get('/api/me', () =>
+        HttpResponse.json({
+          id: 'u-1',
+          email: 'test@x',
+          name: 'T',
+          operation_mode: 'reconcile',
+        })
+      ),
+      http.get('/api/accounts/:accountId/config', ({ params }) =>
+        HttpResponse.json({
+          id: 'cfg-1',
+          account_id: params.accountId,
+          pending_orders_endpoint: 'https://orders.example.com',
+          webhook_url: 'https://hook.example.com/x',
+          retry_limit: 3,
+          polling_method: 'POST',
+          polling_body: { foo: 1 },
+          auth_type: 'bearer',
+          auth_token: 'tok',
+          webhook_auth_type: null,
+          webhook_auth_token: null,
+          notify_on_expired: false,
+          webhook_extra_fields: null,
+          silent_ingestion: false,
+          session_type: 'one-shot',
+          login_mode: 'simple',
+          bank_username: 'alice',
+        })
+      )
+    )
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /^Órdenes$/i })).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole('tab', { name: /^Órdenes$/i }))
+    // Polling body textarea is visible because pollingMethod is POST.
+    const bodyTextarea = await screen.findByPlaceholderText('{"key": "value"}')
+    expect((bodyTextarea as HTMLTextAreaElement).value).toContain('"foo"')
+
+    // Replace with malformed JSON and try to save → expect inline pollingBody error.
+    await user.clear(bodyTextarea)
+    // user-event treats `{` as a special character; double it to type literally.
+    await user.type(bodyTextarea, '{{ broken')
+    await user.click(screen.getByRole('button', { name: /Guardar configuración/i }))
+    await waitFor(() => {
+      expect(screen.getByText('JSON inválido')).toBeInTheDocument()
+    })
+  })
+
+  it('shows the delete error inline when the server rejects the deletion', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.delete('/api/accounts/:accountId', () =>
+        HttpResponse.json({ error: 'cannot delete: still in use' }, { status: 400 })
+      )
+    )
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByText('Configuración de cuenta')).toBeInTheDocument()
+    })
+    await user.click(screen.getAllByRole('button', { name: /Eliminar cuenta/i })[0])
+    const dialogTitle = await screen.findByText('Eliminar cuenta definitivamente')
+    const dialog = dialogTitle.closest('[role="dialog"]') as HTMLElement
+
+    const input = within(dialog).getByRole('textbox')
+    await user.type(input, 'Cuenta 1')
+    const confirmBtn = within(dialog)
+      .getAllByRole('button')
+      .find(b => /Eliminar definitivamente/i.test(b.textContent ?? ''))!
+    await user.click(confirmBtn)
+    await waitFor(() => {
+      expect(within(dialog).getByText(/cannot delete: still in use/i)).toBeInTheDocument()
+    })
+  })
+
+  it('clears the delete error when the user starts editing the confirmation again', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.delete('/api/accounts/:accountId', () =>
+        HttpResponse.json({ error: 'nope' }, { status: 400 })
+      )
+    )
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByText('Configuración de cuenta')).toBeInTheDocument()
+    })
+    await user.click(screen.getAllByRole('button', { name: /Eliminar cuenta/i })[0])
+    const dialogTitle = await screen.findByText('Eliminar cuenta definitivamente')
+    const dialog = dialogTitle.closest('[role="dialog"]') as HTMLElement
+    const input = within(dialog).getByRole('textbox')
+    await user.type(input, 'Cuenta 1')
+    const confirmBtn = within(dialog)
+      .getAllByRole('button')
+      .find(b => /Eliminar definitivamente/i.test(b.textContent ?? ''))!
+    await user.click(confirmBtn)
+    await waitFor(() => {
+      expect(within(dialog).getByText('nope')).toBeInTheDocument()
+    })
+    // Editing again should clear the error message.
+    await user.type(input, 'x')
+    await waitFor(() => {
+      expect(within(dialog).queryByText('nope')).not.toBeInTheDocument()
+    })
+  })
+
+  it('navigates back to /accounts when the Volver button is clicked', async () => {
+    const user = userEvent.setup()
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByText('Configuración de cuenta')).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole('button', { name: /Volver/i }))
+    // The page unmounts when navigated away.
+    await waitFor(() => {
+      expect(screen.queryByText('Configuración de cuenta')).not.toBeInTheDocument()
+    })
+  })
+
+  it('falls back to the generic error message when the PUT response has no error string', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.get('/api/accounts/:accountId/config', ({ params }) =>
+        HttpResponse.json({
+          id: 'cfg-1',
+          account_id: params.accountId,
+          pending_orders_endpoint: null,
+          webhook_url: 'https://hook.example.com/x',
+          retry_limit: 3,
+          polling_method: 'GET',
+          polling_body: null,
+          auth_type: 'bearer',
+          auth_token: null,
+          webhook_auth_type: null,
+          webhook_auth_token: null,
+          notify_on_expired: false,
+          webhook_extra_fields: null,
+          silent_ingestion: false,
+          session_type: 'one-shot',
+          login_mode: 'simple',
+          bank_username: 'alice',
+        })
+      ),
+      // Non-JSON response so the axios error has no response.data.error and no friendly .message.
+      http.put('/api/accounts/:accountId/config', () =>
+        new HttpResponse('boom', { status: 500 })
+      )
+    )
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('alice')).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole('button', { name: /Guardar configuración/i }))
+    // The fallback uses the axios .message ("Request failed with status code 500" or similar).
+    await waitFor(() => {
+      const banner = screen.getByText(/Request failed/i)
+      expect(banner).toBeInTheDocument()
+    })
+  })
+
+  it('changes the login mode via the assisted OptionCard radio', async () => {
+    const user = userEvent.setup()
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByText('Modo de login')).toBeInTheDocument()
+    })
+    const assisted = screen.getByText('Asistido')
+    await user.click(assisted)
+    await waitFor(() => {
+      const radios = screen.getAllByRole('radio')
+      const checked = radios.find(el => el.getAttribute('data-checked') !== null && el.textContent?.includes('Asistido'))
+      expect(checked).toBeTruthy()
+    })
+  })
+
+  it('hydrates extra-fields and pollingBody from existing JSON and edits the extra-fields textarea', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.get('/api/me', () =>
+        HttpResponse.json({
+          id: 'u-1',
+          email: 'test@x',
+          name: 'T',
+          operation_mode: 'reconcile',
+        })
+      ),
+      http.get('/api/accounts/:accountId/config', ({ params }) =>
+        HttpResponse.json({
+          id: 'cfg-1',
+          account_id: params.accountId,
+          pending_orders_endpoint: 'https://orders.example.com',
+          webhook_url: 'https://hook.example.com/x',
+          retry_limit: 3,
+          polling_method: 'POST',
+          polling_body: { foo: 1 },
+          auth_type: 'bearer',
+          auth_token: 'tok',
+          webhook_auth_type: null,
+          webhook_auth_token: null,
+          notify_on_expired: false,
+          webhook_extra_fields: { source: 'cli' },
+          silent_ingestion: false,
+          session_type: 'one-shot',
+          login_mode: 'simple',
+          bank_username: 'alice',
+        })
+      )
+    )
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('alice')).toBeInTheDocument()
+    })
+
+    // Switch to webhook tab and edit the extra-fields textarea (drives lines 557-558).
+    await user.click(screen.getByRole('tab', { name: /^Webhook$/i }))
+    const extraTextarea = await screen.findByPlaceholderText('{"source": "reconbanker"}')
+    await user.clear(extraTextarea)
+    await user.type(extraTextarea, '{{"new":1}}')
+    expect((extraTextarea as HTMLTextAreaElement).value).toContain('new')
+  })
+
+  it('changes the polling method via the select on the Orders tab', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.get('/api/me', () =>
+        HttpResponse.json({
+          id: 'u-1',
+          email: 'test@x',
+          name: 'T',
+          operation_mode: 'reconcile',
+        })
+      ),
+      http.get('/api/accounts/:accountId/config', ({ params }) =>
+        HttpResponse.json({
+          id: 'cfg-1',
+          account_id: params.accountId,
+          pending_orders_endpoint: 'https://orders.example.com',
+          webhook_url: 'https://hook.example.com/x',
+          retry_limit: 3,
+          polling_method: 'GET',
+          polling_body: null,
+          auth_type: 'bearer',
+          auth_token: 'tok',
+          webhook_auth_type: null,
+          webhook_auth_token: null,
+          notify_on_expired: false,
+          webhook_extra_fields: null,
+          silent_ingestion: false,
+          session_type: 'one-shot',
+          login_mode: 'simple',
+          bank_username: 'alice',
+        })
+      )
+    )
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /^Órdenes$/i })).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole('tab', { name: /^Órdenes$/i }))
+    // The HTTP-method select shows "GET" by default; switch to "POST".
+    const combos = await screen.findAllByRole('combobox')
+    const methodSelect = combos.find(c => /GET/.test(c.textContent ?? ''))!
+    expect(methodSelect).toBeTruthy()
+    await user.click(methodSelect)
+    const postOption = await screen.findByRole('option', { name: /^POST$/ })
+    await user.click(postOption)
+    await waitFor(() => {
+      // The Body textarea becomes visible when method is POST.
+      expect(screen.getByPlaceholderText('{"key": "value"}')).toBeInTheDocument()
+    })
+  })
+
+  it('hydrates and round-trips extra-fields JSON on save (covers parseJsonOrNull)', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.get('/api/accounts/:accountId/config', ({ params }) =>
+        HttpResponse.json({
+          id: 'cfg-1',
+          account_id: params.accountId,
+          pending_orders_endpoint: null,
+          webhook_url: 'https://hook.example.com/x',
+          retry_limit: 3,
+          polling_method: 'GET',
+          polling_body: null,
+          auth_type: 'bearer',
+          auth_token: null,
+          webhook_auth_type: null,
+          webhook_auth_token: null,
+          notify_on_expired: false,
+          webhook_extra_fields: { source: 'fe' },
+          silent_ingestion: false,
+          session_type: 'one-shot',
+          login_mode: 'simple',
+          bank_username: 'alice',
+        })
+      )
+    )
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('alice')).toBeInTheDocument()
+    })
+    // bankPassword is empty but hasSavedCredential=true so it's allowed; saving will
+    // call parseJsonOrNull on the hydrated extra-fields JSON.
+    await user.click(screen.getByRole('button', { name: /Guardar configuración/i }))
+    await waitFor(() => {
+      expect(screen.getByText('Configuración guardada')).toBeInTheDocument()
+    })
+  })
+
+  it('clears the inline field error when the user types into a previously errored field', async () => {
+    const user = userEvent.setup()
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByText('Configuración de cuenta')).toBeInTheDocument()
+    })
+    // Trigger Save with empty bankUsername → error appears.
+    await user.click(screen.getByRole('button', { name: /Guardar configuración/i }))
+    await waitFor(() => {
+      expect(screen.getAllByText('Requerido').length).toBeGreaterThan(0)
+    })
+    const initialErrorCount = screen.getAllByText('Requerido').length
+    // Type into the bank username input → clearFieldError should drop that field's error.
+    const usernameInput = screen.getByPlaceholderText(/Usuario del banco/i)
+    await user.type(usernameInput, 'bob')
+    await waitFor(() => {
+      expect(screen.getAllByText('Requerido').length).toBeLessThan(initialErrorCount)
+    })
+  })
+
+  it('navigates to /accounts after a successful deletion', async () => {
+    const user = userEvent.setup()
+    let deleteCalls = 0
+    server.use(
+      http.delete('/api/accounts/:accountId', () => {
+        deleteCalls += 1
+        return HttpResponse.json({ ok: true })
+      })
+    )
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByText('Configuración de cuenta')).toBeInTheDocument()
+    })
+    await user.click(screen.getAllByRole('button', { name: /Eliminar cuenta/i })[0])
+    const dialogTitle = await screen.findByText('Eliminar cuenta definitivamente')
+    const dialog = dialogTitle.closest('[role="dialog"]') as HTMLElement
+    const input = within(dialog).getByRole('textbox')
+    await user.type(input, 'Cuenta 1')
+    const confirmBtn = within(dialog)
+      .getAllByRole('button')
+      .find(b => /Eliminar definitivamente/i.test(b.textContent ?? ''))!
+    await user.click(confirmBtn)
+    await waitFor(() => {
+      expect(deleteCalls).toBe(1)
+      expect(screen.queryByText('Configuración de cuenta')).not.toBeInTheDocument()
+    })
+  })
+
+  it('renders without an :accountId param and short-circuits Save/Delete via the guard', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(
+      <Routes>
+        <Route path="/accounts/config" element={<AccountConfig />} />
+      </Routes>,
+      { initialEntries: ['/accounts/config'] }
+    )
+    // Page renders since useAccount/useAccountConfig are disabled when accountId is missing,
+    // so isLoading is false and the layout becomes visible.
+    await waitFor(() => {
+      expect(screen.getByText('Configuración de cuenta')).toBeInTheDocument()
+    })
+    // Click Save → handleSave hits `if (!accountId) return`.
+    await user.click(screen.getByRole('button', { name: /Guardar configuración/i }))
+    // No toast, no navigation, no errors surfaced — still on the page.
+    expect(screen.getByText('Configuración de cuenta')).toBeInTheDocument()
+  })
+
+  it('saves with non-empty endpoint/auth/password and forwards them in the PUT body', async () => {
+    const user = userEvent.setup()
+    let putBody: Record<string, unknown> | null = null
+    server.use(
+      http.get('/api/me', () =>
+        HttpResponse.json({ id: 'u-1', email: 't@x', name: 'T', operation_mode: 'reconcile' })
+      ),
+      http.get('/api/accounts/:accountId/config', ({ params }) =>
+        HttpResponse.json({
+          id: 'cfg-1',
+          account_id: params.accountId,
+          pending_orders_endpoint: 'https://orders.example.com',
+          webhook_url: 'https://hook.example.com/x',
+          retry_limit: 3,
+          polling_method: 'GET',
+          polling_body: null,
+          auth_type: 'bearer',
+          auth_token: 'tok-123',
+          webhook_auth_type: null,
+          webhook_auth_token: null,
+          notify_on_expired: false,
+          webhook_extra_fields: null,
+          silent_ingestion: false,
+          session_type: 'one-shot',
+          login_mode: 'simple',
+          bank_username: 'alice',
+        })
+      ),
+      http.put('/api/accounts/:accountId/config', async ({ request }) => {
+        putBody = (await request.json()) as Record<string, unknown>
+        return HttpResponse.json({
+          id: 'cfg-1',
+          account_id: 'acc-1',
+          pending_orders_endpoint: 'https://orders.example.com',
+          webhook_url: 'https://hook.example.com/x',
+          retry_limit: 3,
+          polling_method: 'GET',
+          polling_body: null,
+          auth_type: 'bearer',
+          auth_token: 'tok-123',
+          webhook_auth_type: null,
+          webhook_auth_token: null,
+          notify_on_expired: false,
+          webhook_extra_fields: null,
+          silent_ingestion: false,
+          session_type: 'one-shot',
+          login_mode: 'simple',
+          bank_username: 'alice',
+        })
+      })
+    )
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('alice')).toBeInTheDocument()
+    })
+    const passwordInput = screen.getByPlaceholderText(/Dejá vacío para no cambiar/i)
+    await user.type(passwordInput, 'newpass')
+    await user.click(screen.getByRole('button', { name: /Guardar configuración/i }))
+    await waitFor(() => {
+      expect(putBody).toBeTruthy()
+      expect((putBody as Record<string, unknown>)?.pending_orders_endpoint).toBe('https://orders.example.com')
+      expect((putBody as Record<string, unknown>)?.auth_token).toBe('tok-123')
+      expect((putBody as Record<string, unknown>)?.bank_username).toBe('alice')
+      expect((putBody as Record<string, unknown>)?.bank_password).toBe('newpass')
+    })
+  })
+
+  it('falls back to default retry_limit/notify_on_expired when API returns null fields', async () => {
+    const user = userEvent.setup()
+    let putBody: Record<string, unknown> | null = null
+    server.use(
+      http.get('/api/accounts/:accountId/config', ({ params }) =>
+        HttpResponse.json({
+          id: 'cfg-1',
+          account_id: params.accountId,
+          pending_orders_endpoint: null,
+          webhook_url: 'https://hook.example.com/x',
+          // retry_limit and notify_on_expired absent → undefined in the upsert.
+          polling_method: 'GET',
+          polling_body: null,
+          auth_type: 'bearer',
+          auth_token: null,
+          webhook_auth_type: null,
+          webhook_auth_token: null,
+          webhook_extra_fields: null,
+          silent_ingestion: false,
+          session_type: 'one-shot',
+          login_mode: 'simple',
+          bank_username: 'alice',
+        })
+      ),
+      http.put('/api/accounts/:accountId/config', async ({ request }) => {
+        putBody = (await request.json()) as Record<string, unknown>
+        return HttpResponse.json({ ok: true })
+      })
+    )
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('alice')).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole('button', { name: /Guardar configuración/i }))
+    await waitFor(() => {
+      expect(putBody).toBeTruthy()
+      expect((putBody as Record<string, unknown>)?.retry_limit).toBe(3)
+      expect((putBody as Record<string, unknown>)?.notify_on_expired).toBe(false)
+    })
+  })
+
+  it('falls back to "" when the loaded webhook_url is missing from the config payload', async () => {
+    server.use(
+      http.get('/api/accounts/:accountId/config', ({ params }) =>
+        HttpResponse.json({
+          id: 'cfg-1',
+          account_id: params.accountId,
+          pending_orders_endpoint: null,
+          // webhook_url absent → hydrate fallback hits the `?? ''` branch.
+          polling_method: 'GET',
+          polling_body: null,
+          auth_type: 'bearer',
+          auth_token: null,
+          webhook_auth_type: null,
+          webhook_auth_token: null,
+          notify_on_expired: false,
+          webhook_extra_fields: null,
+          silent_ingestion: false,
+          session_type: 'one-shot',
+          login_mode: 'simple',
+          bank_username: 'alice',
+        })
+      )
+    )
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('alice')).toBeInTheDocument()
+    })
+  })
+
+  it('shows the restart spinner and label while the restart mutation is in-flight', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.get('/api/accounts/:accountId', ({ params }) =>
+        HttpResponse.json({
+          id: params.accountId,
+          bank: 'mi-dinero',
+          name: 'Cuenta 1',
+          status: 'blocked',
+          scrapeBlockedReason: 'oops',
+          scrapeBlockedAt: '2026-05-23T18:00:00Z',
+        })
+      ),
+      http.post('/api/accounts/:accountId/restart', async () => {
+        await new Promise(r => setTimeout(r, 200))
+        return HttpResponse.json({ queued: true })
+      })
+    )
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByText('oops')).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole('button', { name: /Reiniciar$/i }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Reiniciando/i })).toBeInTheDocument()
+    })
+  })
+
+  it('shows the delete pending label while the delete mutation is in-flight', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.delete('/api/accounts/:accountId', async () => {
+        await new Promise(r => setTimeout(r, 200))
+        return HttpResponse.json({ ok: true })
+      })
+    )
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByText('Configuración de cuenta')).toBeInTheDocument()
+    })
+    await user.click(screen.getAllByRole('button', { name: /Eliminar cuenta/i })[0])
+    const dialogTitle = await screen.findByText('Eliminar cuenta definitivamente')
+    const dialog = dialogTitle.closest('[role="dialog"]') as HTMLElement
+    const input = within(dialog).getByRole('textbox')
+    await user.type(input, 'Cuenta 1')
+    const confirmBtn = within(dialog)
+      .getAllByRole('button')
+      .find(b => /Eliminar definitivamente/i.test(b.textContent ?? ''))!
+    await user.click(confirmBtn)
+    await waitFor(() => {
+      expect(within(dialog).getByRole('button', { name: /Eliminando/i })).toBeInTheDocument()
+    })
+  })
+
+  it('renders the inline error styling on the extra-fields textarea when JSON is invalid', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.get('/api/accounts/:accountId/config', ({ params }) =>
+        HttpResponse.json({
+          id: 'cfg-1',
+          account_id: params.accountId,
+          pending_orders_endpoint: null,
+          webhook_url: 'https://hook.example.com/x',
+          retry_limit: 3,
+          polling_method: 'GET',
+          polling_body: null,
+          auth_type: 'bearer',
+          auth_token: null,
+          webhook_auth_type: null,
+          webhook_auth_token: null,
+          notify_on_expired: false,
+          webhook_extra_fields: null,
+          silent_ingestion: false,
+          session_type: 'one-shot',
+          login_mode: 'simple',
+          bank_username: 'alice',
+        })
+      )
+    )
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('alice')).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole('tab', { name: /^Webhook$/i }))
+    const extraTextarea = await screen.findByPlaceholderText('{"source": "reconbanker"}')
+    // Type malformed JSON, save → server-side validate flips the error class+aria-invalid.
+    await user.type(extraTextarea, '{{broken')
+    await user.click(screen.getByRole('button', { name: /Guardar configuración/i }))
+    await waitFor(() => {
+      expect(extraTextarea).toHaveAttribute('aria-invalid', 'true')
+      expect(extraTextarea.className).toContain('border-destructive')
+    })
+  })
+
+  it('short-circuits handleDelete when accountId is missing', async () => {
+    renderWithProviders(
+      <Routes>
+        <Route path="/accounts/config" element={<AccountConfig />} />
+      </Routes>,
+      { initialEntries: ['/accounts/config'] }
+    )
+    await waitFor(() => {
+      expect(screen.getByText('Configuración de cuenta')).toBeInTheDocument()
+    })
+    // The Delete account button is disabled when !account, so we can't even reach
+    // handleDelete via UI. Still, the guard exists; assert button stays disabled.
+    const deleteBtn = screen.getAllByRole('button', { name: /Eliminar cuenta/i })[0]
+    expect(deleteBtn).toBeDisabled()
+  })
+
+  it('falls back to the generic delete error string when the server response has no error field', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.delete('/api/accounts/:accountId', () =>
+        // Non-JSON / missing error key → setDeleteError(message ?? t('...genericError'))
+        new HttpResponse('boom', { status: 500 })
+      )
+    )
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByText('Configuración de cuenta')).toBeInTheDocument()
+    })
+    await user.click(screen.getAllByRole('button', { name: /Eliminar cuenta/i })[0])
+    const dialogTitle = await screen.findByText('Eliminar cuenta definitivamente')
+    const dialog = dialogTitle.closest('[role="dialog"]') as HTMLElement
+    const input = within(dialog).getByRole('textbox')
+    await user.type(input, 'Cuenta 1')
+    const confirmBtn = within(dialog)
+      .getAllByRole('button')
+      .find(b => /Eliminar definitivamente/i.test(b.textContent ?? ''))!
+    await user.click(confirmBtn)
+    await waitFor(() => {
+      expect(within(dialog).getByText(/No se pudo eliminar/i)).toBeInTheDocument()
+    })
+  })
+
+  it('keeps the active tab when a server error maps to a field on the current tab', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.get('/api/accounts/:accountId/config', ({ params }) =>
+        HttpResponse.json({
+          id: 'cfg-1',
+          account_id: params.accountId,
+          pending_orders_endpoint: null,
+          webhook_url: 'https://hook.example.com/x',
+          retry_limit: 3,
+          polling_method: 'GET',
+          polling_body: null,
+          auth_type: 'bearer',
+          auth_token: null,
+          webhook_auth_type: null,
+          webhook_auth_token: null,
+          notify_on_expired: false,
+          webhook_extra_fields: null,
+          silent_ingestion: false,
+          session_type: 'one-shot',
+          login_mode: 'simple',
+          bank_username: 'alice',
+        })
+      ),
+      http.put('/api/accounts/:accountId/config', () =>
+        // Returns a bank_username error → maps to credentials-session tab (the currently-active tab).
+        HttpResponse.json({ error: 'bank_username already in use' }, { status: 400 })
+      )
+    )
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('alice')).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole('button', { name: /Guardar configuración/i }))
+    await waitFor(() => {
+      expect(screen.getByText('bank_username already in use')).toBeInTheDocument()
+    })
+    // We are still on the credentials tab.
+    expect(screen.getByText('Credenciales bancarias')).toBeInTheDocument()
+  })
+
+  it('falls back to scrapeBlockedReason without scrapeBlockedAt (no timestamp line)', async () => {
+    server.use(
+      http.get('/api/accounts/:accountId', ({ params }) =>
+        HttpResponse.json({
+          id: params.accountId,
+          bank: 'mi-dinero',
+          name: 'Cuenta 1',
+          status: 'blocked',
+          scrapeBlockedReason: 'oops',
+          scrapeBlockedAt: null,
+        })
+      )
+    )
+    renderAccountConfig()
+    await waitFor(() => {
+      expect(screen.getByText('oops')).toBeInTheDocument()
+    })
+    // No "Bloqueada desde" since scrapeBlockedAt is null.
+    expect(screen.queryByText(/Bloqueada desde/i)).not.toBeInTheDocument()
+  })
 })

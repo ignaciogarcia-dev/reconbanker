@@ -8,6 +8,7 @@ import { conciliationEs, conciliationEn } from '@/features/conciliation/i18n'
 import { scriptEngineEs, scriptEngineEn } from '@/features/script-engine/i18n'
 import { dashboardEs, dashboardEn } from '@/features/dashboard/i18n'
 
+/* v8 ignore next -- SSR guard; jsdom test env always defines window so the `: null` branch is unreachable. */
 const stored =
   typeof window !== 'undefined' ? window.localStorage.getItem('lang') : null
 
@@ -40,6 +41,7 @@ i18n.use(initReactI18next).init({
 
 // Sync <html lang> with the active language so the browser uses the correct
 // locale for native widgets like <input type="date"> (dd/mm/yyyy vs mm/dd/yyyy).
+/* v8 ignore else -- SSR guard; jsdom test env always defines document. */
 if (typeof document !== 'undefined') {
   document.documentElement.lang = i18n.language
   i18n.on('languageChanged', lng => {
