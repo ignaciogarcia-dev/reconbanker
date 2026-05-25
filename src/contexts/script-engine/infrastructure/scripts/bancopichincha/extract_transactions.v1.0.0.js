@@ -1,37 +1,7 @@
-// Banco Pichincha Empresas — hook-based persistent monitor script (v1.2.0).
+// Banco Pichincha Empresas - hook-based persistent monitor script.
 // Returns { login, isAuthenticated, poll, keepAlive }. The runMonitor framework
 // drives the loop, dedup, 2FA-wait and emission.
 //
-// v1.2.0 — adds pagination + hardened de-duplication (audited live):
-//  - PAGINATION: the list endpoint returns 20 movements per page (newest first)
-//    and the SPA loads older pages via infinite scroll (confirmed: scrolling to
-//    the bottom fires the next /transactions request with offset set). Each poll
-//    now scrolls to load older pages until every "today" movement is covered, so
-//    high-volume days are not truncated at the first 20.
-//  - DEDUP KEY = transactionId (the bank's "Transaction Number"). Audited across
-//    two reloads of the same movements:
-//        transactionId          -> unique 20/20, STABLE across reload (18/18)
-//        transactionUuid        -> unique but CHANGES on every load (0/20 stable)
-//        externalTransactionId  -> low cardinality (mostly "0001"), useless
-//    The visible "Transaction number" (numeroDocumento, e.g. 064224082) is just
-//    transactionId (64224082) zero-padded, so transactionId IS that number and is
-//    available from the list without opening the detail. We now use transactionId
-//    as the identity and NEVER fall back to the volatile transactionUuid (that
-//    fallback in earlier versions could emit duplicates). transactionUuid is used
-//    ONLY to correlate the detail response within a single poll.
-//
-// v1.1.0 — fixes carried over:
-//  - Each poll re-opens movements from the dashboard (the SPA does not re-fetch
-//    on its own and a hard reload bounces to the dashboard).
-//  - Shadow-DOM aware (rows live in open shadow roots; Playwright pierces them)
-//    with defensive logging.
-//  - Login submit hardened (visible button is "Sign in"; ids vary).
-//  - Stronger keep-alive.
-//
-// Confirmed against live data: amount is a JSON number; currency.code = "USD";
-// operationDate is DDMMYYYY (8 chars); type.code "C" = credito; hasDetail boolean;
-// detail.transactions[0].details[] is [{key,value}] and includes "ordenante";
-// DOM row order matches the API list order.
 
 const host_app = "bancaempresas.pichincha.com";
 const host_login = "login.empresas.pichincha.com";
@@ -47,10 +17,7 @@ const txt_position_consolidate = /position consolidate|posici[oó]n consolidada/
 const txt_session_timeout = /do you need more time|your session will end|necesitas más tiempo|tu sesión|tu sesion/i;
 const txt_continue_btn = /^\s*(continue|continuar)\s*$/i;
 const sel_tx_row = ".transferinfo";
-// Captured live: the session-timeout "Continue" action is a custom element
-// <pichincha-old-button class="accept hydrated"> (NOT a <button>); "Logout" is the
-// same component WITHOUT the "accept" class. This CSS selector is the most reliable
-// way to click "Continue".
+//"Continue" button to resume the session
 const sel_continue_btn = "pichincha-old-button.accept";
 
 const MAX_PAGES = 15; // safety cap for the infinite-scroll pagination loop
