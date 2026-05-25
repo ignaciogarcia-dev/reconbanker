@@ -86,4 +86,112 @@ describe('runMonitor', () => {
     })
     expect(keepAlive).toHaveBeenCalled()
   })
+
+  it('stops with max_runtime once the deadline elapses', async () => {
+    const h = hooks({ poll: vi.fn().mockResolvedValue([]) })
+    const reason = await runMonitor({
+      hooks: h, page: {}, context: baseContext, sleep: noSleep,
+      onTransactions: async () => {},
+      maxRuntimeMs: 1,
+      shouldStop: () => false,
+    })
+    expect(reason).toBe('max_runtime')
+  })
+
+  it('clears the dedup set when getBankDay returns a new value', async () => {
+    const days = ['day1', 'day1', 'day2', 'day2']
+    let dayIdx = 0
+    let pollCount = 0
+    const emitted: string[][] = []
+    const h = hooks({
+      poll: vi.fn().mockImplementation(async () => {
+        pollCount += 1
+        return [tx('a')]
+      }),
+    })
+    let calls = 0
+    await runMonitor({
+      hooks: h, page: {}, context: baseContext, sleep: noSleep,
+      getBankDay: () => days[Math.min(dayIdx++, days.length - 1)],
+      onTransactions: async (batch) => { emitted.push(batch.map((t) => t.externalId)) },
+      shouldStop: () => { calls += 1; return calls > 2 },
+    })
+    // Initial getBankDay sets currentDay=day1; first poll emits 'a'. Next iteration
+    // getBankDay returns 'day2', clearing the dedup set, so 'a' is emitted again.
+    expect(emitted).toEqual([['a'], ['a']])
+    expect(pollCount).toBeGreaterThanOrEqual(2)
+  })
+
+  it('recovers from a poll error by calling keepAlive and continuing', async () => {
+    let pollCount = 0
+    const keepAlive = vi.fn().mockResolvedValue(undefined)
+    const debugLog = vi.fn()
+    const h = hooks({
+      poll: vi.fn().mockImplementation(async () => {
+        pollCount += 1
+        if (pollCount === 1) throw new Error('selector not found')
+        return [tx('x')]
+      }),
+      keepAlive,
+    })
+    const emitted: string[][] = []
+    let calls = 0
+    await runMonitor({
+      hooks: h, page: {}, context: { ...baseContext, debugLog }, sleep: noSleep,
+      onTransactions: async (batch) => { emitted.push(batch.map((t) => t.externalId)) },
+      shouldStop: () => { calls += 1; return calls > 2 },
+    })
+    expect(keepAlive).toHaveBeenCalled()
+    expect(emitted).toEqual([['x']])
+    expect(debugLog).toHaveBeenCalled()
+  })
+
+  it('swallows keepAlive errors during poll failure recovery', async () => {
+    let pollCount = 0
+    const keepAlive = vi.fn().mockRejectedValue(new Error('keepalive boom'))
+    const h = hooks({
+      poll: vi.fn().mockImplementation(async () => {
+        pollCount += 1
+        if (pollCount === 1) throw new Error('poll boom')
+        return []
+      }),
+      keepAlive,
+    })
+    let calls = 0
+    const reason = await runMonitor({
+      hooks: h, page: {}, context: baseContext, sleep: noSleep,
+      onTransactions: async () => {},
+      shouldStop: () => { calls += 1; return calls > 2 },
+    })
+    expect(reason).toBe('stop_requested')
+    expect(keepAlive).toHaveBeenCalled()
+  })
+
+  it('handles poll failure when keepAlive is not provided', async () => {
+    let pollCount = 0
+    const h = hooks({
+      poll: vi.fn().mockImplementation(async () => {
+        pollCount += 1
+        if (pollCount === 1) throw new Error('poll boom')
+        return []
+      }),
+    })
+    let calls = 0
+    const reason = await runMonitor({
+      hooks: h, page: {}, context: baseContext, sleep: noSleep,
+      onTransactions: async () => {},
+      shouldStop: () => { calls += 1; return calls > 2 },
+    })
+    expect(reason).toBe('stop_requested')
+  })
+
+  it('uses the default sleep when none is provided', async () => {
+    const h = hooks({ isAuthenticated: vi.fn().mockResolvedValue(false) })
+    const reason = await runMonitor({
+      hooks: h, page: {}, context: baseContext,
+      onTransactions: async () => {},
+      authTimeoutMs: 1,
+    })
+    expect(reason).toBe('auth_timeout')
+  })
 })

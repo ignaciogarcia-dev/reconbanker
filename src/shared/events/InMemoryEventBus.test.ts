@@ -45,4 +45,15 @@ describe('InMemoryEventBus', () => {
     await bus.publishAll([evt('X'), evt('X'), evt('Y')])
     expect(h).toHaveBeenCalledTimes(2)
   })
+
+  it('stringifies non-Error rejection reasons before logging', async () => {
+    const log = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn() }
+    log.child.mockReturnValue(log as any)
+    const bus = new InMemoryEventBus(log as any)
+    bus.subscribe('Foo', () => Promise.reject('plain string failure'))
+    await bus.publish(evt('Foo'))
+    expect(log.error).toHaveBeenCalledWith('event handler failed', expect.objectContaining({
+      error: 'plain string failure',
+    }))
+  })
 })

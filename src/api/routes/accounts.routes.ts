@@ -71,8 +71,9 @@ function parsePollingBody(method: string, raw: unknown): Record<string, unknown>
     try { return JSON.parse(trimmed) as Record<string, unknown> }
     catch { throw new ValidationError('polling_body must be valid JSON (or empty)') }
   }
-  if (typeof raw === 'object' && !Array.isArray(raw)) return raw as Record<string, unknown>
-  return null
+  // At this point raw must be a non-null, non-string value that passed the zod
+  // schema (record | string | null | undefined), so it's a plain object.
+  return raw as Record<string, unknown>
 }
 
 function toJson(config: AccountConfigDto) {

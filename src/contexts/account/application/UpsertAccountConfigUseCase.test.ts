@@ -91,4 +91,16 @@ describe('UpsertAccountConfigUseCase', () => {
     const result = await useCase.execute({ ...baseInput, bankUsername: 'alice', bankPassword: 'secret' })
     expect(result.bankUsername).toBe('alice')
   })
+
+  it('normalizes null/empty authToken and webhookAuthToken to null', async () => {
+    const { useCase, configRepo } = buildSut()
+    await useCase.execute({
+      ...baseInput,
+      authToken: null,
+      webhookAuthToken: '   ',
+    })
+    const stored = configRepo.store.get('acc-1')!
+    expect(stored.authToken).toBeNull()
+    expect(stored.webhookAuthToken).toBeNull()
+  })
 })

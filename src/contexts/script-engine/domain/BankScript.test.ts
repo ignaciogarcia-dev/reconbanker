@@ -53,3 +53,31 @@ describe('BankScript.deprecate', () => {
     expect(s.status).toBe('deprecated')
   })
 })
+
+describe('BankScript getters and validation', () => {
+  it('rejects missing flowType', () => {
+    expect(() => BankScript.create('id', { ...base, flowType: '' as 'login' })).toThrow(ValidationError)
+  })
+
+  it('rejects invalid status', () => {
+    expect(() => BankScript.create('id', { ...base, status: 'banana' as 'draft' })).toThrow(ValidationError)
+  })
+
+  it('exposes all getters via reconstitute', () => {
+    const now = new Date('2024-01-01T00:00:00Z')
+    const s = BankScript.reconstitute('id-1', {
+      bank: 'TEST', flowType: 'login', version: '2.0.1', status: 'active',
+      origin: 'ai', baseScriptId: 'b1', codeSnapshot: 'code',
+      selectorMap: { x: 1 }, createdAt: now,
+    })
+    expect(s.bank).toBe('TEST')
+    expect(s.flowType).toBe('login')
+    expect(s.version).toBe('2.0.1')
+    expect(s.origin).toBe('ai')
+    expect(s.baseScriptId).toBe('b1')
+    expect(s.codeSnapshot).toBe('code')
+    expect(s.selectorMap).toEqual({ x: 1 })
+    expect(s.createdAt).toBe(now)
+    expect(s.isActive()).toBe(true)
+  })
+})

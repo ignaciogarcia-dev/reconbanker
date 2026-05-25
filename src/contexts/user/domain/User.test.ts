@@ -47,3 +47,19 @@ describe('User.changeOperationMode', () => {
     expect(() => u.changeOperationMode('whatever' as never)).toThrow(ValidationError)
   })
 })
+
+describe('User getters and reconstitute', () => {
+  it('reconstitute carries through all props', () => {
+    const u = User.reconstitute('id', {
+      email: 'b@c.com', name: 'N', passwordHash: 'h',
+      operationMode: 'reconcile', status: 'inactive', createdAt: new Date('2023-01-01T00:00:00Z'),
+    })
+    expect(u.email).toBe('b@c.com')
+    expect(u.name).toBe('N')
+    expect(u.passwordHash).toBe('h')
+    expect(u.operationMode).toBe('reconcile')
+    expect(u.status).toBe('inactive')
+    expect(u.isActive()).toBe(false)
+    expect(u.createdAt).toBeInstanceOf(Date)
+  })
+})

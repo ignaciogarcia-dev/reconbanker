@@ -70,4 +70,45 @@ describe('ConciliationRequest state transitions', () => {
     const req = ConciliationRequest.create('id-1', baseProps)
     expect(() => req.markMatched('')).toThrow(ValidationError)
   })
+
+  it('markFailed increments retryCount and emits system_error event', () => {
+    const req = ConciliationRequest.create('id-1', baseProps)
+    req.markFailed()
+    expect(req.status).toBe('failed')
+    expect(req.retryCount).toBe(1)
+    expect(req.domainEvents).toHaveLength(1)
+    expect(req.domainEvents[0].eventType).toBe('ConciliationFailed')
+  })
+
+  it('markAmbiguous transitions and emits ambiguous failed event', () => {
+    const req = ConciliationRequest.create('id-1', baseProps)
+    req.markAmbiguous()
+    expect(req.status).toBe('ambiguous')
+    expect(req.domainEvents[0].eventType).toBe('ConciliationFailed')
+  })
+
+  it('markProcessing sets processing and timestamps lastCheckedAt', () => {
+    const req = ConciliationRequest.create('id-1', baseProps)
+    req.markProcessing()
+    expect(req.status).toBe('processing')
+    expect(req.lastCheckedAt).toBeInstanceOf(Date)
+  })
+
+  it('markFailed/markAmbiguous reject from terminal status', () => {
+    const req = ConciliationRequest.create('id-1', baseProps)
+    req.markMatched('tx-1')
+    expect(() => req.markFailed()).toThrow(ConflictError)
+    expect(() => req.markAmbiguous()).toThrow(ConflictError)
+  })
+
+  it('exposes all getters', () => {
+    const req = ConciliationRequest.create('id-1', { ...baseProps, idempotencyKey: 'idk' })
+    expect(req.accountId).toBe('acc-1')
+    expect(req.externalId).toBe('ext-1')
+    expect(req.expectedAmount).toBe(100)
+    expect(req.currency).toBe('USD')
+    expect(req.senderName).toBe('Alice')
+    expect(req.idempotencyKey).toBe('idk')
+    expect(req.lastCheckedAt).toBeUndefined()
+  })
 })
