@@ -107,6 +107,52 @@ describe('RunBankScrapeUseCase', () => {
     expect(failHandler).toHaveBeenCalledTimes(1)
   })
 
+  it('returns without scraping for persistent accounts when ensureSession is not provided', async () => {
+    const txRepo = new InMemoryBankTransactionRepository()
+    const scrapeRunRepo = new InMemoryScrapeRunRepository()
+    const eventBus = new InMemoryEventBus()
+    const ingest = new IngestTransactionsUseCase({ txRepo, eventBus })
+    const runScript = vi.fn().mockResolvedValue([])
+    const useCase = new RunBankScrapeUseCase({
+      accountReader: { findById: async () => ({ id: 'acc-1', userId: 'u', bank: 'b', sessionType: 'persistent' as const, loginMode: 'assisted' as const }) },
+      txRepo, scrapeRunRepo,
+      scriptEngine: { loadActiveScript: async () => ({ id: 's1', codeSnapshot: '' }), runScript },
+      eventBus, ingest, blocker: { block: vi.fn().mockResolvedValue(undefined) },
+    })
+
+    await useCase.execute({ accountId: 'acc-1' })
+
+    expect(runScript).not.toHaveBeenCalled()
+    expect(scrapeRunRepo.runs.length).toBe(0)
+  })
+
+  it('throws NotFoundError when no active script is found', async () => {
+    const { useCase } = buildSut([], { hasScript: false })
+    await expect(useCase.execute({ accountId: 'acc-1' })).rejects.toThrow(NotFoundError)
+  })
+
+  it('handles non-Error throwable from script and records failed run', async () => {
+    const txRepo = new InMemoryBankTransactionRepository()
+    const scrapeRunRepo = new InMemoryScrapeRunRepository()
+    const eventBus = new InMemoryEventBus()
+    const ingest = new IngestTransactionsUseCase({ txRepo, eventBus })
+    const blocker = { block: vi.fn().mockResolvedValue(undefined) }
+    const useCase = new RunBankScrapeUseCase({
+      accountReader: { findById: async () => ({ id: 'acc-1', userId: 'u', bank: 'b', sessionType: 'one-shot' as const, loginMode: 'simple' as const }) },
+      txRepo, scrapeRunRepo,
+      scriptEngine: {
+        loadActiveScript: async () => ({ id: 'script-1', codeSnapshot: '' }),
+        // eslint-disable-next-line @typescript-eslint/no-throw-literal
+        runScript: async () => { throw 'plain-string-error' },
+      },
+      eventBus, ingest, blocker,
+    })
+
+    await expect(useCase.execute({ accountId: 'acc-1' })).rejects.toBe('plain-string-error')
+    expect(scrapeRunRepo.runs[0].status).toBe('failed')
+    expect(scrapeRunRepo.runs[0].error).toBe('plain-string-error')
+  })
+
   it('blocks the account on a fatal (login) failure and records login_failed', async () => {
     const { txRepo, scrapeRunRepo, eventBus, blocker } = buildSut([])
     // Override the script to throw a fatal login error.

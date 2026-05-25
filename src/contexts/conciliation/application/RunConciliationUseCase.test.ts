@@ -82,6 +82,31 @@ describe('RunConciliationUseCase', () => {
     expect(matchRepo.matches).toHaveLength(0)
   })
 
+  it('is a no-op when the request does not exist', async () => {
+    const { useCase, attemptRepo, matchRepo } = buildSut([])
+    await useCase.execute({ requestId: 'missing' })
+    expect(attemptRepo.attempts).toHaveLength(0)
+    expect(matchRepo.matches).toHaveLength(0)
+  })
+
+  it('marks ambiguous and records multiple_candidates when several candidates match', async () => {
+    const req = ConciliationRequest.create('req-1', {
+      accountId: 'acc-1', externalId: 'ext-1',
+      expectedAmount: 100, currency: 'USD', senderName: 'Alice',
+    })
+    const { useCase, requestRepo, attemptRepo } = buildSut([
+      { id: 'tx-1', amount: 100, currency: 'USD', senderName: 'Alice', receivedAt: new Date() },
+      { id: 'tx-2', amount: 100, currency: 'USD', senderName: 'Alice L', receivedAt: new Date() },
+    ])
+    requestRepo.store.set(req.id, req)
+
+    await useCase.execute({ requestId: 'req-1' })
+
+    expect(requestRepo.store.get('req-1')!.status).toBe('ambiguous')
+    expect(attemptRepo.attempts[0].status).toBe('ambiguous')
+    expect(attemptRepo.attempts[0].failureType).toBe('multiple_candidates')
+  })
+
   it('publishes domain events when match occurs', async () => {
     const req = ConciliationRequest.create('req-1', {
       accountId: 'acc-1', externalId: 'ext-1',

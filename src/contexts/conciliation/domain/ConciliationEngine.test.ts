@@ -1,5 +1,15 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+
+vi.mock('./heuristics/FuzzySenderHeuristic.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./heuristics/FuzzySenderHeuristic.js')>()
+  return {
+    ...actual,
+    applyFuzzySenderHeuristic: vi.fn(actual.applyFuzzySenderHeuristic),
+  }
+})
+
 import { ConciliationEngine, type CandidateTransaction, type RequestData } from './ConciliationEngine.js'
+import { applyFuzzySenderHeuristic } from './heuristics/FuzzySenderHeuristic.js'
 
 const baseRequest: RequestData = {
   expectedAmount: 100,
@@ -58,5 +68,26 @@ describe('ConciliationEngine.evaluate', () => {
       tx({ id: 'old', senderName: 'Alice Lopez', receivedAt: tooOld }),
     ])
     expect(result.status).toBe('not_found')
+  })
+
+  it('falls back to score 0 when the heuristic returns an empty score map', () => {
+    ;(applyFuzzySenderHeuristic as any).mockImplementationOnce(() => new Map<string, number>())
+    const result = engine.evaluate(baseRequest, [
+      tx({ id: 'a', senderName: 'Alice Lopez' }),
+      tx({ id: 'b', senderName: 'Alice Lopez' }),
+    ])
+    expect(result.status).toBe('not_found')
+  })
+
+  it('falls back to score 0 for candidates the heuristic did not score', () => {
+    // Map only populates the top candidate; the second one falls through `?? 0` filters.
+    ;(applyFuzzySenderHeuristic as any).mockImplementationOnce(() => new Map<string, number>([['a', 0.9]]))
+    const result = engine.evaluate(baseRequest, [
+      tx({ id: 'a', senderName: 'Alice Lopez' }),
+      tx({ id: 'b', senderName: 'Alice Lopez' }),
+    ])
+    // Only 'a' has a score > 0; 'b' is filtered out via `?? 0`, so we match 'a'.
+    expect(result.status).toBe('matched')
+    expect(result.transactionId).toBe('a')
   })
 })
