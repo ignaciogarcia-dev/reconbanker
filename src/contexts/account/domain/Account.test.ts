@@ -34,6 +34,26 @@ describe('Account.create', () => {
     expect(a.belongsTo('user-1')).toBe(true)
     expect(a.belongsTo('other')).toBe(false)
   })
+
+  it('exposes scrape-block fields, defaulting to null', () => {
+    const a = Account.create('id', 'user-1', 'b', 'C')
+    expect(a.scrapeBlockedAt).toBeNull()
+    expect(a.scrapeBlockedReason).toBeNull()
+    expect(a.bankId).toBe('b')
+    expect(a.createdAt).toBeInstanceOf(Date)
+  })
+
+  it('reconstitute preserves provided scrape-block fields', () => {
+    const when = new Date('2024-01-02T03:04:05Z')
+    const a = Account.reconstitute('id', {
+      userId: 'u', bankId: 'b', bank: 'C', name: 'n',
+      status: 'inactive', createdAt: when,
+      scrapeBlockedAt: when, scrapeBlockedReason: 'login_failed',
+    })
+    expect(a.scrapeBlockedAt).toBe(when)
+    expect(a.scrapeBlockedReason).toBe('login_failed')
+    expect(a.status).toBe('inactive')
+  })
 })
 
 describe('Bank.create', () => {

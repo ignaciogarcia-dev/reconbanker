@@ -125,4 +125,48 @@ describe('SessionManager', () => {
     mgr.stopAll()
     expect(stop).toHaveBeenCalled()
   })
+
+  it('coerces non-Error rejections from done() to a string for markStopped', async () => {
+    const repo = sessionRepo()
+    const blocker = blockerMock()
+    const startFn = vi.fn().mockResolvedValue({
+      stop: vi.fn(),
+      done: Promise.reject('plain string failure'),
+    } as SessionHandle)
+    const mgr = new SessionManager(startFn, repo, blocker)
+
+    await mgr.ensureRunning('acc-1')
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(repo.markStopped).toHaveBeenCalledWith('acc-1', 'plain string failure')
+    expect(blocker.block).not.toHaveBeenCalled()
+  })
+
+  it('coerces non-Error rejections from startFn to a string for markStopped', async () => {
+    const repo = sessionRepo()
+    const blocker = blockerMock()
+    const startFn = vi.fn().mockRejectedValue('login_failed: raw string')
+    const mgr = new SessionManager(startFn, repo, blocker)
+
+    await expect(mgr.ensureRunning('acc-1')).rejects.toBe('login_failed: raw string')
+    expect(repo.markStopped).toHaveBeenCalledWith('acc-1', 'login_failed: raw string')
+    expect(blocker.block).toHaveBeenCalledWith('acc-1', 'login_failed: raw string')
+  })
+
+  it('does not crash when blocker.block itself rejects (best-effort)', async () => {
+    const repo = sessionRepo()
+    const blocker = { block: vi.fn().mockRejectedValue(new Error('block-db-down')) }
+    const startFn = vi.fn().mockResolvedValue({
+      stop: vi.fn(),
+      done: Promise.reject(new Error('login_failed: bad password')),
+    } as SessionHandle)
+    const mgr = new SessionManager(startFn, repo, blocker)
+
+    await mgr.ensureRunning('acc-1')
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(repo.markStopped).toHaveBeenCalledWith('acc-1', 'login_failed: bad password')
+    expect(blocker.block).toHaveBeenCalled()
+    expect(mgr.isRunning('acc-1')).toBe(false)
+  })
 })
