@@ -1,20 +1,67 @@
-// Banco Pichincha Empresas — hook-based persistent monitor script.
+// Banco Pichincha Empresas — hook-based persistent monitor script (v1.2.0).
 // Returns { login, isAuthenticated, poll, keepAlive }. The runMonitor framework
 // drives the loop, dedup, 2FA-wait and emission.
+//
+// v1.2.0 — adds pagination + hardened de-duplication (audited live):
+//  - PAGINATION: the list endpoint returns 20 movements per page (newest first)
+//    and the SPA loads older pages via infinite scroll (confirmed: scrolling to
+//    the bottom fires the next /transactions request with offset set). Each poll
+//    now scrolls to load older pages until every "today" movement is covered, so
+//    high-volume days are not truncated at the first 20.
+//  - DEDUP KEY = transactionId (the bank's "Transaction Number"). Audited across
+//    two reloads of the same movements:
+//        transactionId          -> unique 20/20, STABLE across reload (18/18)
+//        transactionUuid        -> unique but CHANGES on every load (0/20 stable)
+//        externalTransactionId  -> low cardinality (mostly "0001"), useless
+//    The visible "Transaction number" (numeroDocumento, e.g. 064224082) is just
+//    transactionId (64224082) zero-padded, so transactionId IS that number and is
+//    available from the list without opening the detail. We now use transactionId
+//    as the identity and NEVER fall back to the volatile transactionUuid (that
+//    fallback in earlier versions could emit duplicates). transactionUuid is used
+//    ONLY to correlate the detail response within a single poll.
+//
+// v1.1.0 — fixes carried over:
+//  - Each poll re-opens movements from the dashboard (the SPA does not re-fetch
+//    on its own and a hard reload bounces to the dashboard).
+//  - Shadow-DOM aware (rows live in open shadow roots; Playwright pierces them)
+//    with defensive logging.
+//  - Login submit hardened (visible button is "Sign in"; ids vary).
+//  - Stronger keep-alive.
+//
+// Confirmed against live data: amount is a JSON number; currency.code = "USD";
+// operationDate is DDMMYYYY (8 chars); type.code "C" = credito; hasDetail boolean;
+// detail.transactions[0].details[] is [{key,value}] and includes "ordenante";
+// DOM row order matches the API list order.
 
 const host_app = "bancaempresas.pichincha.com";
 const host_login = "login.empresas.pichincha.com";
+const url_dashboard = "https://bancaempresas.pichincha.com/consolidate-position";
 const api_transactions = "/account-overview/accounts/transactions";
 const api_transaction_detail = "/account-overview/accounts/transaction-details/search";
 const tz_bank = "America/Guayaquil";
 
 const txt_continue_here = /continue here|continuar aquí|continuar aqui/i;
 const txt_see_movements = /see movements|ver movimientos/i;
+const txt_back_to_accounts = /back to all accounts|volver a (todas )?(mis |las )?cuentas|volver a cuentas/i;
+const txt_position_consolidate = /position consolidate|posici[oó]n consolidada/i;
 const txt_session_timeout = /do you need more time|your session will end|necesitas más tiempo|tu sesión|tu sesion/i;
 const txt_continue_btn = /^\s*(continue|continuar)\s*$/i;
 const sel_tx_row = ".transferinfo";
+// Captured live: the session-timeout "Continue" action is a custom element
+// <pichincha-old-button class="accept hydrated"> (NOT a <button>); "Logout" is the
+// same component WITHOUT the "accept" class. This CSS selector is the most reliable
+// way to click "Continue".
+const sel_continue_btn = "pichincha-old-button.accept";
+
+const MAX_PAGES = 15; // safety cap for the infinite-scroll pagination loop
+
+// --- structured debug logging (context is in module scope via the runner wrapper) ---
+const log = (event, data) => {
+  try { context.debugLog?.(JSON.stringify({ at: new Date().toISOString(), event, ...(data || {}) })); } catch {}
+};
 
 // --- response capture (module-scoped; populated by the page listener) ---
+// Captures both fetch and XHR responses (the bank uses XHR for /transactions).
 const transactionResponses = [];
 const detailResponses = [];
 
@@ -23,7 +70,7 @@ page.on("response", async (response) => {
   try {
     if (url.includes(api_transactions) && response.status() === 200) {
       const json = await response.json();
-      transactionResponses.push({ capturedAt: Date.now(), json });
+      transactionResponses.push({ capturedAt: Date.now(), url, json });
     } else if (url.includes(api_transaction_detail) && response.status() === 200) {
       const json = await response.json();
       let uuid = null;
@@ -58,67 +105,145 @@ const sha256 = (str) => page.evaluate(async (input) => {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }, str);
 
+// Merge every captured /transactions page into a single ordered array, de-duplicated
+// by transactionId (the stable "Transaction Number"). Order is preserved (newest first).
+const mergeCapturedTransactions = () => {
+  const seen = new Set();
+  const merged = [];
+  for (const r of transactionResponses) {
+    const arr = r.json?.transactions;
+    if (!Array.isArray(arr)) continue;
+    for (const m of arr) {
+      const id = m?.transactionId != null ? String(m.transactionId) : "";
+      if (id) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+      }
+      merged.push(m);
+    }
+  }
+  return merged;
+};
+
+// Session keep-alive. Confirmed live: the bank shows <app-alert-modal> with text
+// "Do you need more time? Your session will end in N seconds." and two actions —
+// "Logout" (left) and "Continue" (yellow, right). The "Continue" action is NOT a
+// real <button> (it's text inside a custom component), so getByRole("button")
+// alone may miss it; we click it by exact text first (getByText pierces the open
+// shadow DOM). We then re-check the banner and retry once to be sure it closed.
 const dismissSessionTimeoutModal = async () => {
   try {
     const banner = page.getByText(txt_session_timeout).first();
     if (!(await banner.isVisible().catch(() => false))) return false;
-    const cont = page.getByText(txt_continue_btn).last();
-    await cont.click({ timeout: 5000 }).catch(async () => {
-      await page.getByRole("button", { name: txt_continue_btn }).first().click({ timeout: 3000 }).catch(() => {});
-    });
-    await page.waitForTimeout(500);
+    log("session_timeout_modal_detected");
+    const tryClickContinue = async () => {
+      // Primary: the exact custom element captured live (most reliable).
+      if (await page.locator(sel_continue_btn).first().click({ timeout: 4000 }).then(() => true).catch(() => false)) return true;
+      // Fallbacks: by text (pierces shadow DOM), then by role.
+      if (await page.getByText(txt_continue_btn).last().click({ timeout: 3000 }).then(() => true).catch(() => false)) return true;
+      if (await page.getByRole("button", { name: txt_continue_btn }).first().click({ timeout: 3000 }).then(() => true).catch(() => false)) return true;
+      return false;
+    };
+    let clicked = await tryClickContinue();
+    await page.waitForTimeout(600);
+    if (await banner.isVisible().catch(() => false)) { clicked = await tryClickContinue(); await page.waitForTimeout(600); }
+    const stillUp = await banner.isVisible().catch(() => false);
+    log("session_timeout_modal_dismissed", { clicked, stillUp });
     return true;
   } catch { return false; }
 };
 
-const waitForTransactions = async (timeoutMs = 25000) => {
+// Re-open the movements list from the dashboard. The SPA only fetches /transactions
+// on (re-)entry, so we must leave and come back each poll.
+const goToMovementsFresh = async () => {
+  if (page.url().includes("account-movements")) {
+    const back = page.getByText(txt_back_to_accounts).first();
+    if (await back.isVisible().catch(() => false)) {
+      await back.click().catch(() => {});
+    } else {
+      const nav = page.getByText(txt_position_consolidate).first();
+      await nav.click().catch(() => {});
+    }
+    await page.waitForTimeout(1500);
+  }
+  if (!page.url().includes("consolidate-position")) {
+    await page.goto(url_dashboard, { waitUntil: "domcontentloaded" }).catch((e) => {
+      if (!String(e.message).includes("ERR_ABORTED")) log("dashboard_goto_failed", { message: String(e.message) });
+    });
+    await page.waitForTimeout(1000);
+  }
+  const link = page.getByText(txt_see_movements).first();
+  await link.waitFor({ state: "visible", timeout: 20000 }).catch(() => { log("see_movements_link_not_visible"); });
+  await link.click().catch(() => {});
+};
+
+// Wait until at least one /transactions page (with a transactions array) is captured.
+const waitForAnyTransactions = async (timeoutMs = 25000) => {
   const startedAt = Date.now();
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const candidate = transactionResponses
-      .filter((r) => r.capturedAt >= startedAt - 5000)
-      .map((r) => r.json).reverse()
-      .find((j) => Array.isArray(j?.transactions));
-    if (candidate) return candidate.transactions;
+    if (transactionResponses.some((r) => r.capturedAt >= startedAt - 5000 && Array.isArray(r.json?.transactions))) return true;
     await page.waitForTimeout(300);
   }
-  return null;
+  return false;
+};
+
+// Scroll the movements list (infinite scroll) to load older pages until every
+// "today" movement is covered, the list stops growing, or the safety cap is hit.
+const loadAllTodayPages = async (todayStr) => {
+  const todayDate = parseOperationDate(todayStr);
+  const todayMs = todayDate ? todayDate.getTime() : null;
+  let lastCount = -1;
+  for (let i = 0; i < MAX_PAGES; i++) {
+    const merged = mergeCapturedTransactions();
+    // Newest-first: once we have ANY movement older than today, today is fully loaded.
+    const passedToday = todayMs != null && merged.some((m) => {
+      const d = parseOperationDate(m.operationDate);
+      return d && d.getTime() < todayMs;
+    });
+    if (passedToday) { log("pagination_done", { reason: "passed_today", pages: i, merged: merged.length }); break; }
+    if (i > 0 && merged.length === lastCount) { log("pagination_done", { reason: "no_growth", pages: i, merged: merged.length }); break; }
+    lastCount = merged.length;
+    // Trigger the next page via infinite scroll.
+    await page.mouse.wheel(0, 6000).catch(() => {});
+    await page.waitForTimeout(1200);
+    await dismissSessionTimeoutModal();
+    if (i === MAX_PAGES - 1) log("pagination_cap_reached", { pages: MAX_PAGES, merged: mergeCapturedTransactions().length });
+  }
+  return mergeCapturedTransactions();
 };
 
 const fetchDetail = async (rowIndex, expectedUuid) => {
   try {
     await dismissSessionTimeoutModal();
-    const rows = page.locator(sel_tx_row);
+    const rows = page.locator(sel_tx_row); // Playwright pierces open shadow DOM
     const row = rows.nth(rowIndex);
-    if (!(await row.count())) return null;
+    if (!(await row.count())) { log("detail_row_missing", { rowIndex }); return null; }
     const before = detailResponses.length;
     await row.scrollIntoViewIfNeeded().catch(() => {});
     await row.click({ timeout: 5000 }).catch(() => {});
     const deadline = Date.now() + 15000;
     while (Date.now() < deadline) {
-      const match = detailResponses.slice(before).find((d) => !expectedUuid || d.transactionUuid === expectedUuid)
-        || detailResponses[detailResponses.length - 1];
-      if (match && (!expectedUuid || match.transactionUuid === expectedUuid)) return match.body;
+      // Accept only a detail whose request uuid matches the movement we clicked.
+      const match = detailResponses.slice(before).find((d) => expectedUuid && d.transactionUuid === expectedUuid);
+      if (match) return match.body;
       await page.waitForTimeout(250);
     }
-  } catch {}
+    log("detail_uuid_timeout", { rowIndex, expectedUuid });
+  } catch (e) { log("detail_fetch_error", { rowIndex, message: String(e?.message) }); }
   return null;
 };
 
 return {
   async login(page, context) {
-    // Load the login page; the SPA may ABORT the initial navigation, which is benign.
     await page.goto("https://bancaempresas.pichincha.com/", { waitUntil: "domcontentloaded" }).catch((e) => {
       if (!String(e.message).includes("ERR_ABORTED")) throw e;
     });
 
-    // Wait until the username field is actually visible (not just attached), then
-    // give the Azure AD B2C form a moment to finish wiring its handlers.
     const userField = page.locator("#signInName");
     await userField.waitFor({ state: "visible", timeout: 30000 });
     await page.waitForTimeout(1000);
 
-    // Type username → wait → type password → wait → submit (staged, not all-at-once).
     await userField.click();
     await userField.pressSequentially(context.username, { delay: 40 });
     await page.waitForTimeout(1000);
@@ -129,18 +254,31 @@ return {
     await passField.pressSequentially(context.password, { delay: 40 });
     await page.waitForTimeout(1000);
 
-    const continueBtn = page.locator("#continue");
-    await continueBtn.waitFor({ state: "visible", timeout: 10000 });
-    await continueBtn.click();
+    // Submit. Visible label is "Sign in"; the underlying id varies across B2C
+    // policies, so try common ids first, then a text/role fallback.
+    const submitSelectors = ["#continue", "#next", "button[type=submit]"];
+    let clicked = false;
+    for (const sel of submitSelectors) {
+      const el = page.locator(sel).first();
+      if (await el.isVisible().catch(() => false)) {
+        await el.click().catch(() => {});
+        clicked = true;
+        log("login_submit_clicked", { via: sel });
+        break;
+      }
+    }
+    if (!clicked) {
+      await page.getByRole("button", { name: /sign in|iniciar sesi[oó]n|ingresar|continuar|continue/i })
+        .first().click({ timeout: 5000 }).catch(() => {});
+      log("login_submit_clicked", { via: "text-fallback" });
+    }
   },
 
   async isAuthenticated(page) {
     const url = page.url();
-    // Abort on a credentials error so we don't retry into a lockout.
-    const credError = await page.getByText(/username or password is wrong|usuario o contraseña/i)
+    const credError = await page.getByText(/username or password is wrong|usuario o contraseña|credenciales/i)
       .first().isVisible().catch(() => false);
     if (credError) throw new Error("login_failed: usuario o contraseña incorrectos");
-    // "Continue here" device modal — dismiss it opportunistically.
     const here = page.getByText(txt_continue_here).first();
     if (await here.isVisible().catch(() => false)) await here.click().catch(() => {});
     return url.includes(host_app) && !url.includes(host_login);
@@ -152,21 +290,29 @@ return {
     transactionResponses.length = 0;
     detailResponses.length = 0;
 
-    if (!page.url().includes("account-movements")) {
-      const link = page.getByText(txt_see_movements).first();
-      await link.waitFor({ state: "visible", timeout: 20000 }).catch(() => {});
-      await link.click().catch(() => {});
-    }
-
-    const list = await waitForTransactions();
-    if (!Array.isArray(list)) return [];
+    // Always re-open movements so a fresh /transactions request fires.
+    await goToMovementsFresh();
+    if (!(await waitForAnyTransactions())) { log("transactions_not_captured"); return []; }
 
     const todayStr = getBankTodayDDMMYYYY();
+    // Paginate (infinite scroll) until all of today is loaded.
+    const list = await loadAllTodayPages(todayStr);
+
+    // Defensive: a 0-row DOM with a non-empty API list means the selector broke
+    // (e.g. a shadow root went closed), NOT that there are no movements.
+    const domRowCount = await page.locator(sel_tx_row).count().catch(() => -1);
+    if (domRowCount === 0 && list.length > 0) log("dom_rows_missing", { apiCount: list.length });
+
     const incoming = list.filter((m) => String(m.operationDate) === todayStr).filter(isIncoming);
+    log("poll_summary", { merged: list.length, today: todayStr, incoming: incoming.length, domRows: domRowCount, pages: transactionResponses.length });
 
     const out = [];
     for (const m of incoming) {
-      const externalId = String(m.transactionId ?? m.transactionUuid);
+      // Identity = transactionId (the stable "Transaction Number"). NEVER fall back
+      // to transactionUuid: it changes on every page load and would cause duplicates.
+      const externalId = m?.transactionId != null && String(m.transactionId).length ? String(m.transactionId) : null;
+      if (!externalId) { log("skip_no_transactionId", { uuid: m?.transactionUuid }); continue; }
+
       const domIndex = list.indexOf(m);
       const detail = m.hasDetail ? await fetchDetail(domIndex, m.transactionUuid) : null;
       const amount = Number(m.amount) || 0;
@@ -186,8 +332,10 @@ return {
 
   async keepAlive(page) {
     await dismissSessionTimeoutModal();
-    await page.mouse.wheel(0, 400).catch(() => {});
+    await page.mouse.move(200, 200).catch(() => {});
+    await page.mouse.wheel(0, 300).catch(() => {});
     await page.waitForTimeout(300);
-    await page.mouse.wheel(0, -400).catch(() => {});
+    await page.mouse.wheel(0, -300).catch(() => {});
+    await dismissSessionTimeoutModal();
   },
 };
