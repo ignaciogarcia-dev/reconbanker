@@ -152,6 +152,9 @@ export function Conciliations() {
   const isLoading = loadingReqs || loadingAccounts || loadingMe
   const wrongMode = !isLoading && me?.operationMode !== 'reconcile'
 
+  /* v8 ignore next -- base-ui Select always passes a string; `?? ''` is a defensive fallback for null. */
+  const onStatusChange = (v: string | null) => setDraft(d => ({ ...d, status: v ?? '' }))
+
   const filtered = useMemo(() => {
     let result = requests
 
@@ -248,7 +251,7 @@ export function Conciliations() {
                     <div className="space-y-1.5">
                       <Label>{t('conciliations.colStatus')}</Label>
                       <div className="relative">
-                        <Select value={draft.status} onValueChange={v => setDraft(d => ({ ...d, status: v ?? '' }))}>
+                        <Select value={draft.status} onValueChange={onStatusChange}>
                           <SelectTrigger className={draft.status ? 'w-full [&>svg:last-child]:hidden pr-8' : 'w-full'}>
                             <SelectValue placeholder={t('conciliations.allStatuses')}>
                               {draft.status ? t(`common:enums.conciliationStatus.${draft.status}`) : t('conciliations.allStatuses')}

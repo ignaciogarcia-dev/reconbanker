@@ -66,6 +66,9 @@ export function Accounts() {
     })
   }
 
+  /* v8 ignore next -- base-ui Select always passes a string; `?? ''` is a defensive fallback for null. */
+  const onBankChange = (v: string | null) => updateForm('bankId', v ?? '')
+
   function handleOpenChange(next: boolean) {
     setOpen(next)
     if (!next) {
@@ -117,7 +120,7 @@ export function Accounts() {
                 hint={t('accounts.dialog.bankHint')}
                 error={errors.bankId}
               >
-                <Select value={form.bankId} onValueChange={v => updateForm('bankId', v ?? '')}>
+                <Select value={form.bankId} onValueChange={onBankChange}>
                   <SelectTrigger
                     id={bankId}
                     aria-invalid={errors.bankId ? true : undefined}

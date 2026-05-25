@@ -18,6 +18,7 @@ httpClient.interceptors.request.use(config => {
 httpClient.interceptors.response.use(
   res => res,
   err => {
+    /* v8 ignore next 1 -- axios always sets config.url on errors; `?? ''` guards against non-axios errors. */
     const url = err.config?.url ?? ''
     const isAuthEndpoint = url.startsWith('/auth/')
     if (err.response?.status === 401 && !isAuthEndpoint) {
