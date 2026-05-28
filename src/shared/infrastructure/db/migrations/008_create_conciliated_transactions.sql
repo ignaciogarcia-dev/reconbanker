@@ -1,4 +1,4 @@
-CREATE TABLE conciliated_transactions (
+CREATE TABLE IF NOT EXISTS conciliated_transactions (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   account_id          UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   request_id          UUID NOT NULL REFERENCES conciliation_requests(id) ON DELETE CASCADE,

@@ -1,5 +1,5 @@
 -- Create banks table
-CREATE TABLE banks (
+CREATE TABLE IF NOT EXISTS banks (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   code         TEXT NOT NULL UNIQUE,
   name         TEXT NOT NULL,
@@ -22,11 +22,11 @@ FROM (SELECT DISTINCT bank FROM bank_scripts) bs
 ON CONFLICT (code) DO NOTHING;
 
 -- Add bank_id to accounts
-ALTER TABLE accounts ADD COLUMN bank_id UUID REFERENCES banks(id);
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS bank_id UUID REFERENCES banks(id);
 UPDATE accounts SET bank_id = banks.id FROM banks WHERE banks.code = accounts.bank;
 ALTER TABLE accounts ALTER COLUMN bank_id SET NOT NULL;
 
 -- Add bank_id to bank_scripts
-ALTER TABLE bank_scripts ADD COLUMN bank_id UUID REFERENCES banks(id);
+ALTER TABLE bank_scripts ADD COLUMN IF NOT EXISTS bank_id UUID REFERENCES banks(id);
 UPDATE bank_scripts SET bank_id = banks.id FROM banks WHERE banks.code = bank_scripts.bank;
 ALTER TABLE bank_scripts ALTER COLUMN bank_id SET NOT NULL;

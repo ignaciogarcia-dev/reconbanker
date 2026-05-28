@@ -1,4 +1,4 @@
-CREATE TABLE bank_credentials (
+CREATE TABLE IF NOT EXISTS bank_credentials (
   id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   account_id        UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   username          TEXT NOT NULL,

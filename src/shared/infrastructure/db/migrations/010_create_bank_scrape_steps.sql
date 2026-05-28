@@ -1,4 +1,4 @@
-CREATE TABLE bank_scrape_steps (
+CREATE TABLE IF NOT EXISTS bank_scrape_steps (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   run_id       UUID NOT NULL REFERENCES bank_scrape_runs(id) ON DELETE CASCADE,
   step         TEXT NOT NULL CHECK (step IN ('login', 'navigate', 'extract')),
