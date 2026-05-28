@@ -1,4 +1,4 @@
-CREATE TABLE conciliation_requests (
+CREATE TABLE IF NOT EXISTS conciliation_requests (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   account_id      UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   external_id     TEXT NOT NULL,
@@ -14,6 +14,6 @@ CREATE TABLE conciliation_requests (
   CONSTRAINT uq_conciliation_request_external UNIQUE (account_id, external_id)
 );
 
-CREATE INDEX idx_conciliation_requests_pending
+CREATE INDEX IF NOT EXISTS idx_conciliation_requests_pending
   ON conciliation_requests(account_id, status)
   WHERE status = 'pending';

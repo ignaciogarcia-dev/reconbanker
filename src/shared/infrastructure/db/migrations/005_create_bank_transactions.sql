@@ -1,4 +1,4 @@
-CREATE TABLE bank_transactions (
+CREATE TABLE IF NOT EXISTS bank_transactions (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   account_id     UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   external_id    TEXT NOT NULL,              -- id del banco
@@ -14,5 +14,5 @@ CREATE TABLE bank_transactions (
   CONSTRAINT uq_bank_transaction_external UNIQUE (account_id, external_id)
 );
 
-CREATE INDEX idx_bank_transactions_account_received
+CREATE INDEX IF NOT EXISTS idx_bank_transactions_account_received
   ON bank_transactions(account_id, received_at DESC);

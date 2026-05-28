@@ -1,4 +1,4 @@
-CREATE TABLE bank_scripts (
+CREATE TABLE IF NOT EXISTS bank_scripts (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   bank          TEXT NOT NULL,
   flow_type     TEXT NOT NULL CHECK (flow_type IN ('login', 'extract_transactions', 'verify_payment')),

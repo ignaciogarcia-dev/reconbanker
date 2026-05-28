@@ -1,4 +1,4 @@
-CREATE TABLE accounts (
+CREATE TABLE IF NOT EXISTS accounts (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   bank       TEXT NOT NULL,
   name       TEXT,

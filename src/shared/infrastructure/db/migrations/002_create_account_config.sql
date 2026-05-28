@@ -1,4 +1,4 @@
-CREATE TABLE account_config (
+CREATE TABLE IF NOT EXISTS account_config (
   id                       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   account_id               UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   pending_orders_endpoint  TEXT NOT NULL,

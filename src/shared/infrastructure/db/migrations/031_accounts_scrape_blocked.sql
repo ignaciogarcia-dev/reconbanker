@@ -4,5 +4,5 @@
 -- operator manually restarts it. Separate from `status` (active/inactive = user
 -- intent). Nullable, so every existing account starts unblocked.
 ALTER TABLE accounts
-  ADD COLUMN scrape_blocked_at     TIMESTAMPTZ,
-  ADD COLUMN scrape_blocked_reason TEXT;
+  ADD COLUMN IF NOT EXISTS scrape_blocked_at     TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS scrape_blocked_reason TEXT;

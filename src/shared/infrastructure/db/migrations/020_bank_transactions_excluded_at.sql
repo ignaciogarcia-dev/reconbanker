@@ -1,7 +1,7 @@
 ALTER TABLE bank_transactions
-  ADD COLUMN excluded_at TIMESTAMPTZ NULL;
+  ADD COLUMN IF NOT EXISTS excluded_at TIMESTAMPTZ NULL;
 
-CREATE INDEX idx_bank_transactions_account_active
+CREATE INDEX IF NOT EXISTS idx_bank_transactions_account_active
   ON bank_transactions (account_id, received_at DESC)
   WHERE excluded_at IS NULL;
 
