@@ -45,13 +45,13 @@ describe('auth.routes', () => {
 
       const res = await request(makeApp(user))
         .post('/auth/register')
-        .send({ email: 'a@b.com', password: 'secret', name: 'Alice' })
+        .send({ email: 'a@b.com', password: 'Secret123word', name: 'Alice' })
 
       expect(res.status).toBe(201)
       expect(res.body).toEqual({ id: 'id-1', email: 'a@b.com' })
       expect(user.registerUser.execute).toHaveBeenCalledWith({
         email: 'a@b.com',
-        password: 'secret',
+        password: 'Secret123word',
         name: 'Alice',
       })
     })
@@ -61,14 +61,24 @@ describe('auth.routes', () => {
 
       const res = await request(makeApp(user))
         .post('/auth/register')
-        .send({ email: 'b@c.com', password: 'secret' })
+        .send({ email: 'b@c.com', password: 'Secret123word' })
 
       expect(res.status).toBe(201)
       expect(user.registerUser.execute).toHaveBeenCalledWith({
         email: 'b@c.com',
-        password: 'secret',
+        password: 'Secret123word',
         name: undefined,
       })
+    })
+
+    it('returns 400 when password does not meet the policy', async () => {
+      const res = await request(makeApp(user))
+        .post('/auth/register')
+        .send({ email: 'a@b.com', password: 'weak' })
+
+      expect(res.status).toBe(400)
+      expect(res.body.error.code).toBe('VALIDATION_ERROR')
+      expect(user.registerUser.execute).not.toHaveBeenCalled()
     })
 
     it('returns 400 when email is invalid', async () => {
@@ -108,7 +118,7 @@ describe('auth.routes', () => {
 
       const res = await request(makeApp(user))
         .post('/auth/register')
-        .send({ email: 'a@b.com', password: 'secret' })
+        .send({ email: 'a@b.com', password: 'Secret123word' })
 
       expect(res.status).toBe(409)
       expect(res.body).toEqual({
@@ -125,7 +135,7 @@ describe('auth.routes', () => {
 
       const res = await request(makeApp(user))
         .post('/auth/register')
-        .send({ email: 'a@b.com', password: 'secret' })
+        .send({ email: 'a@b.com', password: 'Secret123word' })
 
       expect(res.status).toBe(500)
       expect(res.body).toEqual({

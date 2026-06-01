@@ -37,6 +37,7 @@ describe('bindRoutes', () => {
     const paths = calls.map((c) => c.path)
     expect(paths).toEqual([
       '/api/auth',
+      '/api/auth/logout',
       '/api/me',
       '/api/accounts/:accountId/movements',
       '/api/accounts',
@@ -44,7 +45,8 @@ describe('bindRoutes', () => {
       '/api/conciliation',
       '/api/scripts',
     ])
-    // Auth path has no middleware before the router; all others have the protected middleware.
+    // Auth (login/register) path has no middleware before the router; all others
+    // (including the protected logout) have the protected middleware first.
     expect(calls[0].handlers).toHaveLength(1)
     for (let i = 1; i < calls.length; i++) {
       expect(calls[i].handlers.length).toBeGreaterThanOrEqual(2)

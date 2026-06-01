@@ -1,9 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import request from 'supertest'
+import type { RequestHandler } from 'express'
 import { buildScriptsRouter } from './scripts.routes.js'
 import { buildTestApp, AUTH_HEADER } from '../../../tests/helpers/buildTestApp.js'
 import { NotFoundError } from '../../shared/errors/index.js'
 import type { ScriptEngineModule } from '../../composition/scriptEngineModule.js'
+
+const allowAdmin: RequestHandler = (_req, _res, next) => next()
+const denyAdmin: RequestHandler = (_req, res) => { res.status(403).json({ error: 'Forbidden' }) }
 
 type MockedScriptEngineModule = {
   listScripts: { execute: ReturnType<typeof vi.fn> }
@@ -19,10 +23,10 @@ function makeModule(): MockedScriptEngineModule {
   }
 }
 
-function makeApp(mod: MockedScriptEngineModule) {
+function makeApp(mod: MockedScriptEngineModule, requireAdmin: RequestHandler = allowAdmin) {
   return buildTestApp({
     basePath: '/scripts',
-    router: buildScriptsRouter(mod as unknown as ScriptEngineModule),
+    router: buildScriptsRouter(mod as unknown as ScriptEngineModule, requireAdmin),
     protected: true,
   })
 }
@@ -129,6 +133,15 @@ describe('scripts.routes', () => {
     it('returns 401 when auth header is missing', async () => {
       const res = await request(makeApp(mod)).post(`/scripts/${SCRIPT_ID}/promote`)
       expect(res.status).toBe(401)
+    })
+
+    it('returns 403 when the user is not an admin', async () => {
+      const res = await request(makeApp(mod, denyAdmin))
+        .post(`/scripts/${SCRIPT_ID}/promote`)
+        .set('Authorization', AUTH_HEADER)
+
+      expect(res.status).toBe(403)
+      expect(mod.promoteScript.execute).not.toHaveBeenCalled()
     })
 
     it('returns 500 on unexpected errors', async () => {

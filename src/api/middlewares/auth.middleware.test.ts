@@ -1,12 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import jwt from 'jsonwebtoken'
 import type { Response, NextFunction } from 'express'
-import {
-  buildAuthMiddleware,
-  authMiddleware,
-  type AuthRequest,
-} from './auth.middleware.js'
+import { buildAuthMiddleware, type AuthRequest } from './auth.middleware.js'
 import type { ITokenIssuer } from '../../contexts/user/domain/ports/ITokenIssuer.js'
+import type { ITokenDenylist } from '../../contexts/user/domain/ports/ITokenDenylist.js'
 
 function makeRes() {
   const res = {} as Response
@@ -38,10 +34,10 @@ describe('buildAuthMiddleware', () => {
     next = vi.fn() as unknown as NextFunction & ReturnType<typeof vi.fn>
   })
 
-  it('returns 401 when the Authorization header is missing', () => {
+  it('returns 401 when the Authorization header is missing', async () => {
     const middleware = buildAuthMiddleware(tokenIssuer)
     const res = makeRes()
-    middleware(makeReq(), res, next)
+    await middleware(makeReq(), res, next)
 
     expect(res.status).toHaveBeenCalledWith(401)
     expect(res.json).toHaveBeenCalledWith({ error: 'Unauthorized' })
@@ -49,21 +45,21 @@ describe('buildAuthMiddleware', () => {
     expect(tokenIssuer.verify).not.toHaveBeenCalled()
   })
 
-  it('returns 401 when the header does not start with "Bearer "', () => {
+  it('returns 401 when the header does not start with "Bearer "', async () => {
     const middleware = buildAuthMiddleware(tokenIssuer)
     const res = makeRes()
-    middleware(makeReq({ authorization: 'Basic xyz' }), res, next)
+    await middleware(makeReq({ authorization: 'Basic xyz' }), res, next)
 
     expect(res.status).toHaveBeenCalledWith(401)
     expect(res.json).toHaveBeenCalledWith({ error: 'Unauthorized' })
     expect(next).not.toHaveBeenCalled()
   })
 
-  it('returns 401 with "Invalid token" when verify returns null', () => {
+  it('returns 401 with "Invalid token" when verify returns null', async () => {
     ;(tokenIssuer.verify as ReturnType<typeof vi.fn>).mockReturnValue(null)
     const middleware = buildAuthMiddleware(tokenIssuer)
     const res = makeRes()
-    middleware(makeReq({ authorization: 'Bearer bad-token' }), res, next)
+    await middleware(makeReq({ authorization: 'Bearer bad-token' }), res, next)
 
     expect(tokenIssuer.verify).toHaveBeenCalledWith('bad-token')
     expect(res.status).toHaveBeenCalledWith(401)
@@ -71,77 +67,64 @@ describe('buildAuthMiddleware', () => {
     expect(next).not.toHaveBeenCalled()
   })
 
-  it('attaches userId and calls next on a valid token', () => {
+  it('attaches userId/token and calls next on a valid token', async () => {
     ;(tokenIssuer.verify as ReturnType<typeof vi.fn>).mockReturnValue({
       sub: 'user-7',
       email: 'a@b.com',
+      jti: 'jti-1',
+      exp: 123,
     })
     const middleware = buildAuthMiddleware(tokenIssuer)
     const req = makeReq({ authorization: 'Bearer good-token' })
     const res = makeRes()
-    middleware(req, res, next)
+    await middleware(req, res, next)
 
     expect(tokenIssuer.verify).toHaveBeenCalledWith('good-token')
     expect(req.userId).toBe('user-7')
+    expect(req.token).toEqual({ jti: 'jti-1', exp: 123 })
     expect(next).toHaveBeenCalledTimes(1)
     expect(res.status).not.toHaveBeenCalled()
-    expect(res.json).not.toHaveBeenCalled()
-  })
-})
-
-describe('authMiddleware (legacy)', () => {
-  let next: NextFunction & ReturnType<typeof vi.fn>
-
-  beforeEach(() => {
-    vi.stubEnv('JWT_SECRET', 'test-secret')
-    next = vi.fn() as unknown as NextFunction & ReturnType<typeof vi.fn>
   })
 
-  it('returns 401 when the Authorization header is missing', () => {
-    const res = makeRes()
-    authMiddleware(makeReq(), res, next)
+  describe('with a token denylist', () => {
+    function denylist(revoked: boolean): ITokenDenylist {
+      return { revoke: vi.fn(), isRevoked: vi.fn().mockResolvedValue(revoked) }
+    }
 
-    expect(res.status).toHaveBeenCalledWith(401)
-    expect(res.json).toHaveBeenCalledWith({ error: 'Unauthorized' })
-    expect(next).not.toHaveBeenCalled()
-  })
+    beforeEach(() => {
+      ;(tokenIssuer.verify as ReturnType<typeof vi.fn>).mockReturnValue({
+        sub: 'user-7',
+        email: 'a@b.com',
+        jti: 'jti-1',
+      })
+    })
 
-  it('returns 401 when the header does not start with "Bearer "', () => {
-    const res = makeRes()
-    authMiddleware(makeReq({ authorization: 'Token abc' }), res, next)
+    it('rejects a revoked token with 401', async () => {
+      const middleware = buildAuthMiddleware(tokenIssuer, denylist(true))
+      const res = makeRes()
+      await middleware(makeReq({ authorization: 'Bearer good-token' }), res, next)
 
-    expect(res.status).toHaveBeenCalledWith(401)
-    expect(res.json).toHaveBeenCalledWith({ error: 'Unauthorized' })
-    expect(next).not.toHaveBeenCalled()
-  })
+      expect(res.status).toHaveBeenCalledWith(401)
+      expect(res.json).toHaveBeenCalledWith({ error: 'Invalid token' })
+      expect(next).not.toHaveBeenCalled()
+    })
 
-  it('returns 401 with "Invalid token" when the JWT is malformed', () => {
-    const res = makeRes()
-    authMiddleware(makeReq({ authorization: 'Bearer not-a-jwt' }), res, next)
+    it('allows a non-revoked token', async () => {
+      const middleware = buildAuthMiddleware(tokenIssuer, denylist(false))
+      const req = makeReq({ authorization: 'Bearer good-token' })
+      await middleware(req, makeRes(), next)
 
-    expect(res.status).toHaveBeenCalledWith(401)
-    expect(res.json).toHaveBeenCalledWith({ error: 'Invalid token' })
-    expect(next).not.toHaveBeenCalled()
-  })
+      expect(req.userId).toBe('user-7')
+      expect(next).toHaveBeenCalledTimes(1)
+    })
 
-  it('returns 401 with "Invalid token" when the JWT is signed with a different secret', () => {
-    const token = jwt.sign({ sub: 'user-42' }, 'other-secret')
-    const res = makeRes()
-    authMiddleware(makeReq({ authorization: `Bearer ${token}` }), res, next)
+    it('forwards denylist errors to next', async () => {
+      const err = new Error('redis down')
+      const broken: ITokenDenylist = { revoke: vi.fn(), isRevoked: vi.fn().mockRejectedValue(err) }
+      const middleware = buildAuthMiddleware(tokenIssuer, broken)
+      await middleware(makeReq({ authorization: 'Bearer good-token' }), makeRes(), next)
 
-    expect(res.status).toHaveBeenCalledWith(401)
-    expect(res.json).toHaveBeenCalledWith({ error: 'Invalid token' })
-    expect(next).not.toHaveBeenCalled()
-  })
-
-  it('attaches userId and calls next on a valid token', () => {
-    const token = jwt.sign({ sub: 'user-42' }, 'test-secret')
-    const req = makeReq({ authorization: `Bearer ${token}` })
-    const res = makeRes()
-    authMiddleware(req, res, next)
-
-    expect(req.userId).toBe('user-42')
-    expect(next).toHaveBeenCalledTimes(1)
-    expect(res.status).not.toHaveBeenCalled()
+      expect(next).toHaveBeenCalledWith(err)
+    })
   })
 })
