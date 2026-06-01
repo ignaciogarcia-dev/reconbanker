@@ -2,6 +2,7 @@ import type pg from 'pg'
 import type { ILogger } from '../shared/logger/ILogger.js'
 import type { IEventBus } from '../shared/events/IEventBus.js'
 import type { IWebhookNotificationLog } from '../shared/infrastructure/webhooks/IWebhookNotificationLog.js'
+import { credentialsCipher } from '../shared/infrastructure/crypto/CredentialsCipher.js'
 import { executorFromPool } from '../contexts/banking/infrastructure/Executor.js'
 import { BankTransactionRepository } from '../contexts/banking/infrastructure/BankTransactionRepository.js'
 import { ScrapeRunRepository } from '../contexts/banking/infrastructure/ScrapeRunRepository.js'
@@ -85,7 +86,7 @@ export function buildBankingModule(container: ContainerBase): BankingModule {
       scriptCode: script.codeSnapshot,
       loginMode: account.loginMode,
       pollIntervalMs: Number(process.env.PERSISTENT_POLL_INTERVAL_MS ?? 60_000),
-      context: { accountId, username: creds.username, password: creds.encrypted_password, lastExternalId },
+      context: { accountId, username: creds.username, password: credentialsCipher().decrypt(creds.encrypted_password), lastExternalId },
       onTransactions: async (batch) => { await ingest.execute(accountId, script.id, batch) },
       shouldStop: () => false,
       // Bank-local day key; a change clears runMonitor's dedup set so it stays bounded

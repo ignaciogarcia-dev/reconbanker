@@ -1,7 +1,17 @@
 import { AccountConfig, AccountConfigInput } from '../domain/AccountConfig.js'
 import { IAccountConfigRepository } from '../domain/IAccountConfigRepository.js'
+import { credentialsCipher } from '../../../shared/infrastructure/crypto/CredentialsCipher.js'
 import { Executor } from './Executor.js'
 import { AccountConfigRowMapper, AccountConfigRow } from './mappers/AccountConfigRowMapper.js'
+
+function decryptConfig(config: AccountConfig): AccountConfig {
+  const cipher = credentialsCipher()
+  return {
+    ...config,
+    authToken: cipher.decryptNullable(config.authToken),
+    webhookAuthToken: cipher.decryptNullable(config.webhookAuthToken),
+  }
+}
 
 export class AccountConfigRepository implements IAccountConfigRepository {
   constructor(private readonly executor: Executor) {}
@@ -15,10 +25,13 @@ export class AccountConfigRepository implements IAccountConfigRepository {
       `SELECT * FROM account_config WHERE account_id = $1`,
       [accountId]
     )
-    return rows[0] ? AccountConfigRowMapper.toDto(rows[0]) : null
+    return rows[0] ? decryptConfig(AccountConfigRowMapper.toDto(rows[0])) : null
   }
 
   async upsert(input: AccountConfigInput): Promise<AccountConfig> {
+    const cipher = credentialsCipher()
+    const encryptedAuthToken = cipher.encryptNullable(input.authToken)
+    const encryptedWebhookAuthToken = cipher.encryptNullable(input.webhookAuthToken)
     const { rows } = await this.executor.query<AccountConfigRow>(
       `INSERT INTO account_config
          (id, account_id, pending_orders_endpoint, webhook_url,
@@ -51,9 +64,9 @@ export class AccountConfigRepository implements IAccountConfigRepository {
         input.pollingMethod,
         input.pollingBody,
         input.authType,
-        input.authToken,
+        encryptedAuthToken,
         input.webhookAuthType,
-        input.webhookAuthToken,
+        encryptedWebhookAuthToken,
         input.notifyOnExpired,
         input.webhookExtraFields,
         input.silentIngestion,
@@ -61,6 +74,6 @@ export class AccountConfigRepository implements IAccountConfigRepository {
         input.loginMode,
       ]
     )
-    return AccountConfigRowMapper.toDto(rows[0])
+    return decryptConfig(AccountConfigRowMapper.toDto(rows[0]))
   }
 }

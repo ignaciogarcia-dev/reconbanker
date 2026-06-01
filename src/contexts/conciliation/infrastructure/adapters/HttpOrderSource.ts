@@ -22,6 +22,7 @@ export class HttpOrderSource implements IOrderSource {
       method: config.pollingMethod,
       headers,
       body: isPost ? JSON.stringify(config.pollingBody ?? {}) : undefined,
+      signal: AbortSignal.timeout(Number(process.env.POLLING_TIMEOUT_MS ?? 15_000)),
     })
 
     const contentType = response.headers.get('content-type') ?? ''

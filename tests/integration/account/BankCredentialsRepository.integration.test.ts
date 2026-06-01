@@ -3,6 +3,7 @@ import { getTestPool, truncateAll, closeTestPool } from '../helpers/testDb.js'
 import { seedUser, seedAccount } from '../helpers/seed.js'
 import { BankCredentialsRepository } from '../../../src/contexts/account/infrastructure/BankCredentialsRepository.js'
 import { executorFromPool } from '../../../src/contexts/account/infrastructure/Executor.js'
+import { credentialsCipher } from '../../../src/shared/infrastructure/crypto/CredentialsCipher.js'
 
 describe('BankCredentialsRepository (integration)', () => {
   beforeEach(async () => { await truncateAll() })
@@ -65,7 +66,9 @@ describe('BankCredentialsRepository (integration)', () => {
       )
       expect(rows).toHaveLength(1)
       expect(rows[0].username).toBe('alice2')
-      expect(rows[0].encrypted_password).toBe('enc-2')
+      // Stored encrypted at rest, not in plaintext, but decrypts to the original.
+      expect(rows[0].encrypted_password).not.toBe('enc-2')
+      expect(credentialsCipher().decrypt(rows[0].encrypted_password)).toBe('enc-2')
       expect(rows[0].status).toBe('valid')
     })
 

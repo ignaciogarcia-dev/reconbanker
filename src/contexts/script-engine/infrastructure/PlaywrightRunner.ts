@@ -1,5 +1,6 @@
 import { BankScript } from '../domain/BankScript.js'
 import { db } from '../../../shared/infrastructure/db/client.js'
+import { credentialsCipher } from '../../../shared/infrastructure/crypto/CredentialsCipher.js'
 
 interface ScrapedTransaction {
   externalId: string
@@ -29,7 +30,7 @@ export class PlaywrightRunner {
 
     const { chromium } = await import('playwright')
     const browser = await chromium.launch({
-      headless: false,
+      headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -54,7 +55,7 @@ export class PlaywrightRunner {
     const scriptContext = {
       accountId: context.accountId,
       username: creds.username,
-      password: creds.encrypted_password,
+      password: credentialsCipher().decrypt(creds.encrypted_password),
       lastExternalId: context.lastExternalId,
     }
 

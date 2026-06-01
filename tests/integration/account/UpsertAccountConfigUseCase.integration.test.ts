@@ -27,8 +27,8 @@ function baseInput(accountId: string, userId: string, overrides: Partial<UpsertA
   return {
     userId,
     accountId,
-    pendingOrdersEndpoint: 'https://example.com/orders',
-    webhookUrl: 'https://hook.example.com',
+    pendingOrdersEndpoint: 'https://93.184.216.34/orders',
+    webhookUrl: 'https://93.184.216.34/hook',
     retryLimit: 3,
     pollingMethod: 'GET',
     pollingBody: null,
@@ -62,14 +62,14 @@ describe('UpsertAccountConfigUseCase (integration)', () => {
     }))
 
     expect(result.accountId).toBe(acc.id)
-    expect(result.webhookUrl).toBe('https://hook.example.com')
+    expect(result.webhookUrl).toBe('https://93.184.216.34/hook')
     expect(result.bankUsername).toBe('alice')
 
     const { rows: configs } = await getTestPool().query(
       `SELECT account_id, webhook_url FROM account_config WHERE account_id=$1`, [acc.id]
     )
     expect(configs).toHaveLength(1)
-    expect(configs[0].webhook_url).toBe('https://hook.example.com')
+    expect(configs[0].webhook_url).toBe('https://93.184.216.34/hook')
 
     const { rows: creds } = await getTestPool().query(
       `SELECT username, status FROM bank_credentials WHERE account_id=$1`, [acc.id]
@@ -163,14 +163,14 @@ describe('UpsertAccountConfigUseCase (integration)', () => {
     const second = await useCase.execute(baseInput(acc.id, user.id, {
       pendingOrdersEndpoint: null,
       retryLimit: 7,
-      webhookUrl: 'https://hook.example.com/v2',
+      webhookUrl: 'https://93.184.216.34/v2',
       bankUsername: 'alice-v2',
       bankPassword: 'secret-v2',
     }))
 
     expect(second.id).toBe(first.id)
     expect(second.retryLimit).toBe(7)
-    expect(second.webhookUrl).toBe('https://hook.example.com/v2')
+    expect(second.webhookUrl).toBe('https://93.184.216.34/v2')
     expect(second.bankUsername).toBe('alice-v2')
 
     const { rows: configs } = await getTestPool().query(

@@ -58,7 +58,7 @@ describe('PersistentPlaywrightRunner', () => {
     const handle = await runner.start(baseInput())
     expect(launchPersistentContextMock).toHaveBeenCalledWith(
       expect.stringContaining('acc-1'),
-      expect.objectContaining({ headless: false }),
+      expect.objectContaining({ headless: true }),
     )
     expect(page.addInitScript).toHaveBeenCalled()
 

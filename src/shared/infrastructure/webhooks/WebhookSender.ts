@@ -2,6 +2,8 @@ import { logger } from '../logger/index.js'
 
 const log = logger.child('[webhook]')
 
+const WEBHOOK_TIMEOUT_MS = Number(process.env.WEBHOOK_TIMEOUT_MS ?? 15_000)
+
 interface SendWebhookOptions {
   url: string
   payload: Record<string, unknown>
@@ -30,7 +32,7 @@ export async function sendWebhook({ url, payload, authType, authToken }: SendWeb
   log.debug(`headers`, { headers: { ...headers, Authorization: headers['Authorization'] ? '[REDACTED]' : undefined } })
   log.debug(`body`, { body })
 
-  const response = await fetch(url, { method: 'POST', headers, body })
+  const response = await fetch(url, { method: 'POST', headers, body, signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS) })
   const responseBody = await response.text().catch(() => '')
   log.info(`response`, { status: response.status, statusText: response.statusText, body: responseBody })
 

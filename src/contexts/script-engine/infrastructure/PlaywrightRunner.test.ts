@@ -85,7 +85,7 @@ describe('PlaywrightRunner', () => {
       password: 'pw1',
       lastExternalId: 'last-x',
     })
-    expect(launchMock).toHaveBeenCalledWith(expect.objectContaining({ headless: false }))
+    expect(launchMock).toHaveBeenCalledWith(expect.objectContaining({ headless: true }))
     expect(browser.newContext).toHaveBeenCalled()
     expect(close).toHaveBeenCalled()
   })
