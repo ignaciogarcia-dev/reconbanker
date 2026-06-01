@@ -1,9 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import request from 'supertest'
+import type { RequestHandler } from 'express'
 import { buildBanksRouter } from './banks.routes.js'
 import { buildTestApp, AUTH_HEADER } from '../../../tests/helpers/buildTestApp.js'
 import { ConflictError, NotFoundError } from '../../shared/errors/index.js'
 import type { AccountModule } from '../../composition/accountModule.js'
+
+const allowAdmin: RequestHandler = (_req, _res, next) => next()
+const denyAdmin: RequestHandler = (_req, res) => { res.status(403).json({ error: 'Forbidden' }) }
 
 type MockedAccountModule = {
   listBanks: { execute: ReturnType<typeof vi.fn> }
@@ -19,10 +23,10 @@ function makeAccountModule(): MockedAccountModule {
   }
 }
 
-function makeApp(account: MockedAccountModule) {
+function makeApp(account: MockedAccountModule, requireAdmin: RequestHandler = allowAdmin) {
   return buildTestApp({
     basePath: '/banks',
-    router: buildBanksRouter(account as unknown as AccountModule),
+    router: buildBanksRouter(account as unknown as AccountModule, requireAdmin),
     protected: true,
   })
 }
@@ -140,6 +144,16 @@ describe('banks.routes', () => {
         .post('/banks')
         .send({ code: 'bnk', name: 'Bank' })
       expect(res.status).toBe(401)
+    })
+
+    it('returns 403 when the user is not an admin', async () => {
+      const res = await request(makeApp(account, denyAdmin))
+        .post('/banks')
+        .set('Authorization', AUTH_HEADER)
+        .send({ code: 'bnk', name: 'Bank' })
+
+      expect(res.status).toBe(403)
+      expect(account.createBank.execute).not.toHaveBeenCalled()
     })
   })
 

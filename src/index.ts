@@ -1,4 +1,5 @@
 import 'dotenv/config'
+import './shared/config/runValidateEnv.js'
 import { createServer } from './api/server.js'
 import { buildContainer } from './composition/container.js'
 import { createBankScrapeWorker } from './shared/infrastructure/queues/workers/bank-scrape.worker.js'
@@ -7,9 +8,9 @@ import { createOrderIngestionWorker } from './shared/infrastructure/queues/worke
 import { Scheduler } from './shared/infrastructure/queues/Scheduler.js'
 import { TransactionIngestedEvent } from './shared/events/events/TransactionIngested.event.js'
 import { ConciliationMatchedEvent } from './shared/events/events/ConciliationMatched.event.js'
-import { Queues } from './shared/infrastructure/queues/QueueRegistry.js'
+import { Queues, redis } from './shared/infrastructure/queues/QueueRegistry.js'
 
-const container = buildContainer()
+const container = buildContainer({ redis })
 const log = container.logger.child('[app]')
 
 container.eventBus.subscribe<TransactionIngestedEvent>('TransactionIngested', (event) =>

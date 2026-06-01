@@ -10,7 +10,17 @@ describe('JwtTokenIssuer', () => {
     const token = issuer.issue({ sub: 'u-1', email: 'me@x.io' })
 
     expect(token).toBeTypeOf('string')
-    expect(issuer.verify(token)).toEqual({ sub: 'u-1', email: 'me@x.io' })
+    const verified = issuer.verify(token)
+    expect(verified).toMatchObject({ sub: 'u-1', email: 'me@x.io' })
+    expect(verified?.jti).toBeTypeOf('string')
+    expect(verified?.exp).toBeTypeOf('number')
+  })
+
+  it('issues a unique jti per token (for revocation)', () => {
+    const issuer = new JwtTokenIssuer(SECRET)
+    const a = issuer.verify(issuer.issue({ sub: 'u-1', email: 'me@x.io' }))
+    const b = issuer.verify(issuer.issue({ sub: 'u-1', email: 'me@x.io' }))
+    expect(a?.jti).not.toBe(b?.jti)
   })
 
   it('honors a custom expiresIn', () => {

@@ -56,4 +56,12 @@ export class UserRepository implements IUserRepository {
   async setOperationMode(userId: string, mode: OperationMode): Promise<void> {
     await this.executor.query(`UPDATE users SET operation_mode = $2 WHERE id = $1`, [userId, mode])
   }
+
+  async getRole(userId: string): Promise<string | null> {
+    const { rows } = await this.executor.query<{ role: string | null }>(
+      `SELECT role FROM users WHERE id = $1`,
+      [userId]
+    )
+    return rows[0]?.role ?? null
+  }
 }
