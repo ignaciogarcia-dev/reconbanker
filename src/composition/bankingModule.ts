@@ -1,6 +1,7 @@
 import type pg from 'pg'
 import type { ILogger } from '../shared/logger/ILogger.js'
 import type { IEventBus } from '../shared/events/IEventBus.js'
+import type { IWebhookNotificationLog } from '../shared/infrastructure/webhooks/IWebhookNotificationLog.js'
 import { executorFromPool } from '../contexts/banking/infrastructure/Executor.js'
 import { BankTransactionRepository } from '../contexts/banking/infrastructure/BankTransactionRepository.js'
 import { ScrapeRunRepository } from '../contexts/banking/infrastructure/ScrapeRunRepository.js'
@@ -28,6 +29,7 @@ interface ContainerBase {
   pool: pg.Pool
   logger: ILogger
   eventBus: IEventBus
+  webhookLog: IWebhookNotificationLog
   account: AccountModule
   user: UserModule
 }
@@ -114,6 +116,7 @@ export function buildBankingModule(container: ContainerBase): BankingModule {
     }),
     notifyBankMovement: new NotifyBankMovementUseCase({
       bankTxRepo, accountReader, configReader, userModeReader,
+      webhookLog: container.webhookLog,
     }),
     listBankMovements: new ListBankMovementsUseCase(readModel),
     reNotifyBankMovement: new ReNotifyBankMovementUseCase({

@@ -55,6 +55,7 @@ function makeContainer() {
     logger,
     eventBus: { publish: vi.fn(), subscribe: vi.fn() } as any,
     unitOfWork: { run: async (fn: any) => fn({}) } as any,
+    webhookLog: { record: vi.fn() } as any,
     account: {
       accountRepository,
       accountConfigRepository,
