@@ -7,6 +7,7 @@ import { UnauthorizedError, ValidationError } from '../../shared/errors/index.js
 import { enqueueBankScrape } from '../../shared/infrastructure/queues/BankScrapeQueue.js'
 import type { AccountModule } from '../../composition/accountModule.js'
 import type { AccountConfigDto } from '../../contexts/account/application/dto/AccountConfigDto.js'
+import { SECRET_PRESENT_MASK } from '../../contexts/account/application/secretMask.js'
 
 const accountIdParams = z.object({ accountId: z.string().uuid() })
 
@@ -86,9 +87,10 @@ function toJson(config: AccountConfigDto) {
     polling_method: config.pollingMethod,
     polling_body: config.pollingBody,
     auth_type: config.authType,
-    auth_token: config.authToken,
+    // Never expose stored secrets; signal presence with a sentinel the client echoes back.
+    auth_token: config.authToken ? SECRET_PRESENT_MASK : null,
     webhook_auth_type: config.webhookAuthType,
-    webhook_auth_token: config.webhookAuthToken,
+    webhook_auth_token: config.webhookAuthToken ? SECRET_PRESENT_MASK : null,
     notify_on_expired: config.notifyOnExpired,
     webhook_extra_fields: config.webhookExtraFields,
     silent_ingestion: config.silentIngestion,
@@ -122,10 +124,10 @@ export function buildAccountsRouter(account: AccountModule): Router {
   }))
 
   router.delete('/:accountId', controller(async (req: AuthRequest, res) => {
-    requireUserId(req)
+    const userId = requireUserId(req)
     const { accountId } = validateParams(req, accountIdParams)
     const { confirmation_name } = validateBody(req, deleteAccountSchema)
-    await account.deleteAccount.execute({ id: accountId, confirmationName: confirmation_name })
+    await account.deleteAccount.execute({ id: accountId, userId, confirmationName: confirmation_name })
     res.status(204).end()
   }))
 

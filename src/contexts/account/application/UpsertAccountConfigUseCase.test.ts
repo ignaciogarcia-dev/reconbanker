@@ -25,8 +25,9 @@ function buildSut(mode: 'reconcile' | 'passthrough' = 'reconcile') {
 const baseInput = {
   userId: 'user-1',
   accountId: 'acc-1',
-  pendingOrdersEndpoint: 'https://example.com/orders',
-  webhookUrl: 'https://hook.example.com',
+  // Literal public IPs so the SSRF guard runs without needing DNS in tests.
+  pendingOrdersEndpoint: 'https://93.184.216.34/orders',
+  webhookUrl: 'https://93.184.216.34/hook',
   retryLimit: 3,
   pollingMethod: 'GET' as const,
   pollingBody: null,
@@ -55,6 +56,20 @@ describe('UpsertAccountConfigUseCase', () => {
     const { useCase } = buildSut()
     await expect(
       useCase.execute({ ...baseInput, webhookUrl: '' })
+    ).rejects.toBeInstanceOf(ValidationError)
+  })
+
+  it('rejects a webhook_url pointing at an internal address (SSRF guard)', async () => {
+    const { useCase } = buildSut()
+    await expect(
+      useCase.execute({ ...baseInput, webhookUrl: 'http://169.254.169.254/latest/meta-data' })
+    ).rejects.toBeInstanceOf(ValidationError)
+  })
+
+  it('rejects a pending_orders_endpoint pointing at a private address (SSRF guard)', async () => {
+    const { useCase } = buildSut()
+    await expect(
+      useCase.execute({ ...baseInput, pendingOrdersEndpoint: 'http://10.0.0.5/orders' })
     ).rejects.toBeInstanceOf(ValidationError)
   })
 
@@ -90,6 +105,21 @@ describe('UpsertAccountConfigUseCase', () => {
     const { useCase } = buildSut()
     const result = await useCase.execute({ ...baseInput, bankUsername: 'alice', bankPassword: 'secret' })
     expect(result.bankUsername).toBe('alice')
+  })
+
+  it('preserves the stored secret when the masked sentinel is sent back', async () => {
+    const { useCase, configRepo } = buildSut()
+    await useCase.execute({ ...baseInput, authToken: 'original-token', webhookAuthToken: 'original-webhook' })
+
+    await useCase.execute({
+      ...baseInput,
+      authToken: '__secret_present__',
+      webhookAuthToken: '__secret_present__',
+    })
+
+    const stored = configRepo.store.get('acc-1')!
+    expect(stored.authToken).toBe('original-token')
+    expect(stored.webhookAuthToken).toBe('original-webhook')
   })
 
   it('normalizes null/empty authToken and webhookAuthToken to null', async () => {

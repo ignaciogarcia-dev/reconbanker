@@ -29,7 +29,7 @@ export class PersistentPlaywrightRunner {
 
     const userDataDir = path.join(PROFILES_DIR, input.context.accountId)
     const browserContext = await chromium.launchPersistentContext(userDataDir, {
-      headless: false,
+      headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
       viewport: { width: 1280, height: 800 },
       locale: 'es-EC',
       userAgent:

@@ -3,6 +3,8 @@ import { IAccountConfigRepository } from '../domain/IAccountConfigRepository.js'
 import { IBankCredentialsRepository } from '../domain/IBankCredentialsRepository.js'
 import { IUserOperationModeReader } from '../domain/ports/IUserOperationModeReader.js'
 import { NotFoundError, ValidationError } from '../../../shared/errors/index.js'
+import { assertSafeUrl } from '../../../shared/net/assertSafeUrl.js'
+import { SECRET_PRESENT_MASK } from './secretMask.js'
 import { AccountConfigDto, UpsertAccountConfigInput } from './dto/AccountConfigDto.js'
 
 export class UpsertAccountConfigUseCase {
@@ -20,6 +22,7 @@ export class UpsertAccountConfigUseCase {
     if (!input.webhookUrl) {
       throw new ValidationError('webhook_url is required', { field: 'webhook_url' })
     }
+    await assertSafeUrl(input.webhookUrl, 'webhook_url')
 
     const mode = await this.userModeReader.getOperationMode(input.userId)
     const normalizedPendingEndpoint = input.pendingOrdersEndpoint?.trim() || null
@@ -31,6 +34,16 @@ export class UpsertAccountConfigUseCase {
       )
     }
 
+    if (normalizedPendingEndpoint) {
+      await assertSafeUrl(normalizedPendingEndpoint, 'pending_orders_endpoint')
+    }
+
+    // Clients receive a masked sentinel instead of the real token; echoing it
+    // back on save means "leave the stored secret untouched".
+    const existing = await this.configRepo.findByAccountId(input.accountId)
+    const resolveSecret = (incoming: string | null, current: string | null | undefined) =>
+      incoming === SECRET_PRESENT_MASK ? (current ?? null) : (incoming?.trim() || null)
+
     const config = await this.configRepo.upsert({
       accountId: input.accountId,
       pendingOrdersEndpoint: normalizedPendingEndpoint,
@@ -39,9 +52,9 @@ export class UpsertAccountConfigUseCase {
       pollingMethod: input.pollingMethod,
       pollingBody: input.pollingBody,
       authType: input.authType,
-      authToken: input.authToken?.trim() || null,
+      authToken: resolveSecret(input.authToken, existing?.authToken),
       webhookAuthType: input.webhookAuthType,
-      webhookAuthToken: input.webhookAuthToken?.trim() || null,
+      webhookAuthToken: resolveSecret(input.webhookAuthToken, existing?.webhookAuthToken),
       notifyOnExpired: input.notifyOnExpired,
       webhookExtraFields: input.webhookExtraFields,
       silentIngestion: input.silentIngestion,
