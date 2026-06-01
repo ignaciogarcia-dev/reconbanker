@@ -16,6 +16,8 @@ const dbName = baseUrl.split('/').pop()!.split('?')[0]
 process.env.DATABASE_URL = baseUrl
 process.env.JWT_SECRET = process.env.JWT_SECRET ?? 'integration-test-secret'
 process.env.REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379'
+process.env.CREDENTIALS_ENCRYPTION_KEY =
+  process.env.CREDENTIALS_ENCRYPTION_KEY ?? 'BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc='
 
 async function ensureDatabase(): Promise<void> {
   const client = new pg.Client({ connectionString: adminUrl })

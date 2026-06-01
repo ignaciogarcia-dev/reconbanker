@@ -1,4 +1,5 @@
 import winston from 'winston'
+import DailyRotateFile from 'winston-daily-rotate-file'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { mkdirSync } from 'fs'
@@ -23,10 +24,18 @@ const consoleFormat = combine(
   })
 )
 
+const rotation = {
+  datePattern: 'YYYY-MM-DD',
+  zippedArchive: true,
+  maxSize: process.env.LOG_MAX_SIZE ?? '20m',
+  maxFiles: process.env.LOG_MAX_FILES ?? '14d',
+  format: fileFormat,
+}
+
 export function buildTransports(): winston.transport[] {
   const transports: winston.transport[] = [
-    new winston.transports.File({ filename: path.join(logsDir, 'error.log'), level: 'error', format: fileFormat }),
-    new winston.transports.File({ filename: path.join(logsDir, 'app.log'), format: fileFormat }),
+    new DailyRotateFile({ ...rotation, filename: path.join(logsDir, 'error-%DATE%.log'), level: 'error' }),
+    new DailyRotateFile({ ...rotation, filename: path.join(logsDir, 'app-%DATE%.log') }),
   ]
   if (process.env.NODE_ENV !== 'production') {
     transports.push(new winston.transports.Console({ format: consoleFormat }))
