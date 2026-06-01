@@ -10,3 +10,7 @@ if (!process.env.JWT_SECRET) {
 if (!process.env.REDIS_URL) {
   process.env.REDIS_URL = 'redis://localhost:6379'
 }
+if (!process.env.CREDENTIALS_ENCRYPTION_KEY) {
+  // Fixed 32-byte base64 key for deterministic test encryption.
+  process.env.CREDENTIALS_ENCRYPTION_KEY = 'BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc='
+}

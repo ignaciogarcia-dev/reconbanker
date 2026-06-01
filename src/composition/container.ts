@@ -1,4 +1,5 @@
 import type pg from 'pg'
+import type { Redis } from 'ioredis'
 import { db } from '../shared/infrastructure/db/client.js'
 import { logger as defaultLogger } from '../shared/infrastructure/logger/index.js'
 import type { ILogger } from '../shared/logger/ILogger.js'
@@ -14,6 +15,7 @@ import { buildScriptEngineModule, type ScriptEngineModule } from './scriptEngine
 
 export interface Container {
   pool: pg.Pool
+  redis?: Redis
   logger: ILogger
   eventBus: IEventBus
   unitOfWork: IUnitOfWork
@@ -28,6 +30,7 @@ export interface ContainerOverrides {
   pool?: pg.Pool
   logger?: ILogger
   eventBus?: IEventBus
+  redis?: Redis
 }
 
 export function buildContainer(overrides: ContainerOverrides = {}): Container {
@@ -37,7 +40,7 @@ export function buildContainer(overrides: ContainerOverrides = {}): Container {
   const unitOfWork = new PgUnitOfWork(pool)
 
   // Modules are wired sequentially; downstream modules pull from already-built ones.
-  const container = { pool, logger, eventBus, unitOfWork } as unknown as Container
+  const container = { pool, logger, eventBus, unitOfWork, redis: overrides.redis } as unknown as Container
   container.user = buildUserModule(container)
   container.account = buildAccountModule(container)
   container.banking = buildBankingModule(container)

@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import type { RequestHandler } from 'express'
 import { z } from 'zod'
 import { controller } from '../http/controller.js'
 import { validateBody, validateParams } from '../http/validate.js'
@@ -12,7 +13,7 @@ const createBankSchema = z.object({
   loginUrl: z.string().optional(),
 })
 
-export function buildBanksRouter(account: AccountModule): Router {
+export function buildBanksRouter(account: AccountModule, requireAdmin: RequestHandler): Router {
   const router = Router()
 
   router.get('/', controller(async (_req, res) => {
@@ -20,7 +21,7 @@ export function buildBanksRouter(account: AccountModule): Router {
     res.json(banks)
   }))
 
-  router.post('/', controller(async (req, res) => {
+  router.post('/', requireAdmin, controller(async (req, res) => {
     const { code, name, loginUrl } = validateBody(req, createBankSchema)
     const result = await account.createBank.execute({ code, name, loginUrl })
     res.status(201).json(result)

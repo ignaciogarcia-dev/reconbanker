@@ -51,6 +51,17 @@ describe('createServer routing', () => {
     expect(res.body).toEqual({ ok: true })
   })
 
+  it('returns 503 from readiness when a dependency is unreachable', async () => {
+    const container = fakeContainer()
+    ;(container as unknown as { pool: { query: () => Promise<unknown> } }).pool = {
+      query: () => Promise.reject(new Error('db down')),
+    }
+    const res = await request(createServer(container)).get('/api/health')
+
+    expect(res.status).toBe(503)
+    expect(res.body).toEqual({ ok: false })
+  })
+
   it('protects api routes under /api', async () => {
     const res = await request(createServer(fakeContainer())).get('/api/accounts')
 

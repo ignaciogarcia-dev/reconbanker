@@ -68,43 +68,53 @@ describe('DeleteAccountUseCase', () => {
 
   it('deletes when confirmation matches', async () => {
     const del = vi.fn().mockResolvedValue(undefined)
-    const repo = { findById: async () => account(), delete: del } as any
+    const repo = { findByIdForUser: async () => account(), delete: del } as any
     const uc = new DeleteAccountUseCase(repo)
 
-    await uc.execute({ id: 'acc-1', confirmationName: 'My Account' })
+    await uc.execute({ id: 'acc-1', userId: 'u-1', confirmationName: 'My Account' })
 
     expect(del).toHaveBeenCalledWith('acc-1')
   })
 
-  it('trims whitespace from confirmation', async () => {
-    const del = vi.fn().mockResolvedValue(undefined)
-    const repo = { findById: async () => account(), delete: del } as any
+  it('scopes the lookup to the requesting user', async () => {
+    const findByIdForUser = vi.fn().mockResolvedValue(account())
+    const repo = { findByIdForUser, delete: vi.fn().mockResolvedValue(undefined) } as any
     const uc = new DeleteAccountUseCase(repo)
 
-    await uc.execute({ id: 'acc-1', confirmationName: '  My Account  ' })
+    await uc.execute({ id: 'acc-1', userId: 'u-1', confirmationName: 'My Account' })
+
+    expect(findByIdForUser).toHaveBeenCalledWith('acc-1', 'u-1')
+  })
+
+  it('trims whitespace from confirmation', async () => {
+    const del = vi.fn().mockResolvedValue(undefined)
+    const repo = { findByIdForUser: async () => account(), delete: del } as any
+    const uc = new DeleteAccountUseCase(repo)
+
+    await uc.execute({ id: 'acc-1', userId: 'u-1', confirmationName: '  My Account  ' })
 
     expect(del).toHaveBeenCalled()
   })
 
-  it('throws NotFoundError when the account does not exist', async () => {
+  it('throws NotFoundError when the account does not exist or is not owned by the user (IDOR guard)', async () => {
     const del = vi.fn()
-    const repo = { findById: async () => null, delete: del } as any
+    const repo = { findByIdForUser: async () => null, delete: del } as any
     const uc = new DeleteAccountUseCase(repo)
 
-    await expect(uc.execute({ id: 'acc-1', confirmationName: 'x' })).rejects.toBeInstanceOf(
-      NotFoundError,
-    )
+    await expect(
+      uc.execute({ id: 'acc-1', userId: 'attacker', confirmationName: 'My Account' }),
+    ).rejects.toBeInstanceOf(NotFoundError)
     expect(del).not.toHaveBeenCalled()
   })
 
   it('throws ValidationError when confirmation does not match', async () => {
     const del = vi.fn()
-    const repo = { findById: async () => account(), delete: del } as any
+    const repo = { findByIdForUser: async () => account(), delete: del } as any
     const uc = new DeleteAccountUseCase(repo)
 
-    await expect(uc.execute({ id: 'acc-1', confirmationName: 'Wrong' })).rejects.toBeInstanceOf(
-      ValidationError,
-    )
+    await expect(
+      uc.execute({ id: 'acc-1', userId: 'u-1', confirmationName: 'Wrong' }),
+    ).rejects.toBeInstanceOf(ValidationError)
     expect(del).not.toHaveBeenCalled()
   })
 })

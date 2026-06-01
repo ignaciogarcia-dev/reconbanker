@@ -1,4 +1,5 @@
 import type pg from 'pg'
+import type { Redis } from 'ioredis'
 import type { ILogger } from '../shared/logger/ILogger.js'
 import type { IEventBus } from '../shared/events/IEventBus.js'
 import type { IUnitOfWork } from '../shared/persistence/IUnitOfWork.js'
@@ -6,18 +7,21 @@ import { executorFromPool } from '../contexts/user/infrastructure/Executor.js'
 import { UserRepository } from '../contexts/user/infrastructure/UserRepository.js'
 import { BcryptPasswordHasher } from '../contexts/user/infrastructure/adapters/BcryptPasswordHasher.js'
 import { JwtTokenIssuer } from '../contexts/user/infrastructure/adapters/JwtTokenIssuer.js'
+import { RedisTokenDenylist } from '../contexts/user/infrastructure/adapters/RedisTokenDenylist.js'
 import { UserDataCleanerAdapter } from '../contexts/user/infrastructure/adapters/UserDataCleanerAdapter.js'
 import { RegisterUserUseCase } from '../contexts/user/application/RegisterUserUseCase.js'
 import { LoginUseCase } from '../contexts/user/application/LoginUseCase.js'
 import { GetCurrentUserUseCase } from '../contexts/user/application/GetCurrentUserUseCase.js'
 import { ChangeOperationModeUseCase } from '../contexts/user/application/ChangeOperationModeUseCase.js'
 import type { ITokenIssuer } from '../contexts/user/domain/ports/ITokenIssuer.js'
+import type { ITokenDenylist } from '../contexts/user/domain/ports/ITokenDenylist.js'
 
 interface ContainerBase {
   pool: pg.Pool
   logger: ILogger
   eventBus: IEventBus
   unitOfWork: IUnitOfWork
+  redis?: Redis
 }
 
 export interface UserModule {
@@ -27,6 +31,8 @@ export interface UserModule {
   changeOperationMode: ChangeOperationModeUseCase
   userRepository: UserRepository
   tokenIssuer: ITokenIssuer
+  /** Present only when a Redis client is wired (runtime); enables logout/revocation. */
+  tokenDenylist?: ITokenDenylist
 }
 
 export function buildUserModule(container: ContainerBase): UserModule {
@@ -38,10 +44,12 @@ export function buildUserModule(container: ContainerBase): UserModule {
   if (!secret) throw new Error('JWT_SECRET is required to build the user module')
   const tokenIssuer = new JwtTokenIssuer(secret)
   const dataCleaner = new UserDataCleanerAdapter()
+  const tokenDenylist = container.redis ? new RedisTokenDenylist(container.redis) : undefined
 
   return {
     userRepository,
     tokenIssuer,
+    tokenDenylist,
     registerUser: new RegisterUserUseCase(userRepository, passwordHasher),
     login: new LoginUseCase(userRepository, passwordHasher, tokenIssuer),
     getCurrentUser: new GetCurrentUserUseCase(userRepository),

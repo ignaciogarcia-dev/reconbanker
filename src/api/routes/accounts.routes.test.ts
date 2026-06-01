@@ -187,6 +187,7 @@ describe('accounts.routes', () => {
       expect(res.status).toBe(204)
       expect(account.deleteAccount.execute).toHaveBeenCalledWith({
         id: ACCOUNT_ID,
+        userId: 'user-1',
         confirmationName: 'My Account',
       })
     })
@@ -242,6 +243,21 @@ describe('accounts.routes', () => {
         login_mode: 'simple',
         bank_username: null,
       })
+    })
+
+    it('masks stored auth tokens with a sentinel instead of exposing them', async () => {
+      account.getAccountConfig.execute.mockResolvedValue(
+        configFixture({ authToken: 'real-secret', webhookAuthToken: 'real-webhook-secret' }),
+      )
+
+      const res = await request(makeApp(account))
+        .get(`/accounts/${ACCOUNT_ID}/config`)
+        .set('Authorization', AUTH_HEADER)
+
+      expect(res.status).toBe(200)
+      expect(res.body.auth_token).toBe('__secret_present__')
+      expect(res.body.webhook_auth_token).toBe('__secret_present__')
+      expect(JSON.stringify(res.body)).not.toContain('real-secret')
     })
 
     it('returns 200 with null when no config exists', async () => {

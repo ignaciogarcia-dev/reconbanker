@@ -1,5 +1,6 @@
 import { BankCredentialsInput, BankCredentialsRecord, BankCredentialsStatus, validateBankCredentialsInput } from '../domain/BankCredentials.js'
 import { IBankCredentialsRepository } from '../domain/IBankCredentialsRepository.js'
+import { credentialsCipher } from '../../../shared/infrastructure/crypto/CredentialsCipher.js'
 import { Executor } from './Executor.js'
 
 interface BankCredentialsRow {
@@ -41,6 +42,7 @@ export class BankCredentialsRepository implements IBankCredentialsRepository {
 
   async upsert(input: BankCredentialsInput): Promise<void> {
     validateBankCredentialsInput(input)
+    const encryptedPassword = credentialsCipher().encrypt(input.encryptedPassword)
     await this.executor.query(
       `INSERT INTO bank_credentials (id, account_id, username, encrypted_password, status)
        VALUES (gen_random_uuid(), $1, $2, $3, 'valid')
@@ -49,7 +51,7 @@ export class BankCredentialsRepository implements IBankCredentialsRepository {
          encrypted_password = $3,
          status             = 'valid',
          last_validated_at  = now()`,
-      [input.accountId, input.username.trim(), input.encryptedPassword]
+      [input.accountId, input.username.trim(), encryptedPassword]
     )
   }
 
