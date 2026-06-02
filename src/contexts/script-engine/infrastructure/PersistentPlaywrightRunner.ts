@@ -1,5 +1,6 @@
 import path from 'path'
 import { ScriptHooks, MonitorScriptContext, MonitorTransaction, runMonitor, MonitorStopReason } from './runMonitor.js'
+import { CHROMIUM_ARGS, USER_AGENT, VIEWPORT, isHeadless, applyAntiWebdriver } from './playwrightLaunch.js'
 
 export interface PersistentRunnerInput {
   scriptCode: string
@@ -29,24 +30,15 @@ export class PersistentPlaywrightRunner {
 
     const userDataDir = path.join(PROFILES_DIR, input.context.accountId)
     const browserContext = await chromium.launchPersistentContext(userDataDir, {
-      headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
-      viewport: { width: 1280, height: 800 },
+      headless: isHeadless(),
+      viewport: VIEWPORT,
       locale: 'es-EC',
-      userAgent:
-        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-blink-features=AutomationControlled',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-      ],
+      userAgent: USER_AGENT,
+      args: CHROMIUM_ARGS,
     })
 
     const page = browserContext.pages()[0] ?? (await browserContext.newPage())
-    await page.addInitScript(() => {
-      Object.defineProperty(navigator, 'webdriver', { get: () => undefined })
-    })
+    await applyAntiWebdriver(page)
 
     // Execute the script body; a hook-based script returns the hooks object.
     const fn = new Function('page', 'context', `return (async function(page, context){\n${input.scriptCode}\n})(page, context)`)

@@ -104,15 +104,15 @@ describe('createConciliationWorkers', () => {
     await created[0].handlers.get('completed')!({ id: 'c1' })
     expect(conciliationLog.info).toHaveBeenCalledWith('job c1 completed')
     await created[0].handlers.get('failed')!({ id: 'c1', attemptsMade: 2 }, new Error('e1'))
-    expect(conciliationLog.error).toHaveBeenCalledWith('job c1 failed (attempt 2)', { error: 'e1' })
+    expect(conciliationLog.error).toHaveBeenCalledWith('job c1 failed (attempt 2)', { error: 'e1', stack: expect.any(String) })
     await created[0].handlers.get('failed')!(undefined, new Error('e2'))
-    expect(conciliationLog.error).toHaveBeenCalledWith('job undefined failed (attempt undefined)', { error: 'e2' })
+    expect(conciliationLog.error).toHaveBeenCalledWith('job undefined failed (attempt undefined)', { error: 'e2', stack: expect.any(String) })
 
     const txLog = childLogs.get('[tx-conciliation]')!
     await created[1].handlers.get('completed')!({ id: 't1' })
     expect(txLog.info).toHaveBeenCalledWith('job t1 completed')
     await created[1].handlers.get('failed')!({ id: 't1', attemptsMade: 1 }, new Error('te'))
-    expect(txLog.error).toHaveBeenCalledWith('job t1 failed (attempt 1)', { error: 'te' })
+    expect(txLog.error).toHaveBeenCalledWith('job t1 failed (attempt 1)', { error: 'te', stack: expect.any(String) })
   })
 
   it('dead-letters a bank-movement webhook only on its final attempt', async () => {
