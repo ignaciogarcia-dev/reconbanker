@@ -96,6 +96,18 @@ describe('buildBankingModule', () => {
     )
   })
 
+  it('enqueueNotify removes a stale job before re-adding so a re-drive is not a no-op', async () => {
+    const mod = buildBankingModule(makeContainer())
+    const queue = (Queues as any).bankMovementWebhook
+    await (mod.reNotifyBankMovement as any).deps.enqueueNotify('tx-1')
+    // remove(jobId) must precede add(jobId): a failed job kept by removeOnFail:false
+    // would otherwise make the re-add a silent no-op.
+    expect(queue.remove).toHaveBeenCalledWith('bank-movement-webhook_tx-1')
+    const removeOrder = queue.remove.mock.invocationCallOrder[0]
+    const addOrder = queue.add.mock.invocationCallOrder[0]
+    expect(removeOrder).toBeLessThan(addOrder)
+  })
+
   it('ensureSession closure delegates to sessionManager.ensureRunning', async () => {
     const c = makeContainer()
     const mod = buildBankingModule(c)
