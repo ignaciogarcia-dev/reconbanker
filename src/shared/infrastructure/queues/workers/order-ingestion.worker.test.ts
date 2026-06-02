@@ -70,7 +70,7 @@ describe('createOrderIngestionWorker', () => {
     createOrderIngestionWorker(container)
     const processor = WorkerCtor.mock.calls[0][1] as (job: unknown) => Promise<void>
     await expect(processor({ id: 'o2', data: {} })).rejects.toThrow('boom')
-    expect(log.error).toHaveBeenCalledWith('job o2 failed', { error: 'boom' })
+    expect(log.error).toHaveBeenCalledWith('job o2 failed', { error: 'boom', stack: expect.any(String) })
   })
 
   it('processor stringifies non-Error failures', async () => {
@@ -88,8 +88,8 @@ describe('createOrderIngestionWorker', () => {
     createOrderIngestionWorker(container)
     const failed = handlers.get('failed')!
     failed({ id: 'o4' }, new Error('whoops'))
-    expect(log.error).toHaveBeenCalledWith('worker failed event', { jobId: 'o4', error: 'whoops' })
+    expect(log.error).toHaveBeenCalledWith('worker failed event', { jobId: 'o4', error: 'whoops', stack: expect.any(String) })
     failed(undefined, new Error('nojob'))
-    expect(log.error).toHaveBeenCalledWith('worker failed event', { jobId: undefined, error: 'nojob' })
+    expect(log.error).toHaveBeenCalledWith('worker failed event', { jobId: undefined, error: 'nojob', stack: expect.any(String) })
   })
 })

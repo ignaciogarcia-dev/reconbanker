@@ -13,7 +13,10 @@ export function createOrderIngestionWorker(container: Container): Worker {
         await container.conciliation.pollPendingOrders.execute(job.data)
         log.info(`job ${job.id} completed`)
       } catch (err) {
-        log.error(`job ${job.id} failed`, { error: err instanceof Error ? err.message : String(err) })
+        log.error(`job ${job.id} failed`, {
+          error: err instanceof Error ? err.message : String(err),
+          stack: err instanceof Error ? err.stack : undefined,
+        })
         throw err
       }
     },
@@ -21,7 +24,7 @@ export function createOrderIngestionWorker(container: Container): Worker {
   )
 
   worker.on('failed', (job, err) =>
-    log.error(`worker failed event`, { jobId: job?.id, error: err.message })
+    log.error(`worker failed event`, { jobId: job?.id, error: err.message, stack: err.stack })
   )
   return worker
 }

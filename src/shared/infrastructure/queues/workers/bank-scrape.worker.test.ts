@@ -121,7 +121,7 @@ describe('createBankScrapeWorker', () => {
 
     const job = { id: 'j2', data: {}, token: 't', extendLock: vi.fn().mockResolvedValue(undefined) }
     await expect(processor(job)).rejects.toThrow('boom')
-    expect(log.error).toHaveBeenCalledWith('job j2 failed', { error: 'boom' })
+    expect(log.error).toHaveBeenCalledWith('job j2 failed', { error: 'boom', stack: expect.any(String) })
   })
 
   it('processor stringifies non-Error rejections', async () => {
@@ -159,9 +159,9 @@ describe('createBankScrapeWorker', () => {
     createBankScrapeWorker(container)
     const failed = handlers.get('failed')!
     failed({ id: 'jX' }, new Error('whoops'))
-    expect(log.error).toHaveBeenCalledWith('worker failed event', { jobId: 'jX', error: 'whoops' })
+    expect(log.error).toHaveBeenCalledWith('worker failed event', { jobId: 'jX', error: 'whoops', stack: expect.any(String) })
 
     failed(undefined, new Error('nojob'))
-    expect(log.error).toHaveBeenCalledWith('worker failed event', { jobId: undefined, error: 'nojob' })
+    expect(log.error).toHaveBeenCalledWith('worker failed event', { jobId: undefined, error: 'nojob', stack: expect.any(String) })
   })
 })

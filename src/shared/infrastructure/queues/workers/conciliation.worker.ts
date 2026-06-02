@@ -38,7 +38,7 @@ export function createConciliationWorkers(container: Container): ConciliationWor
   )
   conciliationWorker.on('completed', (job) => conciliationLog.info(`job ${job.id} completed`))
   conciliationWorker.on('failed', (job, err) =>
-    conciliationLog.error(`job ${job?.id} failed (attempt ${job?.attemptsMade})`, { error: err.message })
+    conciliationLog.error(`job ${job?.id} failed (attempt ${job?.attemptsMade})`, { error: err.message, stack: err.stack })
   )
 
   const txConciliationWorker = new Worker(
@@ -48,7 +48,7 @@ export function createConciliationWorkers(container: Container): ConciliationWor
   )
   txConciliationWorker.on('completed', (job) => txConciliationLog.info(`job ${job.id} completed`))
   txConciliationWorker.on('failed', (job, err) =>
-    txConciliationLog.error(`job ${job?.id} failed (attempt ${job?.attemptsMade})`, { error: err.message })
+    txConciliationLog.error(`job ${job?.id} failed (attempt ${job?.attemptsMade})`, { error: err.message, stack: err.stack })
   )
 
   const webhookWorker = new Worker(
@@ -64,7 +64,7 @@ export function createConciliationWorkers(container: Container): ConciliationWor
     )
   })
   webhookWorker.on('failed', async (job, err) => {
-    webhookLog.error(`job ${job?.id} failed (attempt ${job?.attemptsMade})`, { error: err.message })
+    webhookLog.error(`job ${job?.id} failed (attempt ${job?.attemptsMade})`, { error: err.message, stack: err.stack })
     if (!isFinalFailure(job)) return
     await deadLetter(webhookLog, async () => {
       const request = await container.conciliation.requestRepository.findById(job!.data.requestId)
@@ -94,7 +94,7 @@ export function createConciliationWorkers(container: Container): ConciliationWor
     )
   })
   bankMovementWebhookWorker.on('failed', async (job, err) => {
-    bankMovementWebhookLog.error(`job ${job?.id} failed (attempt ${job?.attemptsMade})`, { error: err.message })
+    bankMovementWebhookLog.error(`job ${job?.id} failed (attempt ${job?.attemptsMade})`, { error: err.message, stack: err.stack })
     if (!isFinalFailure(job)) return
     await deadLetter(bankMovementWebhookLog, async () => {
       const tx = await container.banking.bankTransactionRepository.findById(job!.data.bankTransactionId)
