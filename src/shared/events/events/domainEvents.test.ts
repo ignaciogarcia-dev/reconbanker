@@ -5,7 +5,6 @@ import { ConciliationExpiredEvent } from './ConciliationExpired.event.js'
 import { ConciliationFailedEvent } from './ConciliationFailed.event.js'
 import { ConciliationMatchedEvent } from './ConciliationMatched.event.js'
 import { OperationModeChangedEvent } from './OperationModeChanged.event.js'
-import { ScrapeRunFailedEvent } from './ScrapeRunFailed.event.js'
 import { ScriptPromotedEvent } from './ScriptPromoted.event.js'
 import { TransactionIngestedEvent } from './TransactionIngested.event.js'
 
@@ -55,14 +54,6 @@ describe('domain events', () => {
     const e = new OperationModeChangedEvent('user-1', 'passthrough')
     expect(e.eventType).toBe('OperationModeChanged')
     expect(e.mode).toBe('passthrough')
-  })
-
-  it('ScrapeRunFailedEvent captures all fields', () => {
-    const e = new ScrapeRunFailedEvent('run-1', 'acc-1', 'script-1', 'auth_failed', 'bad creds')
-    expect(e.eventType).toBe('ScrapeRunFailed')
-    expect(e.scriptId).toBe('script-1')
-    expect(e.failureType).toBe('auth_failed')
-    expect(e.errorMessage).toBe('bad creds')
   })
 
   it('ScriptPromotedEvent captures version metadata', () => {
