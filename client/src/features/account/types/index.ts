@@ -18,8 +18,6 @@ export interface Account {
   bank: string
   name: string | null
   status: AccountStatus
-  scrapeBlockedAt: string | null
-  scrapeBlockedReason: string | null
 }
 
 export interface AccountConfig {

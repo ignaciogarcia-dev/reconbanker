@@ -11,7 +11,6 @@ import {
   useCreateAccount,
   useDeleteAccount,
   useEnqueueScrape,
-  useRestartAccount,
 } from './useAccounts'
 
 function makeWrapper() {
@@ -39,8 +38,6 @@ describe('useAccounts', () => {
         bank: 'mi-dinero',
         name: 'Cuenta 1',
         status: 'active',
-        scrapeBlockedAt: undefined,
-        scrapeBlockedReason: undefined,
       },
     ])
   })
@@ -142,55 +139,3 @@ describe('useEnqueueScrape', () => {
   })
 })
 
-describe('useRestartAccount', () => {
-  beforeEach(() => {
-    server.use(...accountHandlers)
-  })
-
-  it('invalidates both the list and the single account query on success', async () => {
-    let listCalls = 0
-    let oneCalls = 0
-    server.use(
-      http.get('/api/accounts', () => {
-        listCalls += 1
-        return HttpResponse.json([])
-      }),
-      http.get('/api/accounts/a-1', () => {
-        oneCalls += 1
-        return HttpResponse.json({
-          id: 'a-1',
-          bank: 'mi-dinero',
-          name: 'Cuenta 1',
-          status: 'active',
-          scrapeBlockedAt: null,
-          scrapeBlockedReason: null,
-        })
-      })
-    )
-
-    const { wrapper } = makeWrapper()
-    const { result } = renderHook(
-      () => ({
-        list: useAccounts(),
-        one: useAccount('a-1'),
-        restart: useRestartAccount(),
-      }),
-      { wrapper }
-    )
-    await waitFor(() => {
-      expect(result.current.list.data).toBeDefined()
-      expect(result.current.one.data).toBeDefined()
-    })
-    expect(listCalls).toBe(1)
-    expect(oneCalls).toBe(1)
-
-    await act(async () => {
-      await result.current.restart.mutateAsync('a-1')
-    })
-
-    await waitFor(() => {
-      expect(listCalls).toBe(2)
-      expect(oneCalls).toBe(2)
-    })
-  })
-})

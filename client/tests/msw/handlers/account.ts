@@ -20,8 +20,6 @@ export const accountHandlers = [
       bank: 'mi-dinero',
       name: 'Cuenta 1',
       status: 'active',
-      scrapeBlockedReason: null,
-      scrapeBlockedAt: null,
     })
   ),
   http.get('/api/accounts/:accountId/config', ({ params }) =>
@@ -47,9 +45,6 @@ export const accountHandlers = [
   ),
   http.delete('/api/accounts/:accountId', () => HttpResponse.json({ ok: true })),
   http.post('/api/accounts/:accountId/scrape', () =>
-    HttpResponse.json({ queued: true })
-  ),
-  http.post('/api/accounts/:accountId/restart', () =>
     HttpResponse.json({ queued: true })
   ),
   http.put('/api/accounts/:accountId/config', async ({ request, params }) => {

@@ -548,34 +548,6 @@ describe('AccountConfig page', () => {
     })
   })
 
-  it('renders the Session blocked banner and calls restart when the button is clicked', async () => {
-    const user = userEvent.setup()
-    let restartCalls = 0
-    server.use(
-      http.get('/api/accounts/:accountId', ({ params }) =>
-        HttpResponse.json({
-          id: params.accountId,
-          bank: 'mi-dinero',
-          name: 'Cuenta 1',
-          status: 'blocked',
-          scrapeBlockedReason: 'No valid credentials',
-          scrapeBlockedAt: '2026-05-23T18:00:00Z',
-        })
-      ),
-      http.post('/api/accounts/:accountId/restart', () => {
-        restartCalls += 1
-        return HttpResponse.json({ queued: true })
-      })
-    )
-    renderAccountConfig()
-    await waitFor(() => {
-      expect(screen.getByText('Sesión bloqueada')).toBeInTheDocument()
-      expect(screen.getByText('No valid credentials')).toBeInTheDocument()
-    })
-    await user.click(screen.getByRole('button', { name: /Reiniciar/i }))
-    await waitFor(() => expect(restartCalls).toBe(1))
-  })
-
   it('shows the "Saved!" confirmation after a successful save', async () => {
     const user = userEvent.setup()
     server.use(
@@ -1338,34 +1310,6 @@ describe('AccountConfig page', () => {
     })
   })
 
-  it('shows the restart spinner and label while the restart mutation is in-flight', async () => {
-    const user = userEvent.setup()
-    server.use(
-      http.get('/api/accounts/:accountId', ({ params }) =>
-        HttpResponse.json({
-          id: params.accountId,
-          bank: 'mi-dinero',
-          name: 'Cuenta 1',
-          status: 'blocked',
-          scrapeBlockedReason: 'oops',
-          scrapeBlockedAt: '2026-05-23T18:00:00Z',
-        })
-      ),
-      http.post('/api/accounts/:accountId/restart', async () => {
-        await new Promise(r => setTimeout(r, 200))
-        return HttpResponse.json({ queued: true })
-      })
-    )
-    renderAccountConfig()
-    await waitFor(() => {
-      expect(screen.getByText('oops')).toBeInTheDocument()
-    })
-    await user.click(screen.getByRole('button', { name: /Reiniciar$/i }))
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Reiniciando/i })).toBeInTheDocument()
-    })
-  })
-
   it('shows the delete pending label while the delete mutation is in-flight', async () => {
     const user = userEvent.setup()
     server.use(
@@ -1515,24 +1459,4 @@ describe('AccountConfig page', () => {
     expect(screen.getByText('Credenciales bancarias')).toBeInTheDocument()
   })
 
-  it('falls back to scrapeBlockedReason without scrapeBlockedAt (no timestamp line)', async () => {
-    server.use(
-      http.get('/api/accounts/:accountId', ({ params }) =>
-        HttpResponse.json({
-          id: params.accountId,
-          bank: 'mi-dinero',
-          name: 'Cuenta 1',
-          status: 'blocked',
-          scrapeBlockedReason: 'oops',
-          scrapeBlockedAt: null,
-        })
-      )
-    )
-    renderAccountConfig()
-    await waitFor(() => {
-      expect(screen.getByText('oops')).toBeInTheDocument()
-    })
-    // No "Bloqueada desde" since scrapeBlockedAt is null.
-    expect(screen.queryByText(/Bloqueada desde/i)).not.toBeInTheDocument()
-  })
 })

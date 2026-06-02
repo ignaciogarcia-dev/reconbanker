@@ -12,10 +12,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/ui/di
 import { cn } from '@/shared/lib/utils'
 import { Radio } from '@base-ui/react/radio'
 import { RadioGroup } from '@base-ui/react/radio-group'
-import { ArrowLeft, Save, Info, Trash2, AlertTriangle, RotateCcw, ShieldAlert, Check, Bell, BellOff, TrendingDown, Lock, FileCheck, Settings as SettingsIcon, Terminal, KeyRound, Webhook, ListChecks, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Save, Info, Trash2, AlertTriangle, ShieldAlert, Check, Bell, BellOff, TrendingDown, Lock, FileCheck, Settings as SettingsIcon, Terminal, KeyRound, Webhook, ListChecks, AlertCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useUser } from '@/features/user/hooks/useUser'
-import { useAccount, useDeleteAccount, useRestartAccount } from '../hooks/useAccounts'
+import { useAccount, useDeleteAccount } from '../hooks/useAccounts'
 import { useAccountConfig, useUpsertAccountConfig } from '../hooks/useAccountConfig'
 import type { AuthType, PollingMethod, SessionType, LoginMode } from '../types'
 import {
@@ -141,8 +141,6 @@ export function AccountConfig() {
   const save = useUpsertAccountConfig(accountId ?? '')
 
   const remove = useDeleteAccount()
-
-  const restart = useRestartAccount()
 
   function openDeleteDialog(open: boolean) {
     setDeleteOpen(open)
@@ -297,44 +295,6 @@ export function AccountConfig() {
           {t('accountConfig.danger.deleteButton')}
         </Button>
       </div>
-
-      {/* Session blocked — fatal failure stopped automatic scraping/sessions */}
-      {account?.scrapeBlockedReason && (
-        <div className="relative overflow-hidden rounded-xl border border-destructive/30 bg-destructive/5">
-          <div className="absolute inset-y-0 left-0 w-1 bg-destructive" />
-          <div className="flex flex-col gap-3 px-5 py-3 pl-6 sm:flex-row sm:items-center sm:gap-4">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
-              <ShieldAlert className="size-4" />
-            </div>
-            <div className="min-w-0 flex-1 space-y-1">
-              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                <p className="font-semibold leading-none text-destructive">{t('accountConfig.blocked.title')}</p>
-                <p className="text-xs text-muted-foreground">{t('accountConfig.blocked.description')}</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <code className="rounded bg-destructive/10 px-2 py-0.5 font-mono text-xs text-destructive break-all">
-                  {account.scrapeBlockedReason}
-                </code>
-                {account.scrapeBlockedAt && (
-                  <span className="text-xs text-muted-foreground">
-                    · {t('accountConfig.blocked.since', { when: new Date(account.scrapeBlockedAt).toLocaleString() })}
-                  </span>
-                )}
-              </div>
-            </div>
-            <Button
-              variant="destructive"
-              size="sm"
-              className="shrink-0 gap-2 sm:self-center"
-              disabled={restart.isPending}
-              onClick={() => accountId && restart.mutate(accountId)}
-            >
-              <RotateCcw className={`size-4 ${restart.isPending ? 'animate-spin' : ''}`} />
-              {restart.isPending ? t('accountConfig.blocked.restarting') : t('accountConfig.blocked.restart')}
-            </Button>
-          </div>
-        </div>
-      )}
 
       {/* Hidden a11y descriptors referenced by each tab's aria-describedby */}
       <div className="sr-only">
