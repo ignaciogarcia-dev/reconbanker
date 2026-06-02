@@ -15,7 +15,7 @@ describe('bindRoutes', () => {
       user: { tokenIssuer, registerUser: {}, login: {}, getCurrentUser: {}, changeOperationMode: {} },
       account: {
         accountRepository: {},
-        createAccount: {}, deleteAccount: {}, clearScrapeBlock: {},
+        createAccount: {}, deleteAccount: {},
         listAccountsForUser: {}, getAccountDetail: {},
         getAccountConfig: {}, upsertAccountConfig: {},
         listBanks: {}, createBank: {}, getBankDetail: {},

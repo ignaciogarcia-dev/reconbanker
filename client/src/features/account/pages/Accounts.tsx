@@ -8,7 +8,7 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
 import { cn } from '@/shared/lib/utils'
-import { Plus, Settings, ShieldAlert, Info, AlertCircle } from 'lucide-react'
+import { Plus, Settings, Info, AlertCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAccounts, useCreateAccount } from '../hooks/useAccounts'
@@ -176,17 +176,9 @@ export function Accounts() {
                     <TableCell className="font-medium">{a.name ?? '—'}</TableCell>
                     <TableCell>{bankNameByCode[a.bank] ?? a.bank}</TableCell>
                     <TableCell>
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <Badge variant={a.status === 'active' ? 'default' : 'secondary'}>
-                          {t(`common:enums.accountStatus.${a.status}`)}
-                        </Badge>
-                        {a.scrapeBlockedReason && (
-                          <Badge variant="destructive" className="gap-1">
-                            <ShieldAlert className="size-3" />
-                            {t('accounts.needsAttention')}
-                          </Badge>
-                        )}
-                      </div>
+                      <Badge variant={a.status === 'active' ? 'default' : 'secondary'}>
+                        {t(`common:enums.accountStatus.${a.status}`)}
+                      </Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground text-xs font-mono">{a.id}</TableCell>
                     <TableCell>

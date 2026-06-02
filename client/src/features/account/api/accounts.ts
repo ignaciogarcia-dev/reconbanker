@@ -6,8 +6,6 @@ interface AccountRow {
   bank: string
   name: string | null
   status: Account['status']
-  scrapeBlockedAt: string | null
-  scrapeBlockedReason: string | null
 }
 
 export async function listAccounts(): Promise<Account[]> {
@@ -36,18 +34,11 @@ export async function enqueueScrape(accountId: string): Promise<{ queued: boolea
   return data
 }
 
-export async function restartAccount(accountId: string): Promise<{ queued: boolean }> {
-  const { data } = await httpClient.post<{ queued: boolean }>(`/accounts/${accountId}/restart`)
-  return data
-}
-
 function toAccount(row: AccountRow): Account {
   return {
     id: row.id,
     bank: row.bank,
     name: row.name,
     status: row.status,
-    scrapeBlockedAt: row.scrapeBlockedAt,
-    scrapeBlockedReason: row.scrapeBlockedReason,
   }
 }

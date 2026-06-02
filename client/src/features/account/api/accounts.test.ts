@@ -7,7 +7,6 @@ import {
   createAccount,
   deleteAccount,
   enqueueScrape,
-  restartAccount,
 } from './accounts'
 
 describe('accounts api', () => {
@@ -20,8 +19,6 @@ describe('accounts api', () => {
             bank: 'mi-dinero',
             name: 'Cuenta 1',
             status: 'active',
-            scrapeBlockedAt: null,
-            scrapeBlockedReason: null,
           },
         ])
       )
@@ -33,8 +30,6 @@ describe('accounts api', () => {
         bank: 'mi-dinero',
         name: 'Cuenta 1',
         status: 'active',
-        scrapeBlockedAt: null,
-        scrapeBlockedReason: null,
       },
     ])
   })
@@ -47,8 +42,6 @@ describe('accounts api', () => {
           bank: 'mi-dinero',
           name: null,
           status: 'inactive',
-          scrapeBlockedAt: '2026-05-23T10:00:00Z',
-          scrapeBlockedReason: 'invalid_credentials',
         })
       )
     )
@@ -58,8 +51,6 @@ describe('accounts api', () => {
       bank: 'mi-dinero',
       name: null,
       status: 'inactive',
-      scrapeBlockedAt: '2026-05-23T10:00:00Z',
-      scrapeBlockedReason: 'invalid_credentials',
     })
   })
 
@@ -95,14 +86,5 @@ describe('accounts api', () => {
       )
     )
     await expect(enqueueScrape('a-1')).resolves.toEqual({ queued: true })
-  })
-
-  it('restartAccount POSTs to the restart endpoint and returns queued', async () => {
-    server.use(
-      http.post('/api/accounts/a-1/restart', () =>
-        HttpResponse.json({ queued: true })
-      )
-    )
-    await expect(restartAccount('a-1')).resolves.toEqual({ queued: true })
   })
 })

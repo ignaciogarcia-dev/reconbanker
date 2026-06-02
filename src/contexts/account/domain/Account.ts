@@ -11,10 +11,6 @@ interface AccountProps {
   name?: string
   status: AccountStatus
   createdAt: Date
-  // Set when a fatal scrape/session failure (e.g. bad credentials) blocks the
-  // account from automatic triggers until an operator restarts it. null = unblocked.
-  scrapeBlockedAt?: Date | null
-  scrapeBlockedReason?: string | null
 }
 
 export class Account extends AggregateRoot<string> {
@@ -36,7 +32,6 @@ export class Account extends AggregateRoot<string> {
       userId, bankId, bank: bankCode,
       name: name?.trim(),
       status: 'active', createdAt: new Date(),
-      scrapeBlockedAt: null, scrapeBlockedReason: null,
     })
     account.addDomainEvent(new AccountCreatedEvent(id, bankCode, account.name))
     return account
@@ -52,8 +47,6 @@ export class Account extends AggregateRoot<string> {
   get name()    { return this.props.name }
   get status()  { return this.props.status }
   get createdAt() { return this.props.createdAt }
-  get scrapeBlockedAt()     { return this.props.scrapeBlockedAt ?? null }
-  get scrapeBlockedReason() { return this.props.scrapeBlockedReason ?? null }
 
   belongsTo(userId: string): boolean {
     return this.props.userId === userId

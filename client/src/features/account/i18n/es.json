@@ -11,7 +11,6 @@
     "colStatus": "Estado",
     "colId": "ID",
     "configure": "Configurar",
-    "needsAttention": "Requiere atención",
     "dialog": {
       "title": "Nueva cuenta",
       "description": "Asociá un banco a una etiqueta que tu equipo reconozca.",
@@ -121,13 +120,6 @@
     "loginModeSimpleDesc": "Loguea automáticamente con las credenciales guardadas.",
     "loginModeAssisted": "Asistido",
     "loginModeAssistedDesc": "Espera a que alguien ingrese el código 2FA en el navegador.",
-    "blocked": {
-      "title": "Sesión bloqueada",
-      "description": "Un fallo grave (credenciales incorrectas) detuvo el scraping automático de esta cuenta. Corregí las credenciales y reiniciá para reanudar.",
-      "since": "Bloqueada desde {{when}}",
-      "restart": "Reiniciar",
-      "restarting": "Reiniciando..."
-    },
     "save": "Guardar configuración",
     "saving": "Guardando...",
     "saved": "Configuración guardada",

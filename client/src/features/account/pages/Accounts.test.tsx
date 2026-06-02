@@ -171,7 +171,7 @@ describe('Accounts page', () => {
     })
   })
 
-  it('renders the fallback values for null name, unknown bank code, and inactive status with attention badge', async () => {
+  it('renders the fallback values for null name, unknown bank code, and inactive status', async () => {
     server.use(
       http.get('/api/accounts', () =>
         HttpResponse.json([
@@ -180,8 +180,6 @@ describe('Accounts page', () => {
             bank: 'unknown-bank',
             name: null,
             status: 'inactive',
-            scrapeBlockedReason: 'creds rotated',
-            scrapeBlockedAt: '2026-05-23T10:00:00Z',
           },
         ])
       )
@@ -192,7 +190,6 @@ describe('Accounts page', () => {
     })
     expect(screen.getByText('—')).toBeInTheDocument()
     expect(screen.getByText('Inactivo')).toBeInTheDocument()
-    expect(screen.getByText(/Requiere atención/i)).toBeInTheDocument()
   })
 
   it('does not flag errors when typing into a field before any submit attempt', async () => {

@@ -10,7 +10,6 @@ import { ScrapeRunRepository } from '../contexts/banking/infrastructure/ScrapeRu
 import { BankMovementReadModel } from '../contexts/banking/infrastructure/BankMovementReadModel.js'
 import { ScriptEngineAdapter } from '../contexts/banking/infrastructure/ScriptEngineAdapter.js'
 import { AccountForBankingReaderAdapter } from '../contexts/banking/infrastructure/adapters/AccountForBankingReaderAdapter.js'
-import { AccountScrapeBlockerAdapter } from '../contexts/banking/infrastructure/adapters/AccountScrapeBlockerAdapter.js'
 import { NotificationConfigReaderAdapter } from '../contexts/banking/infrastructure/adapters/NotificationConfigReaderAdapter.js'
 import { UserOperationModeReaderAdapter } from '../contexts/banking/infrastructure/adapters/UserOperationModeReaderAdapter.js'
 import type { AccountModule } from './accountModule.js'
@@ -60,7 +59,6 @@ export function buildBankingModule(container: ContainerBase): BankingModule {
   const userRepo = container.user.userRepository
 
   const accountReader = new AccountForBankingReaderAdapter(accountRepo, configRepo)
-  const scrapeBlocker = new AccountScrapeBlockerAdapter(exec)
   const configReader = new NotificationConfigReaderAdapter(configRepo)
   const userModeReader = new UserOperationModeReaderAdapter(userRepo)
   const scriptEngine = new ScriptEngineAdapter()
@@ -103,7 +101,7 @@ export function buildBankingModule(container: ContainerBase): BankingModule {
     })
   }
 
-  const sessionManager = new SessionManager(startFn, bankSessionRepo, scrapeBlocker)
+  const sessionManager = new SessionManager(startFn, bankSessionRepo)
 
   const enqueueNotify = async (bankTransactionId: string) => {
     const jobId = `bank-movement-webhook_${bankTransactionId}`
@@ -120,8 +118,8 @@ export function buildBankingModule(container: ContainerBase): BankingModule {
 
   return {
     runBankScrape: new RunBankScrapeUseCase({
-      accountReader, txRepo: bankTxRepo, scrapeRunRepo, scriptEngine,
-      eventBus: container.eventBus, ingest, blocker: scrapeBlocker,
+      accountReader, txRepo: bankTxRepo, scrapeRunRepo, scriptEngine, ingest,
+      logger: container.logger.child('[run-bank-scrape]'),
       ensureSession: (accountId) => sessionManager.ensureRunning(accountId),
     }),
     notifyBankMovement: new NotifyBankMovementUseCase({

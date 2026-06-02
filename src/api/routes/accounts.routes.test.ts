@@ -18,7 +18,6 @@ vi.mock('../../shared/infrastructure/queues/BankScrapeQueue.js', () => ({
 type MockedAccountModule = {
   createAccount: { execute: ReturnType<typeof vi.fn> }
   deleteAccount: { execute: ReturnType<typeof vi.fn> }
-  clearScrapeBlock: { execute: ReturnType<typeof vi.fn> }
   listAccountsForUser: { execute: ReturnType<typeof vi.fn> }
   getAccountDetail: { execute: ReturnType<typeof vi.fn> }
   getAccountConfig: { execute: ReturnType<typeof vi.fn> }
@@ -29,7 +28,6 @@ function makeAccountModule(): MockedAccountModule {
   return {
     createAccount: { execute: vi.fn() },
     deleteAccount: { execute: vi.fn() },
-    clearScrapeBlock: { execute: vi.fn() },
     listAccountsForUser: { execute: vi.fn() },
     getAccountDetail: { execute: vi.fn() },
     getAccountConfig: { execute: vi.fn() },
@@ -311,32 +309,6 @@ describe('accounts.routes', () => {
         .set('Authorization', AUTH_HEADER)
 
       expect(res.status).toBe(400)
-    })
-  })
-
-  describe('POST /accounts/:accountId/restart', () => {
-    it('returns 202 on success', async () => {
-      account.clearScrapeBlock.execute.mockResolvedValue(undefined)
-
-      const res = await request(makeApp(account))
-        .post(`/accounts/${ACCOUNT_ID}/restart`)
-        .set('Authorization', AUTH_HEADER)
-
-      expect(res.status).toBe(202)
-      expect(res.body).toEqual({ jobId: 'job-1', status: 'queued' })
-      expect(account.clearScrapeBlock.execute).toHaveBeenCalledWith(ACCOUNT_ID, 'user-1')
-      expect(enqueueBankScrape).toHaveBeenCalledWith(ACCOUNT_ID)
-    })
-
-    it('returns 403 when use case throws ForbiddenError', async () => {
-      account.clearScrapeBlock.execute.mockRejectedValue(new ForbiddenError('forbidden'))
-
-      const res = await request(makeApp(account))
-        .post(`/accounts/${ACCOUNT_ID}/restart`)
-        .set('Authorization', AUTH_HEADER)
-
-      expect(res.status).toBe(403)
-      expect(enqueueBankScrape).not.toHaveBeenCalled()
     })
   })
 

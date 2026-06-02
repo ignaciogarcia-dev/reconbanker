@@ -38,13 +38,4 @@ describe('AccountRepository', () => {
     const [, params] = (exec.query as any).mock.calls[0]
     expect(params[4]).toBeNull()
   })
-
-  it('clearScrapeBlock issues an UPDATE on the account row', async () => {
-    const exec = makeExecutor()
-    const repo = new AccountRepository(exec)
-    await repo.clearScrapeBlock('acc-1')
-    const [sql, params] = (exec.query as any).mock.calls[0]
-    expect(sql).toContain('scrape_blocked_at = NULL')
-    expect(params).toEqual(['acc-1'])
-  })
 })

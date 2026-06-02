@@ -11,7 +11,6 @@
     "colStatus": "Status",
     "colId": "ID",
     "configure": "Configure",
-    "needsAttention": "Needs attention",
     "dialog": {
       "title": "New account",
       "description": "Link a bank to a friendly label your team will recognize.",
@@ -121,13 +120,6 @@
     "loginModeSimpleDesc": "Logs in automatically with stored credentials.",
     "loginModeAssisted": "Assisted",
     "loginModeAssistedDesc": "Waits for someone to enter the 2FA code in the browser.",
-    "blocked": {
-      "title": "Session blocked",
-      "description": "A fatal failure (bad credentials) stopped automatic scraping for this account. Fix the credentials and restart to resume.",
-      "since": "Blocked since {{when}}",
-      "restart": "Restart",
-      "restarting": "Restarting..."
-    },
     "save": "Save configuration",
     "saving": "Saving...",
     "saved": "Configuration saved",
