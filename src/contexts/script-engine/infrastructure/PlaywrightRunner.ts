@@ -1,6 +1,7 @@
 import { BankScript } from '../domain/BankScript.js'
 import { db } from '../../../shared/infrastructure/db/client.js'
 import { credentialsCipher } from '../../../shared/infrastructure/crypto/CredentialsCipher.js'
+import { CHROMIUM_ARGS, USER_AGENT, VIEWPORT, isHeadless, applyAntiWebdriver } from './playwrightLaunch.js'
 
 interface ScrapedTransaction {
   externalId: string
@@ -30,27 +31,19 @@ export class PlaywrightRunner {
 
     const { chromium } = await import('playwright')
     const browser = await chromium.launch({
-      headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-blink-features=AutomationControlled',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-      ],
+      headless: isHeadless(),
+      args: CHROMIUM_ARGS,
     })
 
     const ctx = await browser.newContext({
-      userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      viewport: { width: 1280, height: 800 },
+      userAgent: USER_AGENT,
+      viewport: VIEWPORT,
       locale: 'es-UY',
     })
 
     const page = await ctx.newPage()
 
-    await page.addInitScript(() => {
-      Object.defineProperty(navigator, 'webdriver', { get: () => undefined })
-    })
+    await applyAntiWebdriver(page)
 
     const scriptContext = {
       accountId: context.accountId,
