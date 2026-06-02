@@ -13,6 +13,7 @@ export function getTestPool(): pg.Pool {
 }
 
 const ALL_DOMAIN_TABLES = [
+  'webhook_dead_letters',
   'webhook_notifications',
   'conciliated_transactions',
   'conciliation_attempts',

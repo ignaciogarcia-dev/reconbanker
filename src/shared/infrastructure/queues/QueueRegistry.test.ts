@@ -6,9 +6,11 @@ interface QueueOpts {
     attempts: number
     backoff: { type: string; delay: number }
     removeOnComplete: boolean
-    removeOnFail: number
+    removeOnFail: number | boolean
   }
 }
+
+const WEBHOOK_QUEUES = new Set(['webhook', 'bank-movement-webhook'])
 
 const QueueCtor = vi.fn(function (this: unknown, name: string, _opts?: QueueOpts) {
   return { name }
@@ -66,15 +68,38 @@ describe('QueueRegistry', () => {
     expect(mod.Queues.bankMovementWebhook).toBeDefined()
 
     for (const call of QueueCtor.mock.calls) {
+      const name = call[0] as string
       const opts = call[1] as QueueOpts | undefined
       expect(opts).toBeDefined()
       expect(opts!.connection).toBe(mod.redis)
-      expect(opts!.defaultJobOptions).toEqual({
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 5_000 },
-        removeOnComplete: true,
-        removeOnFail: 100,
-      })
+      if (WEBHOOK_QUEUES.has(name)) {
+        // Webhook queues retry far longer and keep failed jobs for dead-lettering.
+        expect(opts!.defaultJobOptions).toEqual({
+          attempts: 12,
+          backoff: { type: 'exponential', delay: 10_000 },
+          removeOnComplete: true,
+          removeOnFail: false,
+        })
+      } else {
+        expect(opts!.defaultJobOptions).toEqual({
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 5_000 },
+          removeOnComplete: true,
+          removeOnFail: 100,
+        })
+      }
     }
+  })
+
+  it('honors WEBHOOK_QUEUE_ATTEMPTS and WEBHOOK_QUEUE_BACKOFF_MS overrides', async () => {
+    vi.stubEnv('REDIS_URL', 'redis://localhost:6379')
+    vi.stubEnv('WEBHOOK_QUEUE_ATTEMPTS', '5')
+    vi.stubEnv('WEBHOOK_QUEUE_BACKOFF_MS', '2000')
+    await import('./QueueRegistry.js')
+
+    const webhookCall = QueueCtor.mock.calls.find((c) => c[0] === 'bank-movement-webhook')
+    const opts = webhookCall![1] as QueueOpts
+    expect(opts.defaultJobOptions.attempts).toBe(5)
+    expect(opts.defaultJobOptions.backoff.delay).toBe(2000)
   })
 })

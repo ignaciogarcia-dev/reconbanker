@@ -9,6 +9,8 @@ import { PgUnitOfWork } from '../shared/persistence/PgUnitOfWork.js'
 import type { IUnitOfWork } from '../shared/persistence/IUnitOfWork.js'
 import { WebhookNotificationLogRepository } from '../shared/infrastructure/webhooks/WebhookNotificationLogRepository.js'
 import type { IWebhookNotificationLog } from '../shared/infrastructure/webhooks/IWebhookNotificationLog.js'
+import { WebhookDeadLetterRepository } from '../shared/infrastructure/webhooks/WebhookDeadLetterRepository.js'
+import type { IWebhookDeadLetterStore } from '../shared/infrastructure/webhooks/IWebhookDeadLetterStore.js'
 import { buildUserModule, type UserModule } from './userModule.js'
 import { buildAccountModule, type AccountModule } from './accountModule.js'
 import { buildBankingModule, type BankingModule } from './bankingModule.js'
@@ -22,6 +24,7 @@ export interface Container {
   eventBus: IEventBus
   unitOfWork: IUnitOfWork
   webhookLog: IWebhookNotificationLog
+  webhookDeadLetters: IWebhookDeadLetterStore
   user: UserModule
   account: AccountModule
   banking: BankingModule
@@ -44,9 +47,12 @@ export function buildContainer(overrides: ContainerOverrides = {}): Container {
   const webhookLog = new WebhookNotificationLogRepository({
     query: (text, params) => pool.query(text, params as any),
   })
+  const webhookDeadLetters = new WebhookDeadLetterRepository({
+    query: (text, params) => pool.query(text, params as any),
+  })
 
   // Modules are wired sequentially; downstream modules pull from already-built ones.
-  const container = { pool, logger, eventBus, unitOfWork, redis: overrides.redis, webhookLog } as unknown as Container
+  const container = { pool, logger, eventBus, unitOfWork, redis: overrides.redis, webhookLog, webhookDeadLetters } as unknown as Container
   container.user = buildUserModule(container)
   container.account = buildAccountModule(container)
   container.banking = buildBankingModule(container)

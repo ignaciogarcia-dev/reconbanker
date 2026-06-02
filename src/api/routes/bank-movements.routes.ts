@@ -43,6 +43,14 @@ export function buildBankMovementsRouter(deps: BankMovementsRouterDeps): Router 
     res.json(movements)
   }))
 
+  router.get('/dead-letters', controller(async (req: AuthRequest, res) => {
+    const userId = requireUserId(req)
+    const { accountId } = validateParams(req, paramsSchema)
+    if (!(await ownsAccount(accountId, userId))) throw new ForbiddenError('Account not found')
+    const deadLetters = await deps.banking.listWebhookDeadLetters.execute(accountId)
+    res.json(deadLetters)
+  }))
+
   router.post('/:movementId/notify', controller(async (req: AuthRequest, res) => {
     const userId = requireUserId(req)
     const { accountId, movementId } = validateParams(req, paramsWithMovementSchema)

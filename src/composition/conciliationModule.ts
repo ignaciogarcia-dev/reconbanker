@@ -50,6 +50,7 @@ export interface ConciliationModule {
   listConciliationRequests: ListConciliationRequestsUseCase
   getConciliationRequestDetail: GetConciliationRequestDetailUseCase
   ownershipChecker: ConciliationOwnershipCheckerAdapter
+  requestRepository: ConciliationRequestRepository
 }
 
 export function buildConciliationModule(container: ContainerBase): ConciliationModule {
@@ -127,5 +128,6 @@ export function buildConciliationModule(container: ContainerBase): ConciliationM
     listConciliationRequests: new ListConciliationRequestsUseCase(readModel),
     getConciliationRequestDetail: new GetConciliationRequestDetailUseCase(readModel),
     ownershipChecker,
+    requestRepository: requestRepo,
   }
 }

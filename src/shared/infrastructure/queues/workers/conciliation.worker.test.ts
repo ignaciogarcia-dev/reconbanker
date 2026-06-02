@@ -52,15 +52,19 @@ function makeContainer() {
     runConciliation: { execute: vi.fn(async () => {}) },
     processIncomingTransaction: { execute: vi.fn(async () => {}) },
     notifyWebhook: { execute: vi.fn(async () => {}) },
+    requestRepository: { findById: vi.fn(async () => ({ id: 'req-1', accountId: 'acc-1' })) },
   }
   const banking = {
     notifyBankMovement: { execute: vi.fn(async () => {}) },
+    bankTransactionRepository: { findById: vi.fn(async () => ({ id: 'tx-1', accountId: 'acc-1' })) },
   }
+  const webhookDeadLetters = { record: vi.fn(async () => {}), markResolved: vi.fn(async () => {}) }
   return {
-    container: { logger, conciliation, banking } as never,
+    container: { logger, conciliation, banking, webhookDeadLetters } as never,
     childLogs,
     conciliation,
     banking,
+    webhookDeadLetters,
   }
 }
 
@@ -95,32 +99,74 @@ describe('createConciliationWorkers', () => {
     await created[3].processor({ data: { d: 4 }, attemptsMade: 1 })
     expect(banking.notifyBankMovement.execute).toHaveBeenCalledWith({ d: 4, attempt: 2 })
 
-    // Event handlers
+    // Non-webhook workers still just log their events
     const conciliationLog = childLogs.get('[conciliation]')!
-    created[0].handlers.get('completed')!({ id: 'c1' })
+    await created[0].handlers.get('completed')!({ id: 'c1' })
     expect(conciliationLog.info).toHaveBeenCalledWith('job c1 completed')
-    created[0].handlers.get('failed')!({ id: 'c1', attemptsMade: 2 }, new Error('e1'))
+    await created[0].handlers.get('failed')!({ id: 'c1', attemptsMade: 2 }, new Error('e1'))
     expect(conciliationLog.error).toHaveBeenCalledWith('job c1 failed (attempt 2)', { error: 'e1' })
-    // failed with undefined job
-    created[0].handlers.get('failed')!(undefined, new Error('e2'))
+    await created[0].handlers.get('failed')!(undefined, new Error('e2'))
     expect(conciliationLog.error).toHaveBeenCalledWith('job undefined failed (attempt undefined)', { error: 'e2' })
 
     const txLog = childLogs.get('[tx-conciliation]')!
-    created[1].handlers.get('completed')!({ id: 't1' })
+    await created[1].handlers.get('completed')!({ id: 't1' })
     expect(txLog.info).toHaveBeenCalledWith('job t1 completed')
-    created[1].handlers.get('failed')!({ id: 't1', attemptsMade: 1 }, new Error('te'))
+    await created[1].handlers.get('failed')!({ id: 't1', attemptsMade: 1 }, new Error('te'))
     expect(txLog.error).toHaveBeenCalledWith('job t1 failed (attempt 1)', { error: 'te' })
+  })
 
-    const webhookLog = childLogs.get('[webhook]')!
-    created[2].handlers.get('completed')!({ id: 'w1' })
-    expect(webhookLog.info).toHaveBeenCalledWith('job w1 completed')
-    created[2].handlers.get('failed')!({ id: 'w1', attemptsMade: 3 }, new Error('we'))
-    expect(webhookLog.error).toHaveBeenCalledWith('job w1 failed (attempt 3)', { error: 'we' })
+  it('dead-letters a bank-movement webhook only on its final attempt', async () => {
+    const { container, banking, webhookDeadLetters } = makeContainer()
+    createConciliationWorkers(container)
+    const failed = created[3].handlers.get('failed')!
 
-    const bmwLog = childLogs.get('[bank-movement-webhook]')!
-    created[3].handlers.get('completed')!({ id: 'b1' })
-    expect(bmwLog.info).toHaveBeenCalledWith('job b1 completed')
-    created[3].handlers.get('failed')!({ id: 'b1', attemptsMade: 4 }, new Error('be'))
-    expect(bmwLog.error).toHaveBeenCalledWith('job b1 failed (attempt 4)', { error: 'be' })
+    // Not exhausted yet (attemptsMade < attempts): no dead-letter.
+    await failed({ id: 'b1', data: { bankTransactionId: 'tx-1' }, attemptsMade: 3, opts: { attempts: 12 } }, new Error('boom'))
+    expect(webhookDeadLetters.record).not.toHaveBeenCalled()
+
+    // Final attempt: dead-letter with the looked-up subject and last status.
+    const err = Object.assign(new Error('Webhook failed: 500'), { status: 500 })
+    await failed({ id: 'b1', data: { bankTransactionId: 'tx-1' }, attemptsMade: 12, opts: { attempts: 12 } }, err)
+    expect(banking.bankTransactionRepository.findById).toHaveBeenCalledWith('tx-1')
+    expect(webhookDeadLetters.record).toHaveBeenCalledWith({
+      accountId: 'acc-1',
+      subjectType: 'bank_transaction',
+      subjectId: 'tx-1',
+      url: null,
+      lastStatus: 500,
+      lastError: 'Webhook failed: 500',
+      attempts: 12,
+    })
+  })
+
+  it('records null lastStatus on a transport failure (no HTTP status)', async () => {
+    const { container, webhookDeadLetters } = makeContainer()
+    createConciliationWorkers(container)
+    const failed = created[3].handlers.get('failed')!
+
+    await failed({ id: 'b1', data: { bankTransactionId: 'tx-1' }, attemptsMade: 12, opts: { attempts: 12 } }, new Error('connect ECONNREFUSED'))
+    expect(webhookDeadLetters.record).toHaveBeenCalledWith(expect.objectContaining({ lastStatus: null, lastError: 'connect ECONNREFUSED' }))
+  })
+
+  it('resolves the dead-letter when a bank-movement webhook completes', async () => {
+    const { container, webhookDeadLetters } = makeContainer()
+    createConciliationWorkers(container)
+
+    await created[3].handlers.get('completed')!({ id: 'b1', data: { bankTransactionId: 'tx-1' } })
+    expect(webhookDeadLetters.markResolved).toHaveBeenCalledWith('bank_transaction', 'tx-1')
+  })
+
+  it('dead-letters and resolves conciliation webhooks symmetrically', async () => {
+    const { container, conciliation, webhookDeadLetters } = makeContainer()
+    createConciliationWorkers(container)
+
+    await created[2].handlers.get('failed')!({ id: 'w1', data: { requestId: 'req-1' }, attemptsMade: 12, opts: { attempts: 12 } }, new Error('we'))
+    expect(conciliation.requestRepository.findById).toHaveBeenCalledWith('req-1')
+    expect(webhookDeadLetters.record).toHaveBeenCalledWith(expect.objectContaining({
+      accountId: 'acc-1', subjectType: 'conciliation_request', subjectId: 'req-1', attempts: 12,
+    }))
+
+    await created[2].handlers.get('completed')!({ id: 'w1', data: { requestId: 'req-1' } })
+    expect(webhookDeadLetters.markResolved).toHaveBeenCalledWith('conciliation_request', 'req-1')
   })
 })
