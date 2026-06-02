@@ -2,6 +2,8 @@ import type pg from 'pg'
 import type { ILogger } from '../shared/logger/ILogger.js'
 import type { IEventBus } from '../shared/events/IEventBus.js'
 import { credentialsCipher } from '../shared/infrastructure/crypto/CredentialsCipher.js'
+import type { IWebhookNotificationLog } from '../shared/infrastructure/webhooks/IWebhookNotificationLog.js'
+import type { IWebhookDeadLetterStore } from '../shared/infrastructure/webhooks/IWebhookDeadLetterStore.js'
 import { executorFromPool } from '../contexts/banking/infrastructure/Executor.js'
 import { BankTransactionRepository } from '../contexts/banking/infrastructure/BankTransactionRepository.js'
 import { ScrapeRunRepository } from '../contexts/banking/infrastructure/ScrapeRunRepository.js'
@@ -23,12 +25,15 @@ import { db } from '../shared/infrastructure/db/client.js'
 import { NotifyBankMovementUseCase } from '../contexts/banking/application/NotifyBankMovementUseCase.js'
 import { ListBankMovementsUseCase } from '../contexts/banking/application/ListBankMovementsUseCase.js'
 import { ReNotifyBankMovementUseCase } from '../contexts/banking/application/ReNotifyBankMovementUseCase.js'
+import { ListWebhookDeadLettersUseCase } from '../contexts/banking/application/ListWebhookDeadLettersUseCase.js'
 import { Queues } from '../shared/infrastructure/queues/QueueRegistry.js'
 
 interface ContainerBase {
   pool: pg.Pool
   logger: ILogger
   eventBus: IEventBus
+  webhookLog: IWebhookNotificationLog
+  webhookDeadLetters: IWebhookDeadLetterStore
   account: AccountModule
   user: UserModule
 }
@@ -38,6 +43,7 @@ export interface BankingModule {
   notifyBankMovement: NotifyBankMovementUseCase
   listBankMovements: ListBankMovementsUseCase
   reNotifyBankMovement: ReNotifyBankMovementUseCase
+  listWebhookDeadLetters: ListWebhookDeadLettersUseCase
   bankTransactionRepository: BankTransactionRepository
   sessionManager: SessionManager
 }
@@ -100,10 +106,15 @@ export function buildBankingModule(container: ContainerBase): BankingModule {
   const sessionManager = new SessionManager(startFn, bankSessionRepo, scrapeBlocker)
 
   const enqueueNotify = async (bankTransactionId: string) => {
+    const jobId = `bank-movement-webhook_${bankTransactionId}`
+    // A prior failed delivery is retained in the queue (removeOnFail: false), and
+    // BullMQ treats a re-add with an existing jobId as a no-op. Drop the stale job
+    // first so a re-drive genuinely re-enqueues instead of silently doing nothing.
+    await Queues.bankMovementWebhook.remove(jobId)
     await Queues.bankMovementWebhook.add(
       'notify',
       { bankTransactionId },
-      { jobId: `bank-movement-webhook_${bankTransactionId}`, removeOnComplete: true }
+      { jobId, removeOnComplete: true }
     )
   }
 
@@ -115,10 +126,14 @@ export function buildBankingModule(container: ContainerBase): BankingModule {
     }),
     notifyBankMovement: new NotifyBankMovementUseCase({
       bankTxRepo, accountReader, configReader, userModeReader,
+      webhookLog: container.webhookLog,
     }),
     listBankMovements: new ListBankMovementsUseCase(readModel),
     reNotifyBankMovement: new ReNotifyBankMovementUseCase({
       bankTxRepo, enqueueNotify,
+    }),
+    listWebhookDeadLetters: new ListWebhookDeadLettersUseCase({
+      deadLetters: container.webhookDeadLetters,
     }),
     bankTransactionRepository: bankTxRepo,
     sessionManager,

@@ -2,6 +2,7 @@ import type pg from 'pg'
 import type { ILogger } from '../shared/logger/ILogger.js'
 import type { IEventBus } from '../shared/events/IEventBus.js'
 import type { IUnitOfWork } from '../shared/persistence/IUnitOfWork.js'
+import type { IWebhookNotificationLog } from '../shared/infrastructure/webhooks/IWebhookNotificationLog.js'
 import type { BankingModule } from './bankingModule.js'
 import type { AccountModule } from './accountModule.js'
 import type { UserModule } from './userModule.js'
@@ -12,6 +13,7 @@ interface ContainerBase {
   logger: ILogger
   eventBus: IEventBus
   unitOfWork: IUnitOfWork
+  webhookLog: IWebhookNotificationLog
   banking: BankingModule
   account: AccountModule
   user: UserModule
@@ -48,6 +50,7 @@ export interface ConciliationModule {
   listConciliationRequests: ListConciliationRequestsUseCase
   getConciliationRequestDetail: GetConciliationRequestDetailUseCase
   ownershipChecker: ConciliationOwnershipCheckerAdapter
+  requestRepository: ConciliationRequestRepository
 }
 
 export function buildConciliationModule(container: ContainerBase): ConciliationModule {
@@ -113,6 +116,7 @@ export function buildConciliationModule(container: ContainerBase): ConciliationM
     }),
     notifyWebhook: new NotifyWebhookUseCase({
       requestRepo, matchRepo, configReader,
+      webhookLog: container.webhookLog,
     }),
     expireStaleRequests: new ExpireStaleRequestsUseCase({
       requestRepo, configReader, eventBus: container.eventBus,
@@ -124,5 +128,6 @@ export function buildConciliationModule(container: ContainerBase): ConciliationM
     listConciliationRequests: new ListConciliationRequestsUseCase(readModel),
     getConciliationRequestDetail: new GetConciliationRequestDetailUseCase(readModel),
     ownershipChecker,
+    requestRepository: requestRepo,
   }
 }

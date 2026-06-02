@@ -45,11 +45,23 @@ async function seedAccountData(userId: string, accountId: string): Promise<Seede
      VALUES ($1, $2, $3, $4, 'amount')`,
     [conciliatedId, accountId, requestId, txId]
   )
+  await pool.query(
+    `INSERT INTO webhook_notifications
+       (id, account_id, subject_type, subject_id, url, request_payload, response_status, attempt)
+     VALUES (gen_random_uuid(), $1, 'bank_transaction', $2, 'https://hook', '{}'::jsonb, 200, 1)`,
+    [accountId, txId]
+  )
+  await pool.query(
+    `INSERT INTO webhook_dead_letters
+       (id, account_id, subject_type, subject_id, last_status, last_error, attempts)
+     VALUES (gen_random_uuid(), $1, 'bank_transaction', $2, 500, 'boom', 12)`,
+    [accountId, txId]
+  )
 
   return { userId, accountId, txId, requestId, conciliatedId }
 }
 
-async function countDataFor(accountId: string): Promise<{ bt: number; cr: number; ct: number }> {
+async function countDataFor(accountId: string): Promise<{ bt: number; cr: number; ct: number; wn: number; wdl: number }> {
   const pool = getTestPool()
   const bt = await pool.query<{ n: number }>(
     'SELECT COUNT(*)::int AS n FROM bank_transactions WHERE account_id = $1', [accountId]
@@ -60,7 +72,13 @@ async function countDataFor(accountId: string): Promise<{ bt: number; cr: number
   const ct = await pool.query<{ n: number }>(
     'SELECT COUNT(*)::int AS n FROM conciliated_transactions WHERE account_id = $1', [accountId]
   )
-  return { bt: bt.rows[0].n, cr: cr.rows[0].n, ct: ct.rows[0].n }
+  const wn = await pool.query<{ n: number }>(
+    'SELECT COUNT(*)::int AS n FROM webhook_notifications WHERE account_id = $1', [accountId]
+  )
+  const wdl = await pool.query<{ n: number }>(
+    'SELECT COUNT(*)::int AS n FROM webhook_dead_letters WHERE account_id = $1', [accountId]
+  )
+  return { bt: bt.rows[0].n, cr: cr.rows[0].n, ct: ct.rows[0].n, wn: wn.rows[0].n, wdl: wdl.rows[0].n }
 }
 
 describe('ChangeOperationModeUseCase (integration)', () => {
@@ -75,7 +93,7 @@ describe('ChangeOperationModeUseCase (integration)', () => {
 
     // Sanity: data is there before the use case runs
     const before = await countDataFor(account.id)
-    expect(before).toEqual({ bt: 1, cr: 1, ct: 1 })
+    expect(before).toEqual({ bt: 1, cr: 1, ct: 1, wn: 1, wdl: 1 })
     void data
 
     const pool = getTestPool()
@@ -100,7 +118,7 @@ describe('ChangeOperationModeUseCase (integration)', () => {
 
     // Account-scoped data was wiped
     const after = await countDataFor(account.id)
-    expect(after).toEqual({ bt: 0, cr: 0, ct: 0 })
+    expect(after).toEqual({ bt: 0, cr: 0, ct: 0, wn: 0, wdl: 0 })
 
     // Event was published
     expect(received).toHaveLength(1)

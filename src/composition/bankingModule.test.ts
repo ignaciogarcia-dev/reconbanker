@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('../shared/infrastructure/queues/QueueRegistry.js', () => {
-  const make = () => ({ add: vi.fn().mockResolvedValue(undefined) })
+  const make = () => ({ add: vi.fn().mockResolvedValue(undefined), remove: vi.fn().mockResolvedValue(undefined) })
   return {
     redis: {} as any,
     Queues: {
@@ -37,6 +37,7 @@ import { RunBankScrapeUseCase } from '../contexts/banking/application/RunBankScr
 import { NotifyBankMovementUseCase } from '../contexts/banking/application/NotifyBankMovementUseCase.js'
 import { ListBankMovementsUseCase } from '../contexts/banking/application/ListBankMovementsUseCase.js'
 import { ReNotifyBankMovementUseCase } from '../contexts/banking/application/ReNotifyBankMovementUseCase.js'
+import { ListWebhookDeadLettersUseCase } from '../contexts/banking/application/ListWebhookDeadLettersUseCase.js'
 import { db } from '../shared/infrastructure/db/client.js'
 import { ScriptLoader } from '../contexts/script-engine/infrastructure/ScriptLoader.js'
 import { PersistentPlaywrightRunner } from '../contexts/script-engine/infrastructure/PersistentPlaywrightRunner.js'
@@ -55,6 +56,8 @@ function makeContainer() {
     logger,
     eventBus: { publish: vi.fn(), subscribe: vi.fn() } as any,
     unitOfWork: { run: async (fn: any) => fn({}) } as any,
+    webhookLog: { record: vi.fn() } as any,
+    webhookDeadLetters: { record: vi.fn(), listUnresolved: vi.fn(), markResolved: vi.fn() } as any,
     account: {
       accountRepository,
       accountConfigRepository,
@@ -78,6 +81,7 @@ describe('buildBankingModule', () => {
     expect(mod.notifyBankMovement).toBeInstanceOf(NotifyBankMovementUseCase)
     expect(mod.listBankMovements).toBeInstanceOf(ListBankMovementsUseCase)
     expect(mod.reNotifyBankMovement).toBeInstanceOf(ReNotifyBankMovementUseCase)
+    expect(mod.listWebhookDeadLetters).toBeInstanceOf(ListWebhookDeadLettersUseCase)
     expect(mod.bankTransactionRepository).toBeDefined()
     expect(mod.sessionManager).toBeDefined()
   })
@@ -90,6 +94,18 @@ describe('buildBankingModule', () => {
       { bankTransactionId: 'tx-1' },
       expect.objectContaining({ jobId: 'bank-movement-webhook_tx-1', removeOnComplete: true }),
     )
+  })
+
+  it('enqueueNotify removes a stale job before re-adding so a re-drive is not a no-op', async () => {
+    const mod = buildBankingModule(makeContainer())
+    const queue = (Queues as any).bankMovementWebhook
+    await (mod.reNotifyBankMovement as any).deps.enqueueNotify('tx-1')
+    // remove(jobId) must precede add(jobId): a failed job kept by removeOnFail:false
+    // would otherwise make the re-add a silent no-op.
+    expect(queue.remove).toHaveBeenCalledWith('bank-movement-webhook_tx-1')
+    const removeOrder = queue.remove.mock.invocationCallOrder[0]
+    const addOrder = queue.add.mock.invocationCallOrder[0]
+    expect(removeOrder).toBeLessThan(addOrder)
   })
 
   it('ensureSession closure delegates to sessionManager.ensureRunning', async () => {

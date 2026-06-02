@@ -1,25 +1,27 @@
 import { sendWebhook } from '../../../shared/infrastructure/webhooks/WebhookSender.js'
+import { makeLoggingWebhookSender } from '../../../shared/infrastructure/webhooks/LoggingWebhookSender.js'
+import { IWebhookNotificationLog } from '../../../shared/infrastructure/webhooks/IWebhookNotificationLog.js'
 import { IBankTransactionRepository } from '../domain/IBankTransactionRepository.js'
 import { IAccountForBankingReader } from '../domain/ports/IAccountForBankingReader.js'
 import { INotificationConfigReader } from '../domain/ports/INotificationConfigReader.js'
 import { IUserOperationModeReader } from '../domain/ports/IUserOperationModeReader.js'
 
-interface JobData { bankTransactionId: string }
+interface JobData { bankTransactionId: string; attempt?: number }
 
 export interface NotifyBankMovementDeps {
   bankTxRepo: IBankTransactionRepository
   accountReader: IAccountForBankingReader
   configReader: INotificationConfigReader
   userModeReader: IUserOperationModeReader
+  webhookLog: IWebhookNotificationLog
   sendWebhookFn?: typeof sendWebhook
 }
 
 export class NotifyBankMovementUseCase {
   constructor(private readonly deps: NotifyBankMovementDeps) {}
 
-  async execute({ bankTransactionId }: JobData): Promise<void> {
-    const { bankTxRepo, accountReader, configReader, userModeReader } = this.deps
-    const send = this.deps.sendWebhookFn ?? sendWebhook
+  async execute({ bankTransactionId, attempt = 1 }: JobData): Promise<void> {
+    const { bankTxRepo, accountReader, configReader, userModeReader, webhookLog } = this.deps
 
     const tx = await bankTxRepo.findById(bankTransactionId)
     if (!tx) return
@@ -58,6 +60,12 @@ export class NotifyBankMovementUseCase {
         if (!(k in payload)) payload[k] = v
       }
     }
+
+    const send = makeLoggingWebhookSender(
+      webhookLog,
+      { accountId: tx.accountId, subjectType: 'bank_transaction', subjectId: tx.id, attempt },
+      this.deps.sendWebhookFn,
+    )
 
     try {
       await send({ url: config.webhookUrl, payload, authType, authToken: token })
