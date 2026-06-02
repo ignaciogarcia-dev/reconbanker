@@ -13,8 +13,6 @@ export class GetAccountDetailUseCase {
       bank: account.bank,
       name: account.name ?? null,
       status: account.status,
-      scrapeBlockedAt: account.scrapeBlockedAt?.toISOString() ?? null,
-      scrapeBlockedReason: account.scrapeBlockedReason,
     }
   }
 }

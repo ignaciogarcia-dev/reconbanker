@@ -1,6 +1,4 @@
 import type { IBankSessionRepository } from '../domain/IBankSessionRepository.js'
-import type { IAccountScrapeBlocker } from '../domain/ports/IAccountScrapeBlocker.js'
-import { isFatalScrapeError } from '../domain/isFatalScrapeError.js'
 
 export interface SessionHandle {
   stop(): void
@@ -27,17 +25,11 @@ export class SessionManager {
   constructor(
     private readonly startFn: StartSessionFn,
     private readonly sessionRepo: IBankSessionRepository,
-    private readonly blocker: IAccountScrapeBlocker,
   ) {}
 
-  // Records a stopped session and, if the failure is fatal (e.g. bad credentials),
-  // blocks the account so the health-check stops relaunching it until an operator
-  // restarts. The block write is best-effort so it can never break session cleanup.
+  // Records a stopped session (with its stop reason) for operator visibility.
   private async recordStop(accountId: string, reason: string): Promise<void> {
     await this.sessionRepo.markStopped(accountId, reason)
-    if (isFatalScrapeError(reason)) {
-      await this.blocker.block(accountId, reason).catch(() => {})
-    }
   }
 
   isRunning(accountId: string): boolean {
@@ -63,8 +55,8 @@ export class SessionManager {
     try {
       handle = await this.startFn(accountId)
     } catch (err) {
-      // Record the failed start (and block the account if fatal) so operators can
-      // see why it isn't monitoring, then rethrow so the job is marked failed.
+      // Record the failed start so operators can see why it isn't monitoring,
+      // then rethrow so the job is marked failed.
       await this.recordStop(accountId, err instanceof Error ? err.message : String(err))
       throw err
     }
@@ -74,10 +66,8 @@ export class SessionManager {
 
     handle.done
       // Resolve carries a MonitorStopReason (stop_requested|max_runtime|logged_out|
-      // auth_timeout) — never fatal, so it never blocks the account.
-      .then((reason) => this.sessionRepo.markStopped(accountId, reason))
-      // Reject carries a thrown error (e.g. a fatal login failure) — recordStop
-      // blocks the account when the message is fatal.
+      // auth_timeout); reject carries a thrown error. Either way we just record the stop.
+      .then((reason) => this.recordStop(accountId, reason))
       .catch((err) => this.recordStop(accountId, err instanceof Error ? err.message : String(err)))
       .finally(() => { this.live.delete(accountId) })
   }

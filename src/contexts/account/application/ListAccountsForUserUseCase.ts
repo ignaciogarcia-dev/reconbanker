@@ -11,8 +11,6 @@ export class ListAccountsForUserUseCase {
       bank: a.bank,
       name: a.name ?? null,
       status: a.status,
-      scrapeBlockedAt: a.scrapeBlockedAt?.toISOString() ?? null,
-      scrapeBlockedReason: a.scrapeBlockedReason,
     }))
   }
 }

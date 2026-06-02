@@ -24,11 +24,10 @@ function buildSut(transactions: ScrapedTransaction[], opts: { hasScript?: boolea
         ? null
         : { id: accountId, userId: 'user-1', bank: 'test-bank', sessionType: 'one-shot' as const, loginMode: 'simple' as const },
   }
-  const blocker = { block: vi.fn().mockResolvedValue(undefined) }
   const useCase = new RunBankScrapeUseCase({
-    accountReader, txRepo, scrapeRunRepo, scriptEngine, eventBus, ingest, blocker,
+    accountReader, txRepo, scrapeRunRepo, scriptEngine, eventBus, ingest,
   })
-  return { useCase, txRepo, scrapeRunRepo, eventBus, blocker }
+  return { useCase, txRepo, scrapeRunRepo, eventBus }
 }
 
 const sample = (externalId: string): ScrapedTransaction => ({
@@ -72,7 +71,7 @@ describe('RunBankScrapeUseCase', () => {
       accountReader: { findById: async () => ({ id: 'acc-1', userId: 'u', bank: 'bancopichincha', sessionType: 'persistent' as const, loginMode: 'assisted' as const }) },
       txRepo, scrapeRunRepo,
       scriptEngine: { loadActiveScript: async () => ({ id: 's1', codeSnapshot: '' }), runScript },
-      eventBus, ingest, ensureSession, blocker: { block: vi.fn().mockResolvedValue(undefined) },
+      eventBus, ingest, ensureSession,
     })
 
     await useCase.execute({ accountId: 'acc-1' })
@@ -89,7 +88,6 @@ describe('RunBankScrapeUseCase', () => {
     const ingest = new IngestTransactionsUseCase({ txRepo, eventBus })
     const failHandler = vi.fn().mockResolvedValue(undefined)
     eventBus.subscribe('ScrapeRunFailed', failHandler)
-    const blocker = { block: vi.fn().mockResolvedValue(undefined) }
     const useCase = new RunBankScrapeUseCase({
       accountReader: { findById: async () => ({ id: 'acc-1', userId: 'user-1', bank: 'b', sessionType: 'one-shot' as const, loginMode: 'simple' as const }) },
       txRepo, scrapeRunRepo,
@@ -97,13 +95,12 @@ describe('RunBankScrapeUseCase', () => {
         loadActiveScript: async () => ({ id: 'script-1', codeSnapshot: '' }),
         runScript: async () => { throw new Error('script crashed') },
       },
-      eventBus, ingest, blocker,
+      eventBus, ingest,
     })
 
     await expect(useCase.execute({ accountId: 'acc-1' })).rejects.toThrow('script crashed')
     expect(scrapeRunRepo.runs[0].status).toBe('failed')
     expect(scrapeRunRepo.runs[0].failureType).toBe('unknown')
-    expect(blocker.block).not.toHaveBeenCalled()
     expect(failHandler).toHaveBeenCalledTimes(1)
   })
 
@@ -117,7 +114,7 @@ describe('RunBankScrapeUseCase', () => {
       accountReader: { findById: async () => ({ id: 'acc-1', userId: 'u', bank: 'b', sessionType: 'persistent' as const, loginMode: 'assisted' as const }) },
       txRepo, scrapeRunRepo,
       scriptEngine: { loadActiveScript: async () => ({ id: 's1', codeSnapshot: '' }), runScript },
-      eventBus, ingest, blocker: { block: vi.fn().mockResolvedValue(undefined) },
+      eventBus, ingest,
     })
 
     await useCase.execute({ accountId: 'acc-1' })
@@ -136,7 +133,6 @@ describe('RunBankScrapeUseCase', () => {
     const scrapeRunRepo = new InMemoryScrapeRunRepository()
     const eventBus = new InMemoryEventBus()
     const ingest = new IngestTransactionsUseCase({ txRepo, eventBus })
-    const blocker = { block: vi.fn().mockResolvedValue(undefined) }
     const useCase = new RunBankScrapeUseCase({
       accountReader: { findById: async () => ({ id: 'acc-1', userId: 'u', bank: 'b', sessionType: 'one-shot' as const, loginMode: 'simple' as const }) },
       txRepo, scrapeRunRepo,
@@ -145,30 +141,11 @@ describe('RunBankScrapeUseCase', () => {
         // eslint-disable-next-line @typescript-eslint/no-throw-literal
         runScript: async () => { throw 'plain-string-error' },
       },
-      eventBus, ingest, blocker,
+      eventBus, ingest,
     })
 
     await expect(useCase.execute({ accountId: 'acc-1' })).rejects.toBe('plain-string-error')
     expect(scrapeRunRepo.runs[0].status).toBe('failed')
     expect(scrapeRunRepo.runs[0].error).toBe('plain-string-error')
-  })
-
-  it('blocks the account on a fatal (login) failure and records login_failed', async () => {
-    const { txRepo, scrapeRunRepo, eventBus, blocker } = buildSut([])
-    // Override the script to throw a fatal login error.
-    const useCase = new RunBankScrapeUseCase({
-      accountReader: { findById: async (id: string) => ({ id, userId: 'u', bank: 'b', sessionType: 'one-shot' as const, loginMode: 'simple' as const }) },
-      txRepo, scrapeRunRepo, eventBus,
-      ingest: new IngestTransactionsUseCase({ txRepo, eventBus }),
-      blocker,
-      scriptEngine: {
-        loadActiveScript: async () => ({ id: 'script-1', codeSnapshot: '' }),
-        runScript: async () => { throw new Error('login_failed: usuario o contraseña incorrectos') },
-      },
-    })
-
-    await expect(useCase.execute({ accountId: 'acc-1' })).rejects.toThrow('login_failed')
-    expect(blocker.block).toHaveBeenCalledWith('acc-1', 'login_failed: usuario o contraseña incorrectos')
-    expect(scrapeRunRepo.runs[0].failureType).toBe('login_failed')
   })
 })

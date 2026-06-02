@@ -59,8 +59,6 @@ describe('AccountRowMapper', () => {
     name: 'My Account',
     status: 'active',
     created_at: new Date('2024-01-01T00:00:00Z'),
-    scrape_blocked_at: null,
-    scrape_blocked_reason: null,
   }
 
   it('reconstitutes a full account aggregate', () => {
@@ -71,17 +69,12 @@ describe('AccountRowMapper', () => {
     expect(account.status).toBe('active')
   })
 
-  it('preserves null name and block info', () => {
-    const blockedAt = new Date('2024-02-01T00:00:00Z')
+  it('preserves null name', () => {
     const account = AccountRowMapper.toAggregate({
       ...row,
       name: null,
-      scrape_blocked_at: blockedAt,
-      scrape_blocked_reason: 'bad creds',
     })
     expect(account.name).toBeUndefined()
-    expect(account.scrapeBlockedAt).toBe(blockedAt)
-    expect(account.scrapeBlockedReason).toBe('bad creds')
   })
 })
 

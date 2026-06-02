@@ -166,9 +166,7 @@ describe('GetAccountDetailUseCase', () => {
       id: 'acc-1',
       bank: 'mi-dinero',
       name: 'My Account',
-      status: 'ready',
-      scrapeBlockedAt: undefined,
-      scrapeBlockedReason: null,
+      status: 'active',
       ...overrides,
     }) as any
 
@@ -180,22 +178,8 @@ describe('GetAccountDetailUseCase', () => {
       id: 'acc-1',
       bank: 'mi-dinero',
       name: null,
-      status: 'ready',
-      scrapeBlockedAt: null,
-      scrapeBlockedReason: null,
+      status: 'active',
     })
-  })
-
-  it('serializes scrapeBlockedAt to ISO string when present', async () => {
-    const blockedAt = new Date('2024-01-15T10:00:00Z')
-    const repo = {
-      findByIdForUser: async () =>
-        account({ scrapeBlockedAt: blockedAt, scrapeBlockedReason: 'bad creds' }),
-    } as any
-    const out = await new GetAccountDetailUseCase(repo).execute('acc-1', 'u-1')
-
-    expect(out.scrapeBlockedAt).toBe(blockedAt.toISOString())
-    expect(out.scrapeBlockedReason).toBe('bad creds')
   })
 
   it('throws NotFoundError when the account is missing', async () => {
@@ -257,17 +241,13 @@ describe('ListAccountsForUserUseCase', () => {
           id: 'a-1',
           bank: 'mi-dinero',
           name: 'one',
-          status: 'ready',
-          scrapeBlockedAt: undefined,
-          scrapeBlockedReason: null,
+          status: 'active',
         },
         {
           id: 'a-2',
           bank: 'mi-dinero',
           name: null,
-          status: 'blocked',
-          scrapeBlockedAt: new Date('2024-01-15T00:00:00Z'),
-          scrapeBlockedReason: 'creds',
+          status: 'inactive',
         },
       ],
     } as any
@@ -276,7 +256,7 @@ describe('ListAccountsForUserUseCase', () => {
     expect(out).toHaveLength(2)
     expect(out[0].name).toBe('one')
     expect(out[1].name).toBeNull()
-    expect(out[1].scrapeBlockedAt).toBe('2024-01-15T00:00:00.000Z')
+    expect(out[1].status).toBe('inactive')
   })
 
   it('returns empty array when user has no accounts', async () => {

@@ -3,7 +3,6 @@ import { buildAccountModule } from './accountModule.js'
 import { buildUserModule } from './userModule.js'
 import { CreateAccountUseCase } from '../contexts/account/application/CreateAccountUseCase.js'
 import { DeleteAccountUseCase } from '../contexts/account/application/DeleteAccountUseCase.js'
-import { ClearScrapeBlockUseCase } from '../contexts/account/application/ClearScrapeBlockUseCase.js'
 import { ListAccountsForUserUseCase } from '../contexts/account/application/ListAccountsForUserUseCase.js'
 import { GetAccountDetailUseCase } from '../contexts/account/application/GetAccountDetailUseCase.js'
 import { GetAccountConfigUseCase } from '../contexts/account/application/GetAccountConfigUseCase.js'
@@ -31,7 +30,6 @@ describe('buildAccountModule', () => {
 
     expect(mod.createAccount).toBeInstanceOf(CreateAccountUseCase)
     expect(mod.deleteAccount).toBeInstanceOf(DeleteAccountUseCase)
-    expect(mod.clearScrapeBlock).toBeInstanceOf(ClearScrapeBlockUseCase)
     expect(mod.listAccountsForUser).toBeInstanceOf(ListAccountsForUserUseCase)
     expect(mod.getAccountDetail).toBeInstanceOf(GetAccountDetailUseCase)
     expect(mod.getAccountConfig).toBeInstanceOf(GetAccountConfigUseCase)
