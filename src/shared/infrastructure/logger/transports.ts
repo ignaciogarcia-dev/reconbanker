@@ -7,7 +7,7 @@ import { mkdirSync } from 'fs'
 const { combine, timestamp, json, printf, colorize, errors } = winston.format
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const logsDir = path.resolve(__dirname, '../../../../..', 'logs')
+const logsDir = path.resolve(__dirname, '../../../..', 'logs')
 
 mkdirSync(logsDir, { recursive: true })
 
