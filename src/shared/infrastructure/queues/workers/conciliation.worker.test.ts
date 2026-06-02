@@ -90,10 +90,10 @@ describe('createConciliationWorkers', () => {
     expect(conciliation.processIncomingTransaction.execute).toHaveBeenCalledWith({ b: 2 })
 
     await created[2].processor({ data: { c: 3 } })
-    expect(conciliation.notifyWebhook.execute).toHaveBeenCalledWith({ c: 3 })
+    expect(conciliation.notifyWebhook.execute).toHaveBeenCalledWith({ c: 3, attempt: 1 })
 
-    await created[3].processor({ data: { d: 4 } })
-    expect(banking.notifyBankMovement.execute).toHaveBeenCalledWith({ d: 4 })
+    await created[3].processor({ data: { d: 4 }, attemptsMade: 1 })
+    expect(banking.notifyBankMovement.execute).toHaveBeenCalledWith({ d: 4, attempt: 2 })
 
     // Event handlers
     const conciliationLog = childLogs.get('[conciliation]')!

@@ -39,7 +39,7 @@ export function createConciliationWorkers(container: Container): ConciliationWor
 
   const webhookWorker = new Worker(
     'webhook',
-    async (job) => { await conciliation.notifyWebhook.execute(job.data) },
+    async (job) => { await conciliation.notifyWebhook.execute({ ...job.data, attempt: (job.attemptsMade ?? 0) + 1 }) },
     { connection: redis }
   )
   webhookWorker.on('completed', (job) => webhookLog.info(`job ${job.id} completed`))
@@ -49,7 +49,7 @@ export function createConciliationWorkers(container: Container): ConciliationWor
 
   const bankMovementWebhookWorker = new Worker(
     'bank-movement-webhook',
-    async (job) => { await container.banking.notifyBankMovement.execute(job.data) },
+    async (job) => { await container.banking.notifyBankMovement.execute({ ...job.data, attempt: (job.attemptsMade ?? 0) + 1 }) },
     { connection: redis }
   )
   bankMovementWebhookWorker.on('completed', (job) => bankMovementWebhookLog.info(`job ${job.id} completed`))

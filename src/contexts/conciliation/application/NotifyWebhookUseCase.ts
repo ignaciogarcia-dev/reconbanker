@@ -2,8 +2,10 @@ import { IAccountConfigReader } from '../domain/ports/IAccountConfigReader.js'
 import { IConciliationRequestRepository } from '../domain/IConciliationRequestRepository.js'
 import { IConciliatedTransactionRepository } from '../domain/IConciliatedTransactionRepository.js'
 import { sendWebhook } from '../../../shared/infrastructure/webhooks/WebhookSender.js'
+import { makeLoggingWebhookSender } from '../../../shared/infrastructure/webhooks/LoggingWebhookSender.js'
+import { IWebhookNotificationLog } from '../../../shared/infrastructure/webhooks/IWebhookNotificationLog.js'
 
-interface JobData { requestId: string }
+interface JobData { requestId: string; attempt?: number }
 
 const NOTIFIABLE_STATUSES = new Set(['matched', 'ambiguous', 'expired'])
 
@@ -11,15 +13,15 @@ export interface NotifyWebhookDeps {
   requestRepo: IConciliationRequestRepository
   matchRepo: IConciliatedTransactionRepository
   configReader: IAccountConfigReader
+  webhookLog: IWebhookNotificationLog
   sendWebhookFn?: typeof sendWebhook
 }
 
 export class NotifyWebhookUseCase {
   constructor(private readonly deps: NotifyWebhookDeps) {}
 
-  async execute({ requestId }: JobData): Promise<void> {
-    const { requestRepo, matchRepo, configReader } = this.deps
-    const send = this.deps.sendWebhookFn ?? sendWebhook
+  async execute({ requestId, attempt = 1 }: JobData): Promise<void> {
+    const { requestRepo, matchRepo, configReader, webhookLog } = this.deps
 
     const request = await requestRepo.findById(requestId)
     if (!request) return
@@ -49,6 +51,12 @@ export class NotifyWebhookUseCase {
         if (!(k in payload)) payload[k] = v
       }
     }
+
+    const send = makeLoggingWebhookSender(
+      webhookLog,
+      { accountId: request.accountId, subjectType: 'conciliation_request', subjectId: request.id, attempt },
+      this.deps.sendWebhookFn,
+    )
 
     await send({
       url: config.webhookUrl,

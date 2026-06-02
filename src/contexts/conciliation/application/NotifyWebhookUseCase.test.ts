@@ -41,8 +41,9 @@ function buildDeps(opts: {
     findWebhookConfigForRequest: vi.fn().mockResolvedValue(opts.config ?? null),
     shouldNotifyOnExpired: vi.fn(),
   }
-  const sendWebhookFn = vi.fn().mockResolvedValue(undefined)
-  return { requestRepo, matchRepo, configReader, sendWebhookFn }
+  const sendWebhookFn = vi.fn().mockResolvedValue({ status: 200, body: '' })
+  const webhookLog = { record: vi.fn().mockResolvedValue(undefined) }
+  return { requestRepo, matchRepo, configReader, webhookLog, sendWebhookFn }
 }
 
 describe('NotifyWebhookUseCase', () => {
@@ -113,6 +114,39 @@ describe('NotifyWebhookUseCase', () => {
     expect(callArg.payload.custom).toBe('value')
     expect(deps.matchRepo.findPrimaryByRequest).toHaveBeenCalledWith('req-1')
     expect(deps.matchRepo.markNotified).toHaveBeenCalledWith('match-1')
+    expect(deps.webhookLog.record).toHaveBeenCalledWith(expect.objectContaining({
+      accountId: 'acc-1',
+      subjectType: 'conciliation_request',
+      subjectId: 'req-1',
+      responseStatus: 200,
+      errorMessage: null,
+      attempt: 1,
+    }))
+  })
+
+  it('records a failure entry, does not mark notified, and rethrows', async () => {
+    const req = buildRequest({ status: 'matched' })
+    const deps = buildDeps({
+      request: req,
+      config: {
+        webhookUrl: 'https://hook.example/x',
+        webhookAuthToken: null, authToken: null,
+        webhookAuthType: null, authType: null,
+        webhookExtraFields: null,
+      },
+      primary: { id: 'match-1' },
+    })
+    const err = Object.assign(new Error('Webhook failed: 503'), { status: 503, body: 'down' })
+    deps.sendWebhookFn.mockRejectedValue(err)
+    const useCase = new NotifyWebhookUseCase(deps as any)
+
+    await expect(useCase.execute({ requestId: 'req-1', attempt: 3 })).rejects.toThrow('Webhook failed: 503')
+    expect(deps.webhookLog.record).toHaveBeenCalledWith(expect.objectContaining({
+      subjectType: 'conciliation_request', subjectId: 'req-1',
+      responseStatus: 503, responseBody: 'down', errorMessage: 'Webhook failed: 503',
+      attempt: 3,
+    }))
+    expect(deps.matchRepo.markNotified).not.toHaveBeenCalled()
   })
 
   it('does not call matchRepo or markNotified for ambiguous status', async () => {

@@ -91,6 +91,37 @@ describe('sendWebhook', () => {
     expect(headers['Authorization']).toBe('Bearer tok')
   })
 
+  it('returns the status and body on success', async () => {
+    fetchMock.mockResolvedValue(makeResponse(202, 'accepted', 'Accepted'))
+    const result = await sendWebhook({
+      url: 'https://example.com/x',
+      payload: {},
+      authType: null,
+      authToken: null,
+    })
+    expect(result).toEqual({ status: 202, body: 'accepted' })
+  })
+
+  it('attaches the status code to the thrown error on failure', async () => {
+    fetchMock.mockResolvedValue(makeResponse(503, 'down', 'Service Unavailable'))
+    await expect(sendWebhook({
+      url: 'https://example.com/x',
+      payload: {},
+      authType: null,
+      authToken: null,
+    })).rejects.toMatchObject({ status: 503 })
+  })
+
+  it('attaches the response body to the thrown error on failure', async () => {
+    fetchMock.mockResolvedValue(makeResponse(422, '{"code":"bad"}', 'Unprocessable Entity'))
+    await expect(sendWebhook({
+      url: 'https://example.com/x',
+      payload: {},
+      authType: null,
+      authToken: null,
+    })).rejects.toMatchObject({ status: 422, body: '{"code":"bad"}' })
+  })
+
   it('throws when response is not ok and includes body excerpt', async () => {
     fetchMock.mockResolvedValue(makeResponse(500, 'server exploded', 'Internal Server Error'))
     await expect(sendWebhook({
@@ -124,7 +155,7 @@ describe('sendWebhook', () => {
       payload: { a: 1 },
       authType: null,
       authToken: null,
-    })).resolves.toBeUndefined()
+    })).resolves.toEqual({ status: 200, body: '' })
     expect(childLog.info).toHaveBeenCalledWith('response', expect.objectContaining({ status: 200, body: '' }))
   })
 

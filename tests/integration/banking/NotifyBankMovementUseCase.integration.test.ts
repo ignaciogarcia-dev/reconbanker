@@ -13,6 +13,7 @@ import { AccountForBankingReaderAdapter } from '../../../src/contexts/banking/in
 import { NotificationConfigReaderAdapter } from '../../../src/contexts/banking/infrastructure/adapters/NotificationConfigReaderAdapter.js'
 import { UserOperationModeReaderAdapter } from '../../../src/contexts/banking/infrastructure/adapters/UserOperationModeReaderAdapter.js'
 import { NotifyBankMovementUseCase } from '../../../src/contexts/banking/application/NotifyBankMovementUseCase.js'
+import { WebhookNotificationLogRepository } from '../../../src/shared/infrastructure/webhooks/WebhookNotificationLogRepository.js'
 import { BankTransaction } from '../../../src/contexts/banking/domain/BankTransaction.js'
 
 let user: SeededUser
@@ -77,6 +78,7 @@ function buildUseCase(sendWebhookFn: any) {
     accountReader: new AccountForBankingReaderAdapter(new AccountRepository(accountExec(pool)), new AccountConfigRepository(accountExec(pool))),
     configReader: new NotificationConfigReaderAdapter(new AccountConfigRepository(accountExec(pool))),
     userModeReader: new UserOperationModeReaderAdapter(new UserRepository(userExec(pool))),
+    webhookLog: new WebhookNotificationLogRepository({ query: (text, params) => pool.query(text, params as any) }),
     sendWebhookFn,
   })
 }
@@ -97,7 +99,7 @@ describe('NotifyBankMovementUseCase (integration)', () => {
   it('happy path: claims notification and invokes send with correct payload', async () => {
     await seedAccountConfig()
     const tx = await seedBankTx()
-    const send = vi.fn().mockResolvedValue(undefined)
+    const send = vi.fn().mockResolvedValue({ status: 200, body: '' })
     const useCase = buildUseCase(send)
     await useCase.execute({ bankTransactionId: tx.id })
 
@@ -111,6 +113,40 @@ describe('NotifyBankMovementUseCase (integration)', () => {
     expect(call.payload.received_at).toBe(new Date('2024-05-01T10:00:00Z').toISOString())
     expect(call.payload.source).toBe('bank')
     expect(await txRepo.isNotified(tx.id)).toBe(true)
+
+    const { rows } = await getTestPool().query(
+      `SELECT subject_type, subject_id, account_id, response_status, error_message, attempt
+         FROM webhook_notifications WHERE subject_id = $1`,
+      [tx.id]
+    )
+    expect(rows).toHaveLength(1)
+    expect(rows[0].subject_type).toBe('bank_transaction')
+    expect(rows[0].account_id).toBe(account.id)
+    expect(rows[0].response_status).toBe(200)
+    expect(rows[0].error_message).toBeNull()
+    expect(rows[0].attempt).toBe(1)
+  })
+
+  it('logs a failure entry, releases the claim, and rethrows', async () => {
+    await seedAccountConfig()
+    const tx = await seedBankTx()
+    const err = Object.assign(new Error('Webhook failed: 500'), { status: 500, body: 'down' })
+    const send = vi.fn().mockRejectedValue(err)
+    const useCase = buildUseCase(send)
+
+    await expect(useCase.execute({ bankTransactionId: tx.id, attempt: 2 })).rejects.toThrow('Webhook failed: 500')
+    expect(await txRepo.isNotified(tx.id)).toBe(false)
+
+    const { rows } = await getTestPool().query(
+      `SELECT response_status, response_body, error_message, attempt
+         FROM webhook_notifications WHERE subject_id = $1`,
+      [tx.id]
+    )
+    expect(rows).toHaveLength(1)
+    expect(rows[0].response_status).toBe(500)
+    expect(rows[0].response_body).toBe('down')
+    expect(rows[0].error_message).toBe('Webhook failed: 500')
+    expect(rows[0].attempt).toBe(2)
   })
 
   it('silentIngestion=true claims but does not send', async () => {
@@ -162,7 +198,7 @@ describe('NotifyBankMovementUseCase (integration)', () => {
   it('second invocation with the same tx does not double-send (claim already taken)', async () => {
     await seedAccountConfig()
     const tx = await seedBankTx()
-    const send = vi.fn().mockResolvedValue(undefined)
+    const send = vi.fn().mockResolvedValue({ status: 200, body: '' })
     const useCase = buildUseCase(send)
     await useCase.execute({ bankTransactionId: tx.id })
     await useCase.execute({ bankTransactionId: tx.id })
