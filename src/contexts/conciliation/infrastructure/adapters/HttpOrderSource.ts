@@ -1,7 +1,25 @@
+import { z } from 'zod'
 import { IOrderSource, PendingOrder } from '../../domain/ports/IOrderSource.js'
 import { PollingConfig } from '../../domain/ports/IAccountConfigReader.js'
 import { ValidationError } from '../../../../shared/errors/index.js'
 import type { ILogger } from '../../../../shared/logger/ILogger.js'
+
+// Validates a single order from the ERP polling response. external_id may arrive
+// as a string or number; amount accepts numeric strings but rejects NaN/Infinity.
+// Missing/empty/non-numeric fields fail and the order is skipped (see fetch()).
+const orderSchema = z
+  .object({
+    external_id: z.union([z.string(), z.number()]).transform(String).refine((s) => s.length > 0),
+    amount: z.union([z.number(), z.string()]).transform(Number).refine(Number.isFinite),
+    currency: z.string().min(1),
+    name: z.string().min(1),
+  })
+  .transform((o) => ({
+    externalId: o.external_id,
+    amount: o.amount,
+    currency: o.currency,
+    senderName: o.name,
+  }))
 
 export class HttpOrderSource implements IOrderSource {
   constructor(private readonly logger?: ILogger) {}
@@ -56,16 +74,12 @@ export class HttpOrderSource implements IOrderSource {
 
     const out: PendingOrder[] = []
     for (const o of orders) {
-      if (!o.external_id || o.amount == null || !o.currency || !o.name) {
-        this.logger?.warn('skipping order missing required fields', { order: o })
+      const parsed = orderSchema.safeParse(o)
+      if (!parsed.success) {
+        this.logger?.warn('skipping invalid order', { order: o, issues: parsed.error.issues })
         continue
       }
-      out.push({
-        externalId: String(o.external_id),
-        amount: Number(o.amount),
-        currency: String(o.currency),
-        senderName: String(o.name),
-      })
+      out.push(parsed.data)
     }
     return out
   }

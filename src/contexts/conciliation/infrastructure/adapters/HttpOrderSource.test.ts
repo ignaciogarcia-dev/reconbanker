@@ -351,7 +351,35 @@ describe('HttpOrderSource', () => {
       { externalId: 'o-5', amount: 1, currency: 'USD', senderName: 'Eve' },
     ])
     expect(warn).toHaveBeenCalledTimes(4)
-    expect(warn.mock.calls[0][0]).toBe('skipping order missing required fields')
+    expect(warn.mock.calls[0][0]).toBe('skipping invalid order')
+  })
+
+  it('skips orders whose amount is non-numeric or NaN', async () => {
+    const warn = vi.fn()
+    const logger = { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn(), child: vi.fn() }
+    fetchMock.mockResolvedValue(
+      makeResponse({
+        contentType: 'application/json',
+        json: async () => [
+          { external_id: 'o-1', amount: 'abc', currency: 'USD', name: 'Alice' },
+          { external_id: 'o-2', amount: null, currency: 'USD', name: 'Bob' },
+          { external_id: 'o-3', amount: '12.5', currency: 'USD', name: 'Eve' },
+        ],
+      }),
+    )
+    const src = new HttpOrderSource(logger as any)
+    const out = await src.fetch({
+      accountId: 'acc-1',
+      pendingOrdersEndpoint: 'https://x.io/pending',
+      pollingMethod: 'GET',
+      pollingBody: null,
+      authType: null,
+      authToken: null,
+    } as any)
+    expect(out).toEqual([
+      { externalId: 'o-3', amount: 12.5, currency: 'USD', senderName: 'Eve' },
+    ])
+    expect(warn).toHaveBeenCalledTimes(2)
   })
 
   it('silently skips bad orders when no logger is provided', async () => {
