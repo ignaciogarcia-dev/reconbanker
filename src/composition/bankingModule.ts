@@ -118,8 +118,8 @@ export function buildBankingModule(container: ContainerBase): BankingModule {
 
   return {
     runBankScrape: new RunBankScrapeUseCase({
-      accountReader, txRepo: bankTxRepo, scrapeRunRepo, scriptEngine,
-      eventBus: container.eventBus, ingest,
+      accountReader, txRepo: bankTxRepo, scrapeRunRepo, scriptEngine, ingest,
+      logger: container.logger.child('[run-bank-scrape]'),
       ensureSession: (accountId) => sessionManager.ensureRunning(accountId),
     }),
     notifyBankMovement: new NotifyBankMovementUseCase({

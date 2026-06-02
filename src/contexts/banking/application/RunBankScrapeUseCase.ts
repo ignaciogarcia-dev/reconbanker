@@ -1,7 +1,6 @@
 import crypto from 'crypto'
-import { IEventBus } from '../../../shared/events/IEventBus.js'
 import { NotFoundError } from '../../../shared/errors/index.js'
-import { ScrapeRunFailedEvent } from '../../../shared/events/events/ScrapeRunFailed.event.js'
+import { ILogger } from '../../../shared/logger/ILogger.js'
 import { IBankTransactionRepository } from '../domain/IBankTransactionRepository.js'
 import { IScriptEnginePort } from '../domain/IScriptEnginePort.js'
 import { IScrapeRunRepository } from '../domain/IScrapeRunRepository.js'
@@ -15,8 +14,8 @@ export interface RunBankScrapeDeps {
   txRepo: IBankTransactionRepository
   scrapeRunRepo: IScrapeRunRepository
   scriptEngine: IScriptEnginePort
-  eventBus: IEventBus
   ingest: IngestTransactionsUseCase
+  logger?: ILogger
   ensureSession?: (accountId: string) => Promise<void>
 }
 
@@ -24,7 +23,7 @@ export class RunBankScrapeUseCase {
   constructor(private readonly deps: RunBankScrapeDeps) {}
 
   async execute({ accountId }: JobData): Promise<void> {
-    const { accountReader, txRepo, scrapeRunRepo, scriptEngine, eventBus, ingest } = this.deps
+    const { accountReader, txRepo, scrapeRunRepo, scriptEngine, ingest, logger } = this.deps
 
     const account = await accountReader.findById(accountId)
     if (!account) throw new NotFoundError(`Account ${accountId} not found`)
@@ -47,12 +46,13 @@ export class RunBankScrapeUseCase {
       const saved = await ingest.execute(accountId, script.id, transactions)
       await scrapeRunRepo.markSuccess(runId, saved)
     } catch (err) {
+      // Expected scrape failures (login, missing selector, timeout) are recorded in
+      // bank_scrape_runs and logged, but do NOT abort the job: the scheduler retries
+      // on its next cycle. Only genuine misconfiguration (missing account/script)
+      // throws — those happen before this try and surface as a failed job.
       const message = err instanceof Error ? err.message : String(err)
       await scrapeRunRepo.markFailed(runId, message, 'unknown')
-      await eventBus.publish(
-        new ScrapeRunFailedEvent(runId, accountId, script.id, 'unknown', message)
-      )
-      throw err
+      logger?.warn('bank scrape run failed', { accountId, runId, scriptId: script.id, error: message })
     }
   }
 }
