@@ -43,6 +43,7 @@ function meHandler(opts: {
   operationMode?: 'reconcile' | 'passthrough' | null
   name?: string | null
   email?: string
+  totpEnabled?: boolean
 }) {
   return http.get('/api/me', () =>
     HttpResponse.json({
@@ -50,6 +51,7 @@ function meHandler(opts: {
       email: opts.email ?? 'user@x',
       name: opts.name === undefined ? 'Alice Smith' : opts.name,
       operation_mode: opts.operationMode === undefined ? 'passthrough' : opts.operationMode,
+      totp_enabled: opts.totpEnabled ?? false,
     })
   )
 }
@@ -90,6 +92,28 @@ describe('SettingsDialog', () => {
       expect(screen.getByDisplayValue('zoe@x')).toBeInTheDocument()
     })
     expect(screen.getByText('Z')).toBeInTheDocument()
+  })
+
+  it('shows the 2FA enable action on the Security tab when 2FA is off', async () => {
+    server.use(meHandler({ totpEnabled: false }))
+    const user = userEvent.setup()
+    renderWithProviders(<Host />)
+    await waitFor(() => expect(screen.getByDisplayValue('user@x')).toBeInTheDocument())
+    await user.click(screen.getByRole('tab', { name: /Seguridad/i }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Activar 2FA/i })).toBeInTheDocument()
+    )
+  })
+
+  it('shows the 2FA "on" state on the Security tab when 2FA is enabled', async () => {
+    server.use(meHandler({ totpEnabled: true }))
+    const user = userEvent.setup()
+    renderWithProviders(<Host />)
+    await waitFor(() => expect(screen.getByDisplayValue('user@x')).toBeInTheDocument())
+    await user.click(screen.getByRole('tab', { name: /Seguridad/i }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Desactivar 2FA/i })).toBeInTheDocument()
+    )
   })
 
   it('switches to the operation tab and shows the current-mode badge', async () => {

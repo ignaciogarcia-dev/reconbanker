@@ -7,7 +7,14 @@
     "loading": "Signing in...",
     "error": "Incorrect email or password",
     "noAccount": "Don't have an account?",
-    "register": "Register"
+    "register": "Register",
+    "totp": {
+      "subtitle": "Enter your authentication code",
+      "code": "Authentication code",
+      "submit": "Verify",
+      "back": "Back",
+      "error": "Invalid code, please try again"
+    }
   },
   "register": {
     "title": "Create account",
@@ -28,12 +35,33 @@
     "loading": "Loading...",
     "tabs": {
       "general": "General",
+      "security": "Security",
       "operation": "Operation"
     },
     "profile": {
       "title": "Profile",
       "name": "Name",
       "email": "Email"
+    },
+    "security": {
+      "subtitle": "Two-factor authentication",
+      "intro": "Add a second step at sign-in using an authenticator app (Google Authenticator, Authy, 1Password).",
+      "disabledLabel": "Two-factor authentication is off",
+      "enabledLabel": "Two-factor authentication is on",
+      "on": "On",
+      "enable": "Enable 2FA",
+      "enrollError": "Could not start enrollment",
+      "scanHint": "Scan this QR code with your authenticator app, then enter the 6-digit code to confirm.",
+      "code": "6-digit code",
+      "verify": "Verify and enable",
+      "codeError": "Invalid code, please try again",
+      "backupTitle": "Save your backup codes",
+      "backupHint": "Store these one-time codes somewhere safe. Each can be used once if you lose access to your authenticator. They won't be shown again.",
+      "copy": "Copy",
+      "done": "Done",
+      "disable": "Disable 2FA",
+      "disableHint": "Enter your password and a current code (or a backup code) to turn off two-factor authentication.",
+      "disabled": "Two-factor authentication disabled"
     },
     "mode": {
       "title": "Operation mode",

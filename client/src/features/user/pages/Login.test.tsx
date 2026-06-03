@@ -51,6 +51,36 @@ describe('Login page', () => {
     })
   })
 
+  it('shows the TOTP step for a 2FA user and logs in with a valid code', async () => {
+    const user = userEvent.setup()
+    renderLogin()
+    await user.type(screen.getByLabelText(/Email/i), '2fa@x')
+    await user.type(screen.getByLabelText(/Contraseña/i), 'good')
+    await user.click(screen.getByRole('button', { name: /Ingresar/i }))
+
+    // second step appears
+    const codeField = await screen.findByLabelText(/Código de autenticación/i)
+    await user.type(codeField, '123456')
+    await user.click(screen.getByRole('button', { name: /Verificar/i }))
+    await waitFor(() => expect(screen.getByText('HOME_PAGE')).toBeInTheDocument())
+  })
+
+  it('shows an error on an invalid TOTP code and lets the user go back', async () => {
+    const user = userEvent.setup()
+    renderLogin()
+    await user.type(screen.getByLabelText(/Email/i), '2fa@x')
+    await user.type(screen.getByLabelText(/Contraseña/i), 'good')
+    await user.click(screen.getByRole('button', { name: /Ingresar/i }))
+
+    await user.type(await screen.findByLabelText(/Código de autenticación/i), '000000')
+    await user.click(screen.getByRole('button', { name: /Verificar/i }))
+    await waitFor(() => expect(screen.getByText(/Código inválido/i)).toBeInTheDocument())
+
+    // back returns to the credentials step
+    await user.click(screen.getByRole('button', { name: /Volver/i }))
+    await waitFor(() => expect(screen.getByLabelText(/Email/i)).toBeInTheDocument())
+  })
+
   it('has a link to the register page', async () => {
     renderLogin()
     const link = screen.getByRole('link', { name: /Registrarse/i })

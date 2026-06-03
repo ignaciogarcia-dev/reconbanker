@@ -4,6 +4,8 @@ import { server } from '../../../../tests/msw/server'
 import { userHandlers } from '../../../../tests/msw/handlers/user'
 import {
   login,
+  isTotpChallenge,
+  verifyTotpLogin,
   register,
   logoutLocal,
   readStoredUser,
@@ -19,14 +21,32 @@ describe('user/api/auth', () => {
   describe('login', () => {
     it('returns token and user on success', async () => {
       const res = await login({ email: 'ok@x', password: 'pw' })
+      if (isTotpChallenge(res)) throw new Error('expected a session token')
       expect(res.token).toBe('fresh-token')
       expect(res.user.email).toBe('ok@x')
+    })
+
+    it('returns a 2fa challenge when the server requires it', async () => {
+      const res = await login({ email: '2fa@x', password: 'pw' })
+      expect(isTotpChallenge(res)).toBe(true)
+      if (isTotpChallenge(res)) expect(res.challengeToken).toBe('challenge-token')
     })
 
     it('rejects on 401', async () => {
       await expect(
         login({ email: 'fail@x', password: 'wrong' })
       ).rejects.toBeDefined()
+    })
+  })
+
+  describe('verifyTotpLogin', () => {
+    it('returns a session token on a valid code', async () => {
+      const res = await verifyTotpLogin('challenge-token', '123456')
+      expect(res.token).toBe('fresh-token')
+    })
+
+    it('rejects an invalid code', async () => {
+      await expect(verifyTotpLogin('challenge-token', '000000')).rejects.toBeDefined()
     })
   })
 
