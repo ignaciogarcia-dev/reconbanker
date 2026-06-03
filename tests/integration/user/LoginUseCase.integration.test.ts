@@ -6,7 +6,7 @@ import { UserRepository } from '../../../src/contexts/user/infrastructure/UserRe
 import { executorFromPool } from '../../../src/contexts/user/infrastructure/Executor.js'
 import { BcryptPasswordHasher } from '../../../src/contexts/user/infrastructure/adapters/BcryptPasswordHasher.js'
 import { JwtTokenIssuer } from '../../../src/contexts/user/infrastructure/adapters/JwtTokenIssuer.js'
-import { LoginUseCase } from '../../../src/contexts/user/application/LoginUseCase.js'
+import { LoginUseCase, isTotpChallenge } from '../../../src/contexts/user/application/LoginUseCase.js'
 import { UnauthorizedError } from '../../../src/shared/errors/index.js'
 
 const SECRET = 'test-secret'
@@ -28,6 +28,7 @@ describe('LoginUseCase (integration)', () => {
     const useCase = makeUseCase()
 
     const result = await useCase.execute({ email: 'login@test.com', password: 'secret-pw' })
+    if (isTotpChallenge(result)) throw new Error('expected a session token')
 
     expect(result.user.id).toBe(user.id)
     expect(result.user.email).toBe('login@test.com')
@@ -59,6 +60,7 @@ describe('LoginUseCase (integration)', () => {
     await seedUser({ email: 'casing-login@test.com', password: 'pw' })
     const useCase = makeUseCase()
     const result = await useCase.execute({ email: 'CASING-LOGIN@TEST.COM', password: 'pw' })
+    if (isTotpChallenge(result)) throw new Error('expected a session token')
     expect(result.user.email).toBe('casing-login@test.com')
   })
 })

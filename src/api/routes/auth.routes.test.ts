@@ -8,6 +8,7 @@ import type { UserModule } from '../../composition/userModule.js'
 type MockedUserModule = {
   registerUser: { execute: ReturnType<typeof vi.fn> }
   login: { execute: ReturnType<typeof vi.fn> }
+  verifyTotpLogin: { execute: ReturnType<typeof vi.fn> }
   getCurrentUser: { execute: ReturnType<typeof vi.fn> }
   changeOperationMode: { execute: ReturnType<typeof vi.fn> }
   userRepository: Record<string, unknown>
@@ -18,6 +19,7 @@ function makeUserModule(): MockedUserModule {
   return {
     registerUser: { execute: vi.fn() },
     login: { execute: vi.fn() },
+    verifyTotpLogin: { execute: vi.fn() },
     getCurrentUser: { execute: vi.fn() },
     changeOperationMode: { execute: vi.fn() },
     userRepository: {},
@@ -196,6 +198,58 @@ describe('auth.routes', () => {
       expect(res.body).toEqual({
         error: { code: 'UNAUTHORIZED', message: 'Invalid credentials' },
       })
+    })
+
+    it('returns a 2fa challenge when the user has 2FA enabled', async () => {
+      user.login.execute.mockResolvedValue({ requiresTotp: true, challengeToken: 'challenge-jwt' })
+
+      const res = await request(makeApp(user))
+        .post('/auth/login')
+        .send({ email: 'a@b.com', password: 'secret' })
+
+      expect(res.status).toBe(200)
+      expect(res.body).toEqual({ requiresTotp: true, challengeToken: 'challenge-jwt' })
+    })
+  })
+
+  describe('POST /auth/login/totp', () => {
+    it('returns a session token on a valid challenge + code', async () => {
+      user.verifyTotpLogin.execute.mockResolvedValue({
+        token: 'jwt-token',
+        user: { id: 'id-1', email: 'a@b.com', name: 'Alice' },
+      })
+
+      const res = await request(makeApp(user))
+        .post('/auth/login/totp')
+        .send({ challengeToken: 'challenge-jwt', code: '123456' })
+
+      expect(res.status).toBe(200)
+      expect(res.body.token).toBe('jwt-token')
+      expect(user.verifyTotpLogin.execute).toHaveBeenCalledWith({
+        challengeToken: 'challenge-jwt',
+        code: '123456',
+      })
+    })
+
+    it('returns 400 when challengeToken is missing', async () => {
+      const res = await request(makeApp(user))
+        .post('/auth/login/totp')
+        .send({ code: '123456' })
+
+      expect(res.status).toBe(400)
+      expect(res.body.error.code).toBe('VALIDATION_ERROR')
+      expect(user.verifyTotpLogin.execute).not.toHaveBeenCalled()
+    })
+
+    it('returns 401 when the use case rejects the code', async () => {
+      user.verifyTotpLogin.execute.mockRejectedValue(new UnauthorizedError('Invalid code'))
+
+      const res = await request(makeApp(user))
+        .post('/auth/login/totp')
+        .send({ challengeToken: 'challenge-jwt', code: '000000' })
+
+      expect(res.status).toBe(401)
+      expect(res.body).toEqual({ error: { code: 'UNAUTHORIZED', message: 'Invalid code' } })
     })
 
     it('returns 500 on unexpected errors', async () => {

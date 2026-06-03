@@ -4,6 +4,10 @@ import { RegisterUserUseCase } from '../contexts/user/application/RegisterUserUs
 import { LoginUseCase } from '../contexts/user/application/LoginUseCase.js'
 import { GetCurrentUserUseCase } from '../contexts/user/application/GetCurrentUserUseCase.js'
 import { ChangeOperationModeUseCase } from '../contexts/user/application/ChangeOperationModeUseCase.js'
+import { VerifyTotpLoginUseCase } from '../contexts/user/application/VerifyTotpLoginUseCase.js'
+import { StartTotpEnrollmentUseCase } from '../contexts/user/application/StartTotpEnrollmentUseCase.js'
+import { ConfirmTotpEnrollmentUseCase } from '../contexts/user/application/ConfirmTotpEnrollmentUseCase.js'
+import { DisableTotpUseCase } from '../contexts/user/application/DisableTotpUseCase.js'
 import { UserRepository } from '../contexts/user/infrastructure/UserRepository.js'
 
 function makeContainer() {
@@ -33,6 +37,14 @@ describe('buildUserModule', () => {
     expect(mod.changeOperationMode).toBeInstanceOf(ChangeOperationModeUseCase)
     expect(mod.userRepository).toBeInstanceOf(UserRepository)
     expect(mod.tokenIssuer).toBeDefined()
+  })
+
+  it('wires the 2FA use cases', () => {
+    const mod = buildUserModule(makeContainer())
+    expect(mod.verifyTotpLogin).toBeInstanceOf(VerifyTotpLoginUseCase)
+    expect(mod.startTotpEnrollment).toBeInstanceOf(StartTotpEnrollmentUseCase)
+    expect(mod.confirmTotpEnrollment).toBeInstanceOf(ConfirmTotpEnrollmentUseCase)
+    expect(mod.disableTotp).toBeInstanceOf(DisableTotpUseCase)
   })
 
   it('throws when JWT_SECRET is not set', () => {

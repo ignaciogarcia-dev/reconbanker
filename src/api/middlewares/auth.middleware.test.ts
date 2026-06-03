@@ -86,6 +86,49 @@ describe('buildAuthMiddleware', () => {
     expect(res.status).not.toHaveBeenCalled()
   })
 
+  it('rejects a 2fa_pending challenge token with 401', async () => {
+    ;(tokenIssuer.verify as ReturnType<typeof vi.fn>).mockReturnValue({
+      sub: 'user-7',
+      email: 'a@b.com',
+      scope: '2fa_pending',
+      jti: 'jti-1',
+    })
+    const middleware = buildAuthMiddleware(tokenIssuer)
+    const req = makeReq({ authorization: 'Bearer challenge-token' })
+    const res = makeRes()
+    await middleware(req, res, next)
+
+    expect(res.status).toHaveBeenCalledWith(401)
+    expect(res.json).toHaveBeenCalledWith({ error: 'Invalid token' })
+    expect(req.userId).toBeUndefined()
+    expect(next).not.toHaveBeenCalled()
+  })
+
+  it('rejects a token with an unknown scope', async () => {
+    ;(tokenIssuer.verify as ReturnType<typeof vi.fn>).mockReturnValue({
+      sub: 'user-7', email: 'a@b.com', scope: 'something-else', jti: 'jti-1',
+    })
+    const middleware = buildAuthMiddleware(tokenIssuer)
+    const res = makeRes()
+    await middleware(makeReq({ authorization: 'Bearer weird' }), res, next)
+
+    expect(res.status).toHaveBeenCalledWith(401)
+    expect(res.json).toHaveBeenCalledWith({ error: 'Invalid token' })
+    expect(next).not.toHaveBeenCalled()
+  })
+
+  it('treats a token without a scope claim as access (legacy tokens)', async () => {
+    ;(tokenIssuer.verify as ReturnType<typeof vi.fn>).mockReturnValue({
+      sub: 'user-7', email: 'a@b.com', jti: 'jti-1',
+    })
+    const middleware = buildAuthMiddleware(tokenIssuer)
+    const req = makeReq({ authorization: 'Bearer legacy' })
+    await middleware(req, makeRes(), next)
+
+    expect(req.userId).toBe('user-7')
+    expect(next).toHaveBeenCalledTimes(1)
+  })
+
   describe('with a token denylist', () => {
     function denylist(revoked: boolean): ITokenDenylist {
       return { revoke: vi.fn(), isRevoked: vi.fn().mockResolvedValue(revoked) }

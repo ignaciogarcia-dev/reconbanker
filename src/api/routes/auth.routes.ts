@@ -26,6 +26,11 @@ const loginSchema = z.object({
   password: z.string().min(1),
 })
 
+const totpLoginSchema = z.object({
+  challengeToken: z.string().min(1),
+  code: z.string().min(1).max(32),
+})
+
 export function buildAuthRouter(user: UserModule): Router {
   const router = Router()
 
@@ -38,6 +43,13 @@ export function buildAuthRouter(user: UserModule): Router {
   router.post('/login', loginRateLimiter, controller(async (req, res) => {
     const { email, password } = validateBody(req, loginSchema)
     const result = await user.login.execute({ email, password })
+    res.json(result)
+  }))
+
+  // Second login step for 2FA users: exchange the challenge token + code for a session token.
+  router.post('/login/totp', loginRateLimiter, controller(async (req, res) => {
+    const { challengeToken, code } = validateBody(req, totpLoginSchema)
+    const result = await user.verifyTotpLogin.execute({ challengeToken, code })
     res.json(result)
   }))
 

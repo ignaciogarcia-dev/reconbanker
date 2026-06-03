@@ -8,9 +8,16 @@ export interface UserRow {
   operation_mode: OperationMode | null
   status: UserStatus | null
   created_at: Date | null
+  totp_secret?: string | null
+  totp_enabled?: boolean | null
+  totp_confirmed_at?: Date | null
 }
 
 export const UserRowMapper = {
+  /**
+   * Maps a DB row to the User aggregate. `totpSecret` must already be decrypted
+   * by the repository — the domain only ever sees the plaintext Base32 secret.
+   */
   toAggregate(row: UserRow): User {
     return User.reconstitute(row.id, {
       email: row.email,
@@ -19,6 +26,9 @@ export const UserRowMapper = {
       operationMode: row.operation_mode,
       status: row.status ?? 'active',
       createdAt: row.created_at ?? new Date(0),
+      totpSecret: row.totp_secret ?? null,
+      totpEnabled: row.totp_enabled ?? false,
+      totpConfirmedAt: row.totp_confirmed_at ?? null,
     })
   },
 }

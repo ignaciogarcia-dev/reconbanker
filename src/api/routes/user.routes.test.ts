@@ -10,6 +10,9 @@ type MockedUserModule = {
   login: { execute: ReturnType<typeof vi.fn> }
   getCurrentUser: { execute: ReturnType<typeof vi.fn> }
   changeOperationMode: { execute: ReturnType<typeof vi.fn> }
+  startTotpEnrollment: { execute: ReturnType<typeof vi.fn> }
+  confirmTotpEnrollment: { execute: ReturnType<typeof vi.fn> }
+  disableTotp: { execute: ReturnType<typeof vi.fn> }
   userRepository: Record<string, unknown>
   tokenIssuer: Record<string, unknown>
 }
@@ -20,6 +23,9 @@ function makeUserModule(): MockedUserModule {
     login: { execute: vi.fn() },
     getCurrentUser: { execute: vi.fn() },
     changeOperationMode: { execute: vi.fn() },
+    startTotpEnrollment: { execute: vi.fn() },
+    confirmTotpEnrollment: { execute: vi.fn() },
+    disableTotp: { execute: vi.fn() },
     userRepository: {},
     tokenIssuer: {},
   }
@@ -56,6 +62,7 @@ describe('user.routes', () => {
         email: 'user@example.com',
         name: 'Alice',
         operationMode: 'reconcile',
+        totpEnabled: true,
       })
 
       const res = await request(makeApp(user))
@@ -68,6 +75,7 @@ describe('user.routes', () => {
         email: 'user@example.com',
         name: 'Alice',
         operation_mode: 'reconcile',
+        totp_enabled: true,
       })
       expect(user.getCurrentUser.execute).toHaveBeenCalledWith('user-1')
     })
@@ -219,6 +227,77 @@ describe('user.routes', () => {
 
       expect(res.status).toBe(500)
       expect(res.body.error.code).toBe('INTERNAL_ERROR')
+    })
+  })
+
+  describe('POST /users/me/2fa/enroll', () => {
+    it('returns the otpauth uri', async () => {
+      user.startTotpEnrollment.execute.mockResolvedValue({ otpauthUri: 'otpauth://totp/x' })
+
+      const res = await request(makeApp(user))
+        .post('/users/me/2fa/enroll')
+        .set('Authorization', AUTH_HEADER)
+
+      expect(res.status).toBe(200)
+      expect(res.body).toEqual({ otpauth_uri: 'otpauth://totp/x' })
+      expect(user.startTotpEnrollment.execute).toHaveBeenCalledWith('user-1')
+    })
+
+    it('returns 401 without a bearer token', async () => {
+      const res = await request(makeApp(user)).post('/users/me/2fa/enroll')
+      expect(res.status).toBe(401)
+      expect(user.startTotpEnrollment.execute).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('POST /users/me/2fa/confirm', () => {
+    it('returns backup codes on success', async () => {
+      user.confirmTotpEnrollment.execute.mockResolvedValue({ backupCodes: ['AAAAA-BBBBB'] })
+
+      const res = await request(makeApp(user))
+        .post('/users/me/2fa/confirm')
+        .set('Authorization', AUTH_HEADER)
+        .send({ code: '123456' })
+
+      expect(res.status).toBe(200)
+      expect(res.body).toEqual({ backup_codes: ['AAAAA-BBBBB'] })
+      expect(user.confirmTotpEnrollment.execute).toHaveBeenCalledWith({ userId: 'user-1', code: '123456' })
+    })
+
+    it('returns 400 when code is missing', async () => {
+      const res = await request(makeApp(user))
+        .post('/users/me/2fa/confirm')
+        .set('Authorization', AUTH_HEADER)
+        .send({})
+
+      expect(res.status).toBe(400)
+      expect(res.body.error.code).toBe('VALIDATION_ERROR')
+      expect(user.confirmTotpEnrollment.execute).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('DELETE /users/me/2fa', () => {
+    it('returns 204 on success', async () => {
+      user.disableTotp.execute.mockResolvedValue(undefined)
+
+      const res = await request(makeApp(user))
+        .delete('/users/me/2fa')
+        .set('Authorization', AUTH_HEADER)
+        .send({ password: 'pw', code: '123456' })
+
+      expect(res.status).toBe(204)
+      expect(user.disableTotp.execute).toHaveBeenCalledWith({ userId: 'user-1', password: 'pw', code: '123456' })
+    })
+
+    it('returns 400 when password or code is missing', async () => {
+      const res = await request(makeApp(user))
+        .delete('/users/me/2fa')
+        .set('Authorization', AUTH_HEADER)
+        .send({ password: 'pw' })
+
+      expect(res.status).toBe(400)
+      expect(res.body.error.code).toBe('VALIDATION_ERROR')
+      expect(user.disableTotp.execute).not.toHaveBeenCalled()
     })
   })
 })

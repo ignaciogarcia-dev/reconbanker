@@ -27,6 +27,11 @@ export function buildAuthMiddleware(
       res.status(401).json({ error: 'Invalid token' })
       return
     }
+    // 2fa_pending challenge tokens only authorize the TOTP step, never the API.
+    if ((payload.scope ?? 'access') !== 'access') {
+      res.status(401).json({ error: 'Invalid token' })
+      return
+    }
     try {
       if (denylist && payload.jti && (await denylist.isRevoked(payload.jti))) {
         res.status(401).json({ error: 'Invalid token' })

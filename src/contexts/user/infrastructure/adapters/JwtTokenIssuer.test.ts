@@ -23,12 +23,33 @@ describe('JwtTokenIssuer', () => {
     expect(a?.jti).not.toBe(b?.jti)
   })
 
+  it('preserves a jti provided in the payload', () => {
+    const issuer = new JwtTokenIssuer(SECRET)
+    const verified = issuer.verify(issuer.issue({ sub: 'u-1', email: 'me@x.io', jti: 'fixed-jti' }))
+    expect(verified?.jti).toBe('fixed-jti')
+  })
+
   it('honors a custom expiresIn', () => {
     const issuer = new JwtTokenIssuer(SECRET, '1d')
     const token = issuer.issue({ sub: 'u-1', email: 'me@x.io' })
 
     const decoded = jwt.decode(token) as { exp: number; iat: number }
     expect(decoded.exp - decoded.iat).toBe(60 * 60 * 24)
+  })
+
+  it('defaults the scope to "access" when none is given', () => {
+    const issuer = new JwtTokenIssuer(SECRET)
+    const verified = issuer.verify(issuer.issue({ sub: 'u-1', email: 'me@x.io' }))
+    expect(verified?.scope).toBe('access')
+  })
+
+  it('round-trips a custom scope and per-issue expiry', () => {
+    const issuer = new JwtTokenIssuer(SECRET)
+    const token = issuer.issue({ sub: 'u-1', email: 'me@x.io', scope: '2fa_pending' }, { expiresIn: '5m' })
+    const verified = issuer.verify(token)
+    expect(verified?.scope).toBe('2fa_pending')
+    const decoded = jwt.decode(token) as { exp: number; iat: number }
+    expect(decoded.exp - decoded.iat).toBe(60 * 5)
   })
 
   it('returns null for an invalid signature', () => {

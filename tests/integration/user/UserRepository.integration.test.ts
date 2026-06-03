@@ -109,6 +109,63 @@ describe('UserRepository (integration)', () => {
     })
   })
 
+  describe('TOTP secret encryption at rest', () => {
+    it('stores the secret encrypted (enc:v1:) and returns it decrypted', async () => {
+      const repo = makeRepo()
+      const user = User.create(crypto.randomUUID(), 'totp@test.com', 'hash')
+      user.beginTotpEnrollment('JBSWY3DPEHPK3PXP')
+      user.confirmTotp()
+      await repo.save(user)
+
+      // Raw column is ciphertext, never the plaintext secret.
+      const { rows } = await getTestPool().query<{ totp_secret: string; totp_enabled: boolean }>(
+        'SELECT totp_secret, totp_enabled FROM users WHERE id = $1', [user.id]
+      )
+      expect(rows[0].totp_secret.startsWith('enc:v1:')).toBe(true)
+      expect(rows[0].totp_secret).not.toContain('JBSWY3DPEHPK3PXP')
+      expect(rows[0].totp_enabled).toBe(true)
+
+      // Repository decrypts on read.
+      const byId = await repo.findById(user.id)
+      expect(byId!.totpSecret).toBe('JBSWY3DPEHPK3PXP')
+      expect(byId!.isTotpEnabled()).toBe(true)
+      expect(byId!.totpConfirmedAt).toBeInstanceOf(Date)
+
+      const byEmail = await repo.findByEmail('totp@test.com')
+      expect(byEmail!.totpSecret).toBe('JBSWY3DPEHPK3PXP')
+    })
+
+    it('round-trips a null secret as null (no 2FA)', async () => {
+      const repo = makeRepo()
+      const user = User.create(crypto.randomUUID(), 'no-totp@test.com', 'hash')
+      await repo.save(user)
+
+      const { rows } = await getTestPool().query<{ totp_secret: string | null }>(
+        'SELECT totp_secret FROM users WHERE id = $1', [user.id]
+      )
+      expect(rows[0].totp_secret).toBeNull()
+
+      const found = await repo.findById(user.id)
+      expect(found!.totpSecret).toBeNull()
+      expect(found!.isTotpEnabled()).toBe(false)
+    })
+
+    it('clears the secret on disable (save after disableTotp)', async () => {
+      const repo = makeRepo()
+      const user = User.create(crypto.randomUUID(), 'disable@test.com', 'hash')
+      user.beginTotpEnrollment('JBSWY3DPEHPK3PXP')
+      user.confirmTotp()
+      await repo.save(user)
+      user.disableTotp()
+      await repo.save(user)
+
+      const found = await repo.findById(user.id)
+      expect(found!.totpSecret).toBeNull()
+      expect(found!.isTotpEnabled()).toBe(false)
+      expect(found!.totpConfirmedAt).toBeNull()
+    })
+  })
+
   describe('getOperationMode / setOperationMode', () => {
     it('returns null when user has no operation mode yet', async () => {
       const seeded = await seedUser({ email: 'no-mode@test.com' })
