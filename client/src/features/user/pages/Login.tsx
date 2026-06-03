@@ -8,26 +8,89 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/sha
 import { useTranslation } from 'react-i18next'
 
 export function Login() {
-  const { login } = useAuth()
+  const { login, completeTotpLogin } = useAuth()
   const navigate = useNavigate()
   const { t } = useTranslation(['user', 'common'])
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [stage, setStage] = useState<'credentials' | 'totp'>('credentials')
+  const [challengeToken, setChallengeToken] = useState('')
+  const [code, setCode] = useState('')
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
     setLoading(true)
     try {
-      await login(email, password)
+      const outcome = await login(email, password)
+      if (outcome.status === 'totp_required') {
+        setChallengeToken(outcome.challengeToken)
+        setStage('totp')
+        return
+      }
       navigate('/')
     } catch {
       setError(t('login.error'))
     } finally {
       setLoading(false)
     }
+  }
+
+  async function handleTotpSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+    try {
+      await completeTotpLogin(challengeToken, code)
+      navigate('/')
+    } catch {
+      setError(t('login.totp.error'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (stage === 'totp') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Card className="w-full max-w-sm">
+          <CardHeader>
+            <CardTitle>ReconBanker</CardTitle>
+            <CardDescription>{t('login.totp.subtitle')}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleTotpSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="totp-code">{t('login.totp.code')}</Label>
+                <Input
+                  id="totp-code"
+                  inputMode="text"
+                  autoComplete="one-time-code"
+                  autoFocus
+                  value={code}
+                  onChange={e => setCode(e.target.value)}
+                  required
+                />
+              </div>
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? t('login.loading') : t('login.totp.submit')}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full"
+                onClick={() => { setStage('credentials'); setCode(''); setError('') }}
+              >
+                {t('login.totp.back')}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (

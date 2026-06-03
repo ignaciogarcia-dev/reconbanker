@@ -23,6 +23,7 @@ const ALL_DOMAIN_TABLES = [
   'bank_scrape_runs',
   'bank_credentials',
   'account_config',
+  'user_backup_codes',
   'accounts',
   'users',
 ] as const

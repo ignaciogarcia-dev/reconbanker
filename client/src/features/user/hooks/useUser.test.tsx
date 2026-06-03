@@ -28,7 +28,23 @@ describe('useUser', () => {
       email: 'test@x',
       name: 'T',
       operationMode: 'passthrough',
+      totpEnabled: false,
     })
+  })
+
+  it('maps totp_enabled → totpEnabled when 2FA is on', async () => {
+    server.use(
+      http.get('/api/me', () =>
+        HttpResponse.json({ id: 'u-1', email: 'test@x', name: 'T', operation_mode: null, totp_enabled: true })
+      )
+    )
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
+    const { result } = renderHook(() => useUser(), { wrapper })
+    await waitFor(() => expect(result.current.data).toBeDefined())
+    expect(result.current.data?.totpEnabled).toBe(true)
   })
 
   it('updates operation mode through the api prefix', async () => {

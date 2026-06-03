@@ -7,7 +7,14 @@
     "loading": "Ingresando...",
     "error": "Email o contraseña incorrectos",
     "noAccount": "¿No tenés cuenta?",
-    "register": "Registrarse"
+    "register": "Registrarse",
+    "totp": {
+      "subtitle": "Ingresá tu código de autenticación",
+      "code": "Código de autenticación",
+      "submit": "Verificar",
+      "back": "Volver",
+      "error": "Código inválido, probá de nuevo"
+    }
   },
   "register": {
     "title": "Crear cuenta",
@@ -28,12 +35,33 @@
     "loading": "Cargando...",
     "tabs": {
       "general": "General",
+      "security": "Seguridad",
       "operation": "Operación"
     },
     "profile": {
       "title": "Perfil",
       "name": "Nombre",
       "email": "Email"
+    },
+    "security": {
+      "subtitle": "Autenticación en dos pasos",
+      "intro": "Agregá un segundo paso al iniciar sesión usando una app de autenticación (Google Authenticator, Authy, 1Password).",
+      "disabledLabel": "La autenticación en dos pasos está desactivada",
+      "enabledLabel": "La autenticación en dos pasos está activada",
+      "on": "Activo",
+      "enable": "Activar 2FA",
+      "enrollError": "No se pudo iniciar la configuración",
+      "scanHint": "Escaneá este código QR con tu app de autenticación y luego ingresá el código de 6 dígitos para confirmar.",
+      "code": "Código de 6 dígitos",
+      "verify": "Verificar y activar",
+      "codeError": "Código inválido, probá de nuevo",
+      "backupTitle": "Guardá tus códigos de respaldo",
+      "backupHint": "Guardá estos códigos de un solo uso en un lugar seguro. Cada uno sirve una vez si perdés acceso a tu app de autenticación. No se mostrarán de nuevo.",
+      "copy": "Copiar",
+      "done": "Listo",
+      "disable": "Desactivar 2FA",
+      "disableHint": "Ingresá tu contraseña y un código actual (o un código de respaldo) para desactivar la autenticación en dos pasos.",
+      "disabled": "Autenticación en dos pasos desactivada"
     },
     "mode": {
       "title": "Modo de operación",

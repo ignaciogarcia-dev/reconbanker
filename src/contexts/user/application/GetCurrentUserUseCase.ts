@@ -6,6 +6,7 @@ interface Output {
   email: string
   name: string | null
   operationMode: string | null
+  totpEnabled: boolean
 }
 
 export class GetCurrentUserUseCase {
@@ -19,6 +20,7 @@ export class GetCurrentUserUseCase {
       email: user.email,
       name: user.name,
       operationMode: user.operationMode,
+      totpEnabled: user.isTotpEnabled(),
     }
   }
 }

@@ -1,8 +1,19 @@
 import { httpClient } from '@/shared/http/client'
-import type { LoginInput, LoginResponse, RegisterInput, User } from '../types'
+import type { LoginInput, LoginResponse, LoginResult, RegisterInput, TotpChallenge, User } from '../types'
 
-export async function login(input: LoginInput): Promise<LoginResponse> {
-  const { data } = await httpClient.post<LoginResponse>('/auth/login', input)
+export async function login(input: LoginInput): Promise<LoginResult> {
+  const { data } = await httpClient.post<LoginResult>('/auth/login', input)
+  return data
+}
+
+/** Narrows a login result to the 2FA-challenge branch. */
+export function isTotpChallenge(result: LoginResult): result is TotpChallenge {
+  return 'requiresTotp' in result
+}
+
+/** Second login step: exchange the challenge token + code for a session token. */
+export async function verifyTotpLogin(challengeToken: string, code: string): Promise<LoginResponse> {
+  const { data } = await httpClient.post<LoginResponse>('/auth/login/totp', { challengeToken, code })
   return data
 }
 

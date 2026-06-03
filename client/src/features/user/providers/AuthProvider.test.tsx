@@ -54,6 +54,37 @@ describe('AuthProvider', () => {
     expect(localStorage.getItem('token')).toBeNull()
   })
 
+  it('login() returns a totp_required outcome without persisting a session', async () => {
+    const { result } = renderHook(() => useAuth(), { wrapper })
+    let outcome: Awaited<ReturnType<typeof result.current.login>> | undefined
+    await act(async () => {
+      outcome = await result.current.login('2fa@x', 'pw')
+    })
+    expect(outcome).toEqual({ status: 'totp_required', challengeToken: 'challenge-token' })
+    expect(result.current.user).toBeNull()
+    expect(localStorage.getItem('token')).toBeNull()
+  })
+
+  it('completeTotpLogin() persists the session and sets the user', async () => {
+    const { result } = renderHook(() => useAuth(), { wrapper })
+    await act(async () => {
+      await result.current.completeTotpLogin('challenge-token', '123456')
+    })
+    await waitFor(() => expect(result.current.user?.email).toBe('test@x'))
+    expect(localStorage.getItem('token')).toBe('fresh-token')
+  })
+
+  it('completeTotpLogin() rejects an invalid code without changing state', async () => {
+    const { result } = renderHook(() => useAuth(), { wrapper })
+    await expect(
+      act(async () => {
+        await result.current.completeTotpLogin('challenge-token', '000000')
+      })
+    ).rejects.toBeDefined()
+    expect(result.current.user).toBeNull()
+    expect(localStorage.getItem('token')).toBeNull()
+  })
+
   it('logout() clears state and localStorage', async () => {
     localStorage.setItem('token', 'tok')
     localStorage.setItem(

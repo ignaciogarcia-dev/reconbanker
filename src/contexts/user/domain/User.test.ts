@@ -62,4 +62,73 @@ describe('User getters and reconstitute', () => {
     expect(u.isActive()).toBe(false)
     expect(u.createdAt).toBeInstanceOf(Date)
   })
+
+  it('defaults TOTP fields to disabled when omitted', () => {
+    const u = User.create('id', 'a@b.com', 'h')
+    expect(u.isTotpEnabled()).toBe(false)
+    expect(u.totpSecret).toBeNull()
+    expect(u.totpConfirmedAt).toBeNull()
+  })
+})
+
+describe('User TOTP lifecycle', () => {
+  it('beginTotpEnrollment stores the secret without enabling 2FA', () => {
+    const u = User.create('id', 'a@b.com', 'h')
+    u.beginTotpEnrollment('JBSWY3DPEHPK3PXP')
+    expect(u.totpSecret).toBe('JBSWY3DPEHPK3PXP')
+    expect(u.isTotpEnabled()).toBe(false)
+  })
+
+  it('rejects an empty secret', () => {
+    const u = User.create('id', 'a@b.com', 'h')
+    expect(() => u.beginTotpEnrollment('  ')).toThrow(ValidationError)
+  })
+
+  it('confirmTotp enables 2FA and stamps the confirmation', () => {
+    const u = User.create('id', 'a@b.com', 'h')
+    u.beginTotpEnrollment('JBSWY3DPEHPK3PXP')
+    u.confirmTotp()
+    expect(u.isTotpEnabled()).toBe(true)
+    expect(u.totpConfirmedAt).toBeInstanceOf(Date)
+  })
+
+  it('confirmTotp fails when there is no pending secret', () => {
+    const u = User.create('id', 'a@b.com', 'h')
+    expect(() => u.confirmTotp()).toThrow(ValidationError)
+  })
+
+  it('disableTotp clears the secret and disables 2FA', () => {
+    const u = User.create('id', 'a@b.com', 'h')
+    u.beginTotpEnrollment('JBSWY3DPEHPK3PXP')
+    u.confirmTotp()
+    u.disableTotp()
+    expect(u.isTotpEnabled()).toBe(false)
+    expect(u.totpSecret).toBeNull()
+    expect(u.totpConfirmedAt).toBeNull()
+  })
+
+  it('re-enrolling after confirm replaces the secret and drops back to disabled', () => {
+    const u = User.create('id', 'a@b.com', 'h')
+    u.beginTotpEnrollment('SECRET1')
+    u.confirmTotp()
+    u.beginTotpEnrollment('SECRET2')
+    expect(u.totpSecret).toBe('SECRET2')
+    expect(u.isTotpEnabled()).toBe(false)
+    expect(u.totpConfirmedAt).toBeNull()
+  })
+
+  it('disableTotp is a safe no-op when 2FA was never enabled', () => {
+    const u = User.create('id', 'a@b.com', 'h')
+    expect(() => u.disableTotp()).not.toThrow()
+    expect(u.isTotpEnabled()).toBe(false)
+    expect(u.totpSecret).toBeNull()
+  })
+
+  it('confirmTotp twice keeps 2FA enabled (idempotent re-confirm)', () => {
+    const u = User.create('id', 'a@b.com', 'h')
+    u.beginTotpEnrollment('SECRET')
+    u.confirmTotp()
+    expect(() => u.confirmTotp()).not.toThrow()
+    expect(u.isTotpEnabled()).toBe(true)
+  })
 })
