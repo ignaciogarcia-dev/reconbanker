@@ -12,6 +12,7 @@ export class JwtTokenIssuer implements ITokenIssuer {
     const { sub, email } = payload
     const scope = payload.scope ?? 'access'
     return jwt.sign({ sub, email, scope }, this.secret, {
+      algorithm: 'HS256',
       expiresIn: (opts?.expiresIn ?? this.expiresIn) as jwt.SignOptions['expiresIn'],
       jwtid: payload.jti ?? randomUUID(),
     })
@@ -19,7 +20,9 @@ export class JwtTokenIssuer implements ITokenIssuer {
 
   verify(token: string): TokenPayload | null {
     try {
-      const decoded = jwt.verify(token, this.secret) as TokenPayload
+      // Pin the algorithm so a token forged with a different alg (e.g. "none"
+      // or an asymmetric-key confusion attempt) is rejected outright.
+      const decoded = jwt.verify(token, this.secret, { algorithms: ['HS256'] }) as TokenPayload
       if (!decoded?.sub) return null
       return {
         sub: decoded.sub,
