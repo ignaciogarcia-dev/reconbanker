@@ -4,6 +4,7 @@ import { Queues } from '../../shared/infrastructure/queues/QueueRegistry.js'
 import { AuthRequest } from '../middlewares/auth.middleware.js'
 import { controller } from '../http/controller.js'
 import { validateParams, validateQuery } from '../http/validate.js'
+import { expensiveActionRateLimiter } from '../middlewares/rateLimit.middleware.js'
 import { UnauthorizedError, ForbiddenError } from '../../shared/errors/index.js'
 import type { ConciliationModule } from '../../composition/conciliationModule.js'
 
@@ -40,7 +41,7 @@ export function buildConciliationRouter(conciliation: ConciliationModule): Route
     res.json(detail)
   }))
 
-  router.post('/:requestId/run', controller(async (req: AuthRequest, res) => {
+  router.post('/:requestId/run', expensiveActionRateLimiter, controller(async (req: AuthRequest, res) => {
     const userId = requireUserId(req)
     const { requestId } = validateParams(req, requestIdParams)
     if (!(await conciliation.ownershipChecker.ownsRequest(requestId, userId))) {
@@ -50,7 +51,7 @@ export function buildConciliationRouter(conciliation: ConciliationModule): Route
     res.status(202).json({ queued: true })
   }))
 
-  router.post('/:requestId/notify', controller(async (req: AuthRequest, res) => {
+  router.post('/:requestId/notify', expensiveActionRateLimiter, controller(async (req: AuthRequest, res) => {
     const userId = requireUserId(req)
     const { requestId } = validateParams(req, requestIdParams)
     if (!(await conciliation.ownershipChecker.ownsRequest(requestId, userId))) {
@@ -60,7 +61,7 @@ export function buildConciliationRouter(conciliation: ConciliationModule): Route
     res.status(202).json({ queued: true })
   }))
 
-  router.post('/poll/:accountId', controller(async (req: AuthRequest, res) => {
+  router.post('/poll/:accountId', expensiveActionRateLimiter, controller(async (req: AuthRequest, res) => {
     const userId = requireUserId(req)
     const { accountId } = validateParams(req, accountIdParams)
     if (!(await conciliation.ownershipChecker.ownsAccount(accountId, userId))) {
