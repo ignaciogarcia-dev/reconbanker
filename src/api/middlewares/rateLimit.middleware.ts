@@ -1,4 +1,4 @@
-import rateLimit, { type Options } from 'express-rate-limit'
+import rateLimit, { ipKeyGenerator, type Options } from 'express-rate-limit'
 
 /**
  * Rate limiters are disabled under tests so the suite stays deterministic.
@@ -39,5 +39,20 @@ export const registerRateLimiter = buildRateLimiter({
 export const apiRateLimiter = buildRateLimiter({
   windowMs: 15 * 60 * 1000,
   limit: Number(process.env.RATE_LIMIT_API_MAX ?? 300),
+  skip: skipInTest,
+})
+
+/**
+ * Stricter, per-user cap for expensive authenticated actions that each enqueue
+ * background work (bank scrapes, conciliation runs, webhook re-notifications,
+ * order polling). Keyed by user id so a single account cannot flood the queues;
+ * falls back to the (subnet-masked) IP if userId is somehow absent. Mount these
+ * behind the auth middleware so req.userId is populated.
+ */
+export const expensiveActionRateLimiter = buildRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  limit: Number(process.env.RATE_LIMIT_ACTION_MAX ?? 30),
+  keyGenerator: (req) =>
+    (req as { userId?: string }).userId ?? ipKeyGenerator(req.ip ?? '', 56),
   skip: skipInTest,
 })
