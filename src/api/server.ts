@@ -53,7 +53,8 @@ export function createServer(container: Container = buildContainer()) {
     }),
   );
 
-  app.use(express.json());
+  // Cap request bodies to bound memory use from oversized/malicious payloads.
+  app.use(express.json({ limit: "100kb" }));
 
   app.use("/api", apiRateLimiter);
 
