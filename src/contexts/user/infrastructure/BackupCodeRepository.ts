@@ -28,11 +28,12 @@ export class BackupCodeRepository implements IBackupCodeRepository {
     return rows.map((r) => ({ id: r.id, codeHash: r.code_hash }))
   }
 
-  async markUsed(id: string): Promise<void> {
-    await this.executor.query(
-      `UPDATE user_backup_codes SET used_at = now() WHERE id = $1`,
+  async markUsed(id: string): Promise<boolean> {
+    const { rowCount } = await this.executor.query(
+      `UPDATE user_backup_codes SET used_at = now() WHERE id = $1 AND used_at IS NULL`,
       [id]
     )
+    return (rowCount ?? 0) > 0
   }
 
   async deleteForUser(userId: string): Promise<void> {
