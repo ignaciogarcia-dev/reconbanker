@@ -51,7 +51,9 @@ describe('BackupCodeRepository (integration)', () => {
     const repo = makeRepo()
     await repo.replaceForUser(user.id, ['x'])
     const [code] = await repo.listActive(user.id)
-    await repo.markUsed(code.id)
+    // First consume wins; a second consume of the same code is rejected.
+    expect(await repo.markUsed(code.id)).toBe(true)
+    expect(await repo.markUsed(code.id)).toBe(false)
 
     const { rows } = await getTestPool().query<{ used_at: Date | null }>(
       'SELECT used_at FROM user_backup_codes WHERE id = $1', [code.id]

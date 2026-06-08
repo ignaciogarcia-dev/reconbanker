@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { AuthRequest } from '../middlewares/auth.middleware.js'
 import { controller } from '../http/controller.js'
 import { validateBody, validateParams } from '../http/validate.js'
+import { expensiveActionRateLimiter } from '../middlewares/rateLimit.middleware.js'
 import { UnauthorizedError, ValidationError } from '../../shared/errors/index.js'
 import { enqueueBankScrape } from '../../shared/infrastructure/queues/BankScrapeQueue.js'
 import type { AccountModule } from '../../composition/accountModule.js'
@@ -138,7 +139,7 @@ export function buildAccountsRouter(account: AccountModule): Router {
     res.json(config ? toJson(config) : null)
   }))
 
-  router.post('/:accountId/scrape', controller(async (req: AuthRequest, res) => {
+  router.post('/:accountId/scrape', expensiveActionRateLimiter, controller(async (req: AuthRequest, res) => {
     const userId = requireUserId(req)
     const { accountId } = validateParams(req, accountIdParams)
     await account.getAccountDetail.execute(accountId, userId) // ownership check

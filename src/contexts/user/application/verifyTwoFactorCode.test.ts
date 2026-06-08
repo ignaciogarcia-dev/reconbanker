@@ -49,6 +49,19 @@ describe('verifyTwoFactorCode', () => {
     expect(await verifyTwoFactorCode(enabledUser(), 'ABCDE-FGHJK', deps)).toBe(false)
   })
 
+  it('accepts a backup code only once when two requests race on it', async () => {
+    const { deps, backupCodes } = setup()
+    await backupCodes.replaceForUser('id-1', ['hashed:ABCDEFGHJK'])
+
+    const [a, b] = await Promise.all([
+      verifyTwoFactorCode(enabledUser(), 'ABCDE-FGHJK', deps),
+      verifyTwoFactorCode(enabledUser(), 'ABCDE-FGHJK', deps),
+    ])
+
+    expect([a, b].filter(Boolean)).toHaveLength(1)
+    expect(await backupCodes.listActive('id-1')).toHaveLength(0)
+  })
+
   it('normalizes the backup code before comparing (case/format insensitive)', async () => {
     const { deps, backupCodes } = setup()
     await backupCodes.replaceForUser('id-1', ['hashed:ABCDEFGHJK'])

@@ -28,8 +28,10 @@ export async function verifyTwoFactorCode(
   const active = await deps.backupCodes.listActive(user.id)
   for (const bc of active) {
     if (await deps.hasher.verify(normalized, bc.codeHash)) {
-      await deps.backupCodes.markUsed(bc.id)
-      return true
+      // Consume atomically: markUsed only succeeds if the code was still
+      // unused, so two concurrent requests racing on the same code cannot
+      // both be accepted.
+      return await deps.backupCodes.markUsed(bc.id)
     }
   }
   return false

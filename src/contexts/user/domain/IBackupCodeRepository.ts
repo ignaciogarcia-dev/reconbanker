@@ -12,8 +12,12 @@ export interface IBackupCodeRepository {
   replaceForUser(userId: string, codeHashes: string[]): Promise<void>
   /** Returns the user's unused codes. */
   listActive(userId: string): Promise<BackupCode[]>
-  /** Marks a single code as consumed. */
-  markUsed(id: string): Promise<void>
+  /**
+   * Atomically consumes a single code. Returns true only if this call was the
+   * one that marked it used (i.e. it was still unused), so concurrent callers
+   * racing on the same code cannot both succeed.
+   */
+  markUsed(id: string): Promise<boolean>
   /** Removes all of a user's codes (used when 2FA is disabled). */
   deleteForUser(userId: string): Promise<void>
 }

@@ -60,6 +60,13 @@ describe('JwtTokenIssuer', () => {
     expect(issuer.verify(token)).toBeNull()
   })
 
+  it('rejects an unsigned ("alg: none") token', () => {
+    const issuer = new JwtTokenIssuer(SECRET)
+    // A token forged with the "none" algorithm carries no signature.
+    const forged = jwt.sign({ sub: 'u-1', email: 'me@x.io' }, '', { algorithm: 'none' })
+    expect(issuer.verify(forged)).toBeNull()
+  })
+
   it('returns null for a malformed token', () => {
     const issuer = new JwtTokenIssuer(SECRET)
     expect(issuer.verify('not-a-token')).toBeNull()

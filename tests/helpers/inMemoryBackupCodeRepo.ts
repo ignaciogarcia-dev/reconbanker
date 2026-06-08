@@ -19,9 +19,11 @@ export class InMemoryBackupCodeRepository implements IBackupCodeRepository {
       .map((r) => ({ id: r.id, codeHash: r.codeHash }))
   }
 
-  async markUsed(id: string) {
+  async markUsed(id: string): Promise<boolean> {
     const row = this.rows.find((r) => r.id === id)
-    if (row) row.used = true
+    if (!row || row.used) return false
+    row.used = true
+    return true
   }
 
   async deleteForUser(userId: string) {
