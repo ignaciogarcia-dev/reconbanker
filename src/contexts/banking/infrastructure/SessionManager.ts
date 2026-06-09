@@ -1,4 +1,8 @@
 import type { IBankSessionRepository } from '../domain/IBankSessionRepository.js'
+import type { ILogger } from '../../../shared/logger/ILogger.js'
+
+// Stop reasons that represent a clean exit vs an unexpected loss of session.
+const CLEAN_STOP_REASONS = new Set(['stop_requested', 'max_runtime'])
 
 export interface SessionHandle {
   stop(): void
@@ -25,6 +29,7 @@ export class SessionManager {
   constructor(
     private readonly startFn: StartSessionFn,
     private readonly sessionRepo: IBankSessionRepository,
+    private readonly logger?: ILogger,
   ) {}
 
   // Records a stopped session (with its stop reason) for operator visibility.
@@ -57,18 +62,29 @@ export class SessionManager {
     } catch (err) {
       // Record the failed start so operators can see why it isn't monitoring,
       // then rethrow so the job is marked failed.
-      await this.recordStop(accountId, err instanceof Error ? err.message : String(err))
+      const error = err instanceof Error ? err.message : String(err)
+      this.logger?.error('session start failed', { accountId, error })
+      await this.recordStop(accountId, error)
       throw err
     }
 
     this.live.set(accountId, handle)
     await this.sessionRepo.markRunning(accountId)
+    this.logger?.info('session started', { accountId })
 
     handle.done
       // Resolve carries a MonitorStopReason (stop_requested|max_runtime|logged_out|
       // auth_timeout); reject carries a thrown error. Either way we just record the stop.
-      .then((reason) => this.recordStop(accountId, reason))
-      .catch((err) => this.recordStop(accountId, err instanceof Error ? err.message : String(err)))
+      .then((reason) => {
+        const level = CLEAN_STOP_REASONS.has(reason) ? 'info' : 'warn'
+        this.logger?.[level]('session stopped', { accountId, reason })
+        return this.recordStop(accountId, reason)
+      })
+      .catch((err) => {
+        const error = err instanceof Error ? err.message : String(err)
+        this.logger?.error('session crashed', { accountId, error })
+        return this.recordStop(accountId, error)
+      })
       .finally(() => { this.live.delete(accountId) })
   }
 

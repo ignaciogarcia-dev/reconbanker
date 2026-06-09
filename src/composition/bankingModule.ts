@@ -20,6 +20,7 @@ import { BankSessionRepository } from '../contexts/banking/infrastructure/BankSe
 import { SessionManager } from '../contexts/banking/infrastructure/SessionManager.js'
 import { PersistentPlaywrightRunner } from '../contexts/script-engine/infrastructure/PersistentPlaywrightRunner.js'
 import { ScriptLoader } from '../contexts/script-engine/infrastructure/ScriptLoader.js'
+import { makeDebugLogSink } from '../contexts/script-engine/infrastructure/debugLogSink.js'
 import { db } from '../shared/infrastructure/db/client.js'
 import { NotifyBankMovementUseCase } from '../contexts/banking/application/NotifyBankMovementUseCase.js'
 import { ListBankMovementsUseCase } from '../contexts/banking/application/ListBankMovementsUseCase.js'
@@ -61,12 +62,14 @@ export function buildBankingModule(container: ContainerBase): BankingModule {
   const accountReader = new AccountForBankingReaderAdapter(accountRepo, configRepo)
   const configReader = new NotificationConfigReaderAdapter(configRepo)
   const userModeReader = new UserOperationModeReaderAdapter(userRepo)
-  const scriptEngine = new ScriptEngineAdapter()
+  const scriptEngine = new ScriptEngineAdapter(container.logger)
 
   const ingest = new IngestTransactionsUseCase({ txRepo: bankTxRepo, eventBus: container.eventBus })
 
   const bankSessionRepo = new BankSessionRepository(exec)
   const persistentRunner = new PersistentPlaywrightRunner()
+
+  const monitorLog = container.logger.child('[bank-monitor]')
 
   const startFn = async (accountId: string) => {
     const account = await accountReader.findById(accountId)
@@ -88,7 +91,13 @@ export function buildBankingModule(container: ContainerBase): BankingModule {
       scriptCode: script.codeSnapshot,
       loginMode: account.loginMode,
       pollIntervalMs: Number(process.env.PERSISTENT_POLL_INTERVAL_MS ?? 60_000),
-      context: { accountId, username: creds.username, password: credentialsCipher().decrypt(creds.encrypted_password), lastExternalId },
+      context: {
+        accountId,
+        username: creds.username,
+        password: credentialsCipher().decrypt(creds.encrypted_password),
+        lastExternalId,
+        debugLog: makeDebugLogSink(monitorLog, { accountId, bank: account.bank }),
+      },
       onTransactions: async (batch) => { await ingest.execute(accountId, script.id, batch) },
       shouldStop: () => false,
       // Bank-local day key; a change clears runMonitor's dedup set so it stays bounded
@@ -101,7 +110,7 @@ export function buildBankingModule(container: ContainerBase): BankingModule {
     })
   }
 
-  const sessionManager = new SessionManager(startFn, bankSessionRepo)
+  const sessionManager = new SessionManager(startFn, bankSessionRepo, container.logger.child('[session-manager]'))
 
   const enqueueNotify = async (bankTransactionId: string) => {
     const jobId = `bank-movement-webhook_${bankTransactionId}`

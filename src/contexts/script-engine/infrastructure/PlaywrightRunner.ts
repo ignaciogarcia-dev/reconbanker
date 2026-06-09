@@ -2,6 +2,8 @@ import { BankScript } from '../domain/BankScript.js'
 import { db } from '../../../shared/infrastructure/db/client.js'
 import { credentialsCipher } from '../../../shared/infrastructure/crypto/CredentialsCipher.js'
 import { CHROMIUM_ARGS, USER_AGENT, VIEWPORT, isHeadless, applyAntiWebdriver } from './playwrightLaunch.js'
+import { makeDebugLogSink } from './debugLogSink.js'
+import type { ILogger } from '../../../shared/logger/ILogger.js'
 
 interface ScrapedTransaction {
   externalId: string
@@ -19,6 +21,8 @@ interface RunContext {
 }
 
 export class PlaywrightRunner {
+  constructor(private readonly logger?: ILogger) {}
+
   async execute(script: BankScript, context: RunContext): Promise<ScrapedTransaction[]> {
     if (!script.codeSnapshot) throw new Error(`Script ${script.id} has no code snapshot`)
 
@@ -50,6 +54,9 @@ export class PlaywrightRunner {
       username: creds.username,
       password: credentialsCipher().decrypt(creds.encrypted_password),
       lastExternalId: context.lastExternalId,
+      debugLog: this.logger
+        ? makeDebugLogSink(this.logger.child('[bank-scrape-script]'), { accountId: context.accountId })
+        : undefined,
     }
 
     const TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes

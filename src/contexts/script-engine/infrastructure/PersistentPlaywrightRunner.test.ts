@@ -142,6 +142,19 @@ describe('PersistentPlaywrightRunner', () => {
     expect(runMonitorMock).toHaveBeenCalledWith(expect.objectContaining({ getBankDay }))
   })
 
+  it('forwards context.debugLog through to runMonitor unchanged', async () => {
+    buildContext()
+    runMonitorMock.mockResolvedValue('stop_requested')
+    const runner = new PersistentPlaywrightRunner()
+    const debugLog = vi.fn()
+    const input = baseInput()
+
+    await (await runner.start({ ...input, context: { ...input.context, debugLog } })).done
+    expect(runMonitorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ context: expect.objectContaining({ debugLog }) }),
+    )
+  })
+
   it('still closes the context when the monitor rejects', async () => {
     const { close } = buildContext()
     runMonitorMock.mockRejectedValue(new Error('monitor blew up'))
