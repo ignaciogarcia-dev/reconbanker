@@ -17,6 +17,14 @@ export default defineConfig({
         'src/shared/infrastructure/db/migrations/**',
       ],
       reporter: ['text', 'html'],
+      // Ratchet gate: floored just below the current measured coverage so CI
+      // fails on regressions without flaking. Raise these as coverage climbs.
+      thresholds: {
+        statements: 97,
+        branches: 95,
+        functions: 97,
+        lines: 98,
+      },
     },
   },
 })
