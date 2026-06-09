@@ -6,7 +6,40 @@ on:
   pull_request:
 
 jobs:
+  quality:
+    name: quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck (backend)
+        run: pnpm typecheck
+
+      - name: Typecheck (client tests)
+        run: pnpm --filter ./client typecheck:test
+
+      - name: Lint (client)
+        run: pnpm --filter ./client lint
+
+      - name: Build (backend)
+        run: pnpm build
+
+      - name: Build (client)
+        run: pnpm --filter ./client build
+
   test:
+    name: test
     runs-on: ubuntu-latest
 
     services:
@@ -52,14 +85,28 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck
-        run: pnpm typecheck
+      - name: Backend tests (unit + integration, with coverage)
+        run: pnpm test:coverage
 
-      - name: Unit tests
-        run: pnpm test
+      - name: Client tests (with coverage)
+        run: pnpm --filter ./client test:coverage
 
-      - name: Integration tests
-        run: pnpm test:integration
+  audit:
+    name: audit
+    runs-on: ubuntu-latest
 
-      - name: Client tests
-        run: pnpm --filter ./client test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit dependencies (fail on high/critical)
+        run: pnpm audit --audit-level=high
