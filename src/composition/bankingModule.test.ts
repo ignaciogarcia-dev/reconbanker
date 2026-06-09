@@ -48,7 +48,9 @@ const scriptLoaderMock = ScriptLoader as unknown as { loadActive: ReturnType<typ
 const runnerStartMock = (PersistentPlaywrightRunner as unknown as { __start: ReturnType<typeof vi.fn> }).__start
 
 function makeContainer() {
-  const logger: any = { debug() {}, info() {}, warn() {}, error() {}, child() { return logger } }
+  const childLogger: any = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+  childLogger.child = vi.fn(() => childLogger)
+  const logger: any = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn(() => childLogger) }
   const accountRepository: any = { findById: vi.fn() }
   const accountConfigRepository: any = { findByAccountId: vi.fn() }
   return {
@@ -198,6 +200,35 @@ describe('buildBankingModule', () => {
 
       if (prev === undefined) delete process.env.PERSISTENT_POLL_INTERVAL_MS
       else process.env.PERSISTENT_POLL_INTERVAL_MS = prev
+    })
+
+    it('wires a [bank-monitor] debugLog that routes script events to the logger with accountId+bank', async () => {
+      const c = makeContainer()
+      c.account.accountRepository.findById.mockResolvedValue({ id: 'acc-1', userId: 'u', bank: 'TEST' })
+      c.account.accountConfigRepository.findByAccountId.mockResolvedValue({
+        sessionType: 'persistent', loginMode: 'simple',
+      })
+      dbMock.query.mockResolvedValueOnce({ rows: [{ username: 'user', encrypted_password: 'pw' }] })
+      scriptLoaderMock.loadActive.mockResolvedValue({ id: 'script-1', codeSnapshot: 'code()' })
+      ;(c.pool as any).query.mockResolvedValue({ rows: [] })
+      runnerStartMock.mockResolvedValue({ stop: vi.fn(), done: new Promise(() => {}) })
+
+      const mod = buildBankingModule(c)
+      await mod.sessionManager.ensureRunning('acc-1')
+
+      expect((c.logger as any).child).toHaveBeenCalledWith('[bank-monitor]')
+      expect((c.logger as any).child).toHaveBeenCalledWith('[session-manager]')
+
+      const arg = runnerStartMock.mock.calls[0][0]
+      expect(typeof arg.context.debugLog).toBe('function')
+
+      // The child logger is a shared spy; the sink writes to it. Emitting a script
+      // event must route through with the system accountId/bank and redaction.
+      const child = (c.logger as any).child.mock.results[0].value
+      arg.context.debugLog(JSON.stringify({ event: 'poll_summary', incoming: 2, password: 'x' }))
+      expect(child.info).toHaveBeenCalledWith('poll_summary', expect.objectContaining({
+        accountId: 'acc-1', bank: 'TEST', incoming: 2, password: '[REDACTED]',
+      }))
     })
 
     it('uses the default poll interval when PERSISTENT_POLL_INTERVAL_MS is unset', async () => {

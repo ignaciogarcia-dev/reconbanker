@@ -8,6 +8,7 @@ function deferred<T>() {
 }
 
 const sessionRepo = () => ({ markRunning: vi.fn().mockResolvedValue(undefined), markStopped: vi.fn().mockResolvedValue(undefined) })
+const fakeLogger = () => { const l: any = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: () => l }; return l }
 
 describe('SessionManager', () => {
   it('starts a session, marks it running, and is idempotent while alive', async () => {
@@ -113,6 +114,64 @@ describe('SessionManager', () => {
     await new Promise((r) => setTimeout(r, 0))
 
     expect(repo.markStopped).toHaveBeenCalledWith('acc-1', 'plain string failure')
+  })
+
+  it('logs session lifecycle at the right level (started=info, unclean stop=warn, crash/start-fail=error)', async () => {
+    const repo = sessionRepo()
+    const log = fakeLogger()
+
+    // started -> info
+    const d = deferred<string>()
+    const started = new SessionManager(vi.fn().mockResolvedValue({ stop: vi.fn(), done: d.promise } as SessionHandle), repo, log)
+    await started.ensureRunning('acc-1')
+    expect(log.info).toHaveBeenCalledWith('session started', { accountId: 'acc-1' })
+
+    // unclean stop -> warn
+    d.resolve('logged_out')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(log.warn).toHaveBeenCalledWith('session stopped', { accountId: 'acc-1', reason: 'logged_out' })
+
+    // clean stop -> info
+    const d2 = deferred<string>()
+    const clean = new SessionManager(vi.fn().mockResolvedValue({ stop: vi.fn(), done: d2.promise } as SessionHandle), repo, log)
+    await clean.ensureRunning('acc-2')
+    d2.resolve('stop_requested')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(log.info).toHaveBeenCalledWith('session stopped', { accountId: 'acc-2', reason: 'stop_requested' })
+
+    // crash (done rejects) -> error
+    const crashed = new SessionManager(vi.fn().mockResolvedValue({ stop: vi.fn(), done: Promise.reject(new Error('boom')) } as SessionHandle), repo, log)
+    await crashed.ensureRunning('acc-3')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(log.error).toHaveBeenCalledWith('session crashed', { accountId: 'acc-3', error: 'boom' })
+
+    // start failure -> error
+    const failed = new SessionManager(vi.fn().mockRejectedValue(new Error('no creds')), repo, log)
+    await expect(failed.ensureRunning('acc-4')).rejects.toThrow('no creds')
+    expect(log.error).toHaveBeenCalledWith('session start failed', { accountId: 'acc-4', error: 'no creds' })
+  })
+
+  it('logs max_runtime as a clean stop (info)', async () => {
+    const repo = sessionRepo()
+    const log = fakeLogger()
+    const d = deferred<string>()
+    const mgr = new SessionManager(vi.fn().mockResolvedValue({ stop: vi.fn(), done: d.promise } as SessionHandle), repo, log)
+    await mgr.ensureRunning('acc-1')
+    d.resolve('max_runtime')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(log.info).toHaveBeenCalledWith('session stopped', { accountId: 'acc-1', reason: 'max_runtime' })
+    expect(log.warn).not.toHaveBeenCalled()
+  })
+
+  it('logs auth_timeout as an unclean stop (warn)', async () => {
+    const repo = sessionRepo()
+    const log = fakeLogger()
+    const d = deferred<string>()
+    const mgr = new SessionManager(vi.fn().mockResolvedValue({ stop: vi.fn(), done: d.promise } as SessionHandle), repo, log)
+    await mgr.ensureRunning('acc-1')
+    d.resolve('auth_timeout')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(log.warn).toHaveBeenCalledWith('session stopped', { accountId: 'acc-1', reason: 'auth_timeout' })
   })
 
   it('coerces non-Error rejections from startFn to a string for markStopped', async () => {

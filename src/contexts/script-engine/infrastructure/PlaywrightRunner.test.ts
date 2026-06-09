@@ -136,6 +136,48 @@ describe('PlaywrightRunner', () => {
     }
   })
 
+  it('does not wire debugLog into the script context when no logger is given', async () => {
+    dbQueryMock.mockResolvedValueOnce({ rows: [{ username: 'u', encrypted_password: 'p' }] })
+    buildBrowserChain('')
+    const runner = new PlaywrightRunner()
+    const txs = await runner.execute(
+      { id: 's', codeSnapshot: 'return [{ externalId: "1", referenceHash: "h", amount: 1, currency: "USD", receivedAt: new Date(0), raw: { kind: typeof context.debugLog } }]' } as any,
+      { accountId: 'acc-1', lastExternalId: null },
+    )
+    expect(txs[0].raw.kind).toBe('undefined')
+  })
+
+  it('wires a [bank-scrape-script] debugLog into the script context when a logger is given', async () => {
+    dbQueryMock.mockResolvedValueOnce({ rows: [{ username: 'u', encrypted_password: 'p' }] })
+    buildBrowserChain('')
+    const child: any = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn() }
+    const logger: any = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn(() => child) }
+
+    const runner = new PlaywrightRunner(logger)
+    const txs = await runner.execute(
+      { id: 's', codeSnapshot: 'return [{ externalId: "1", referenceHash: "h", amount: 1, currency: "USD", receivedAt: new Date(0), raw: { kind: typeof context.debugLog } }]' } as any,
+      { accountId: 'acc-42', lastExternalId: null },
+    )
+    expect(txs[0].raw.kind).toBe('function')
+    expect(logger.child).toHaveBeenCalledWith('[bank-scrape-script]')
+  })
+
+  it('routes a script debugLog event through the real sink to the logger (redacted, with accountId)', async () => {
+    dbQueryMock.mockResolvedValueOnce({ rows: [{ username: 'u', encrypted_password: 'p' }] })
+    buildBrowserChain('')
+    const child: any = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn() }
+    const logger: any = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn(() => child) }
+
+    const runner = new PlaywrightRunner(logger)
+    await runner.execute(
+      { id: 's', codeSnapshot: 'context.debugLog(JSON.stringify({ event: "poll_summary", incoming: 3, password: "x" })); return []' } as any,
+      { accountId: 'acc-42', lastExternalId: null },
+    )
+    expect(child.info).toHaveBeenCalledWith('poll_summary', expect.objectContaining({
+      accountId: 'acc-42', incoming: 3, password: '[REDACTED]',
+    }))
+  })
+
   it('rejects when the script takes longer than the configured timeout', async () => {
     vi.useFakeTimers()
     dbQueryMock.mockResolvedValueOnce({ rows: [{ username: 'u', encrypted_password: 'p' }] })

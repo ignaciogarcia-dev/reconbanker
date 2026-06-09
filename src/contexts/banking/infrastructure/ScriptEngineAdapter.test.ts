@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const loadActiveMock = vi.fn()
 const executeMock = vi.fn()
+const ctorArgs: unknown[][] = []
 
 vi.mock('../../script-engine/infrastructure/ScriptLoader.js', () => ({
   ScriptLoader: { loadActive: (...args: unknown[]) => loadActiveMock(...args) },
@@ -9,6 +10,7 @@ vi.mock('../../script-engine/infrastructure/ScriptLoader.js', () => ({
 
 vi.mock('../../script-engine/infrastructure/PlaywrightRunner.js', () => ({
   PlaywrightRunner: class {
+    constructor(...args: unknown[]) { ctorArgs.push(args) }
     execute(...args: unknown[]) { return executeMock(...args) }
   },
 }))
@@ -19,6 +21,7 @@ describe('ScriptEngineAdapter', () => {
   beforeEach(() => {
     loadActiveMock.mockReset()
     executeMock.mockReset()
+    ctorArgs.length = 0
   })
 
   describe('loadActiveScript', () => {
@@ -66,6 +69,22 @@ describe('ScriptEngineAdapter', () => {
         { id: 'script-1', codeSnapshot: 'return []' },
         { accountId: 'acc-1', lastExternalId: null },
       )
+    })
+
+    it('forwards its logger to the PlaywrightRunner constructor', async () => {
+      executeMock.mockResolvedValue([])
+      const logger = { debug() {}, info() {}, warn() {}, error() {}, child() { return logger } } as any
+      const adapter = new ScriptEngineAdapter(logger)
+      await adapter.runScript({ id: 's', codeSnapshot: 'return []' }, { accountId: 'a', lastExternalId: null })
+      expect(ctorArgs).toHaveLength(1)
+      expect(ctorArgs[0][0]).toBe(logger)
+    })
+
+    it('constructs the runner with undefined when no logger is provided', async () => {
+      executeMock.mockResolvedValue([])
+      const adapter = new ScriptEngineAdapter()
+      await adapter.runScript({ id: 's', codeSnapshot: 'return []' }, { accountId: 'a', lastExternalId: null })
+      expect(ctorArgs[0][0]).toBeUndefined()
     })
 
     it('propagates errors thrown by the underlying runner', async () => {

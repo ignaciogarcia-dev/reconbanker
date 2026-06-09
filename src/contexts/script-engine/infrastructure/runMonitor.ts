@@ -68,7 +68,8 @@ export async function runMonitor(opts: RunMonitorOptions): Promise<MonitorStopRe
     sleep = (ms: number) => new Promise((r) => setTimeout(r, ms)),
   } = opts
 
-  const log = (event: string) => context.debugLog?.(JSON.stringify({ at: new Date().toISOString(), event }))
+  const log = (event: string, data?: Record<string, unknown>) =>
+    context.debugLog?.(JSON.stringify({ at: new Date().toISOString(), event, ...data }))
 
   // 1) Login + wait for authentication (assisted: long timeout for human 2FA).
   await hooks.login(page, context)
@@ -102,7 +103,7 @@ export async function runMonitor(opts: RunMonitorOptions): Promise<MonitorStopRe
     try {
       batch = await hooks.poll(page, context)
     } catch (err) {
-      log('poll_failed')
+      log('poll_failed', { error: err instanceof Error ? err.message : String(err) })
       if (hooks.keepAlive) await hooks.keepAlive(page).catch(() => {})
       await sleep(pollIntervalMs)
       continue

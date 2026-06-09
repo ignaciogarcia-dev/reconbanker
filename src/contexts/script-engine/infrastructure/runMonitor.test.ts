@@ -194,4 +194,127 @@ describe('runMonitor', () => {
     })
     expect(reason).toBe('auth_timeout')
   })
+
+  describe('debugLog payloads', () => {
+    // Collects the structured events runMonitor emits via context.debugLog.
+    function recorder() {
+      const events: Array<Record<string, unknown>> = []
+      const debugLog = vi.fn((line: string) => { events.push(JSON.parse(line)) })
+      return { debugLog, events, names: () => events.map((e) => e.event) }
+    }
+
+    it('forwards the poll error message on poll_failed', async () => {
+      const { debugLog, events } = recorder()
+      let pollCount = 0
+      const h = hooks({
+        poll: vi.fn().mockImplementation(async () => {
+          pollCount += 1
+          if (pollCount === 1) throw new Error('selector not found')
+          return []
+        }),
+        keepAlive: vi.fn().mockResolvedValue(undefined),
+      })
+      let calls = 0
+      await runMonitor({
+        hooks: h, page: {}, context: { ...baseContext, debugLog }, sleep: noSleep,
+        onTransactions: async () => {},
+        shouldStop: () => { calls += 1; return calls > 2 },
+      })
+      const failed = events.find((e) => e.event === 'poll_failed')
+      expect(failed).toMatchObject({ event: 'poll_failed', error: 'selector not found' })
+      expect(failed?.at).toEqual(expect.any(String))
+    })
+
+    it('stringifies a non-Error poll rejection', async () => {
+      const { debugLog, events } = recorder()
+      let pollCount = 0
+      const h = hooks({
+        poll: vi.fn().mockImplementation(async () => {
+          pollCount += 1
+          if (pollCount === 1) throw 'net down' // eslint-disable-line no-throw-literal
+          return []
+        }),
+      })
+      let calls = 0
+      await runMonitor({
+        hooks: h, page: {}, context: { ...baseContext, debugLog }, sleep: noSleep,
+        onTransactions: async () => {},
+        shouldStop: () => { calls += 1; return calls > 2 },
+      })
+      expect(events.find((e) => e.event === 'poll_failed')).toMatchObject({ error: 'net down' })
+    })
+
+    it('emits authenticated then stop_requested on a clean run', async () => {
+      const { debugLog, names } = recorder()
+      const h = hooks({ poll: vi.fn().mockResolvedValue([]) })
+      let calls = 0
+      await runMonitor({
+        hooks: h, page: {}, context: { ...baseContext, debugLog }, sleep: noSleep,
+        onTransactions: async () => {},
+        shouldStop: () => { calls += 1; return calls > 0 },
+      })
+      expect(names()).toContain('authenticated')
+      expect(names()).toContain('stop_requested')
+    })
+
+    it('emits auth_timeout when auth never succeeds', async () => {
+      const { debugLog, names } = recorder()
+      const h = hooks({ isAuthenticated: vi.fn().mockResolvedValue(false) })
+      await runMonitor({
+        hooks: h, page: {}, context: { ...baseContext, debugLog }, sleep: noSleep, authTimeoutMs: 5,
+        onTransactions: async () => {},
+      })
+      expect(names()).toEqual(['auth_timeout'])
+    })
+
+    it('emits logged_out when the session is lost mid-loop', async () => {
+      const { debugLog, names } = recorder()
+      let auth = 0
+      const h = hooks({
+        isAuthenticated: vi.fn().mockImplementation(async () => { auth += 1; return auth <= 1 }),
+      })
+      await runMonitor({
+        hooks: h, page: {}, context: { ...baseContext, debugLog }, sleep: noSleep,
+        onTransactions: async () => {},
+      })
+      expect(names()).toContain('logged_out')
+    })
+
+    it('emits max_runtime when the deadline elapses', async () => {
+      const { debugLog, names } = recorder()
+      const h = hooks({ poll: vi.fn().mockResolvedValue([]) })
+      await runMonitor({
+        hooks: h, page: {}, context: { ...baseContext, debugLog }, sleep: noSleep,
+        onTransactions: async () => {}, maxRuntimeMs: 1, shouldStop: () => false,
+      })
+      expect(names()).toContain('max_runtime')
+    })
+  })
+
+  it('supports an async shouldStop predicate', async () => {
+    const h = hooks({ poll: vi.fn().mockResolvedValue([]) })
+    let calls = 0
+    const reason = await runMonitor({
+      hooks: h, page: {}, context: baseContext, sleep: noSleep,
+      onTransactions: async () => {},
+      shouldStop: async () => { calls += 1; return calls > 1 },
+    })
+    expect(reason).toBe('stop_requested')
+    expect(calls).toBeGreaterThan(1)
+  })
+
+  it('loops without keepAlive when a poll yields only duplicates', async () => {
+    // lastExternalId seeds the dedup set, so the returned tx is never fresh and,
+    // with no keepAlive hook, the loop just sleeps and continues until stop.
+    const h = hooks({ poll: vi.fn().mockResolvedValue([tx('dup')]) })
+    const onTransactions = vi.fn().mockResolvedValue(undefined)
+    let calls = 0
+    const reason = await runMonitor({
+      hooks: h, page: {}, context: { ...baseContext, lastExternalId: 'dup' }, sleep: noSleep,
+      onTransactions,
+      shouldStop: () => { calls += 1; return calls > 1 },
+    })
+    expect(reason).toBe('stop_requested')
+    expect(onTransactions).not.toHaveBeenCalled()
+  })
 })
