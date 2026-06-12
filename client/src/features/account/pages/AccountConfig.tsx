@@ -48,6 +48,10 @@ export function AccountConfig() {
     silentIngestion: false,
     sessionType: 'one-shot',
     loginMode: 'simple',
+    notificationEndpointUrl: '',
+    notificationAuthType: 'bearer',
+    notificationAuthToken: '',
+    notificationEventAssistance: false,
   })
   const [errors, setErrors] = useState<FormErrors>({})
   const [serverError, setServerError] = useState<string | null>(null)
@@ -93,13 +97,14 @@ export function AccountConfig() {
   }
 
   const visibleTabs: string[] = mode === 'reconcile'
-    ? ['credentials-session', 'orders', 'webhook']
-    : ['credentials-session', 'webhook']
+    ? ['credentials-session', 'orders', 'webhook', 'notifications']
+    : ['credentials-session', 'webhook', 'notifications']
 
   const tabLabelKey: Record<string, string> = {
     'credentials-session': 'accountConfig.tabs.credentialsSession',
     'orders': 'accountConfig.tabs.orders',
     'webhook': 'accountConfig.tabs.webhook',
+    'notifications': 'accountConfig.tabs.notifications',
   }
 
   function tabErrorCount(tab: string): number {
@@ -135,6 +140,10 @@ export function AccountConfig() {
       silentIngestion: data.silentIngestion,
       sessionType: data.sessionType,
       loginMode: data.loginMode,
+      notificationEndpointUrl: data.notificationEndpointUrl ?? '',
+      notificationAuthType: data.notificationAuthType ?? 'bearer',
+      notificationAuthToken: data.notificationAuthToken ?? '',
+      notificationEventAssistance: (data.notificationEvents ?? []).includes('assistance_required'),
     }))
   }, [data])
 
@@ -213,7 +222,11 @@ export function AccountConfig() {
         silentIngestion: form.silentIngestion,
         sessionType: form.sessionType,
         loginMode: form.loginMode,
-        /* v8 ignore start -- validation requires bankUsername; the empty branch is unreachable from a valid save. */
+        notificationEndpointUrl: form.notificationEndpointUrl.trim() === '' ? null : form.notificationEndpointUrl.trim(),
+        notificationAuthType: form.notificationEndpointUrl.trim() === '' ? null : form.notificationAuthType,
+        notificationAuthToken: form.notificationAuthToken.trim() === '' ? null : form.notificationAuthToken.trim(),
+        notificationEvents: form.notificationEventAssistance ? ['assistance_required'] : [],
+        /* v8 ignore start -- validation requires bankUsername so the empty branch is unreachable */
         bankUsername: trimmedBankUsername === '' ? null : trimmedBankUsername,
         /* v8 ignore stop */
         bankPassword: form.bankPassword === '' ? null : form.bankPassword,
@@ -507,6 +520,67 @@ export function AccountConfig() {
                   }}
                 />
               </FormField>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Central notification endpoint (status/assistance events) */}
+        <TabsContent value="notifications" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('accountConfig.notifications.title')}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-md border border-border bg-muted/40 p-3 flex gap-2 text-sm text-foreground">
+                <Info className="size-4 mt-0.5 shrink-0" />
+                <div>{t('accountConfig.notifications.desc')}</div>
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="notif-url">{t('accountConfig.notifications.endpoint')}</Label>
+                <Input
+                  id="notif-url"
+                  placeholder="https://example.com/hooks/recon"
+                  value={form.notificationEndpointUrl}
+                  onChange={e => setForm(f => ({ ...f, notificationEndpointUrl: e.target.value }))}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="notif-auth-type">{t('accountConfig.notifications.authType')}</Label>
+                <Select
+                  value={form.notificationAuthType}
+                  onValueChange={v => setForm(f => ({ ...f, notificationAuthType: (v ?? 'bearer') as AuthType }))}
+                >
+                  <SelectTrigger id="notif-auth-type" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="bearer">Bearer</SelectItem>
+                    <SelectItem value="api_key">Api-Key</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="notif-token">{t('accountConfig.notifications.authToken')}</Label>
+                <Input
+                  id="notif-token"
+                  type="password"
+                  placeholder="••••••••"
+                  value={form.notificationAuthToken}
+                  onChange={e => setForm(f => ({ ...f, notificationAuthToken: e.target.value }))}
+                />
+              </div>
+              <label className="flex items-center justify-between gap-3 rounded-md border border-border p-3 text-sm">
+                <span className="flex items-center gap-2">
+                  <ShieldAlert className="size-4" />
+                  {t('accountConfig.notifications.eventAssistance')}
+                </span>
+                <input
+                  type="checkbox"
+                  className="size-4"
+                  checked={form.notificationEventAssistance}
+                  onChange={e => setForm(f => ({ ...f, notificationEventAssistance: e.target.checked }))}
+                />
+              </label>
             </CardContent>
           </Card>
         </TabsContent>

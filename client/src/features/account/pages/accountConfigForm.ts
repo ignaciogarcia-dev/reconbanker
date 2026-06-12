@@ -13,6 +13,12 @@ export interface AccountConfigForm {
   silentIngestion: boolean
   sessionType: SessionType
   loginMode: LoginMode
+  // Central per-account notification endpoint for status and assistance events
+  notificationEndpointUrl: string
+  notificationAuthType: AuthType
+  notificationAuthToken: string
+  // Subscribes to the assistance_required event which is the only notifiable type today
+  notificationEventAssistance: boolean
 }
 
 export type FormErrors = Partial<Record<keyof AccountConfigForm, string>>
@@ -28,11 +34,10 @@ export const FIELD_TO_TAB: Partial<Record<keyof AccountConfigForm, string>> = {
   webhookExtraFields: 'webhook',
   pendingOrdersEndpoint: 'orders',
   pollingBody: 'orders',
-  // authToken renders in 'orders' (reconcile) or 'webhook' (passthrough); resolved via resolveTabForField below.
+  // authToken tab depends on mode so `resolveTabForField` below resolves it
 }
 
-// Stable order — used to determine which tab to switch to (first error wins).
-// Mirrors the visual tab order: credentials → orders → webhook.
+// Mirrors the visual tab order so the first error wins when picking the tab to switch to
 export const FIELD_ORDER: (keyof AccountConfigForm)[] = [
   'bankUsername',
   'bankPassword',
@@ -78,7 +83,7 @@ export function validateAccountConfigForm(form: AccountConfigForm, ctx: Validati
     errors.bankPassword = t('accountConfig.errors.required')
   }
 
-  // Webhook URL — backend min(1) and URL format
+  // Webhook URL must satisfy backend min(1) and URL format
   const webhookUrl = form.webhookUrl.trim()
   if (webhookUrl === '') {
     errors.webhookUrl = t('accountConfig.errors.required')
@@ -86,7 +91,7 @@ export function validateAccountConfigForm(form: AccountConfigForm, ctx: Validati
     errors.webhookUrl = t('accountConfig.errors.invalidUrl')
   }
 
-  // Webhook extra fields (optional, but must be valid JSON object with no reserved keys)
+  // Optional webhook extra fields must be a JSON object with no reserved keys
   const extraRaw = form.webhookExtraFields.trim()
   if (extraRaw !== '') {
     let parsed: unknown
@@ -107,7 +112,7 @@ export function validateAccountConfigForm(form: AccountConfigForm, ctx: Validati
     }
   }
 
-  // Reconcile-mode requirements: pending orders endpoint + auth token
+  // Reconcile mode requires the pending orders endpoint and auth token
   if (mode === 'reconcile') {
     const endpoint = form.pendingOrdersEndpoint.trim()
     if (endpoint === '') {
@@ -121,7 +126,7 @@ export function validateAccountConfigForm(form: AccountConfigForm, ctx: Validati
     }
   }
 
-  // Polling body — only validate when POST + non-empty
+  // Polling body is only validated when POST and non-empty
   if (form.pollingMethod === 'POST') {
     const body = form.pollingBody.trim()
     if (body !== '') {

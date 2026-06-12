@@ -18,6 +18,10 @@ interface AccountConfigRow {
   silent_ingestion: boolean
   session_type: AccountConfig['sessionType']
   login_mode: AccountConfig['loginMode']
+  notification_endpoint_url: string | null
+  notification_auth_type: AccountConfig['notificationAuthType']
+  notification_auth_token: string | null
+  notification_events: string[] | null
   bank_username: string | null
 }
 
@@ -55,6 +59,10 @@ function toAccountConfig(row: AccountConfigRow): AccountConfig {
     silentIngestion: row.silent_ingestion,
     sessionType: row.session_type,
     loginMode: row.login_mode,
+    notificationEndpointUrl: row.notification_endpoint_url,
+    notificationAuthType: row.notification_auth_type,
+    notificationAuthToken: row.notification_auth_token,
+    notificationEvents: row.notification_events,
     bankUsername: row.bank_username,
   }
 }
@@ -75,6 +83,10 @@ function toBackendBody(input: UpsertAccountConfigInput) {
     silent_ingestion: input.silentIngestion,
     session_type: input.sessionType,
     login_mode: input.loginMode,
+    notification_endpoint_url: input.notificationEndpointUrl,
+    notification_auth_type: input.notificationAuthType,
+    notification_auth_token: input.notificationAuthToken,
+    notification_events: input.notificationEvents,
     bank_username: input.bankUsername,
     bank_password: input.bankPassword,
   }
