@@ -8,6 +8,8 @@ import { userHandlers } from '../../../../tests/msw/handlers/user'
 import { renderWithProviders } from '../../../../tests/utils/render'
 import { Register } from './Register'
 
+const VALID_PASSWORD = 'ValidPassword1'
+
 function renderRegister() {
   return renderWithProviders(
     <Routes>
@@ -26,8 +28,8 @@ describe('Register page', () => {
   it('navigates to /login on successful registration', async () => {
     const user = userEvent.setup()
     renderRegister()
-    await user.type(screen.getByLabelText(/Email/i), 'new@x')
-    await user.type(screen.getByLabelText(/Contraseña/i), 'pw')
+    await user.type(screen.getByLabelText(/Email/i), 'new@x.com')
+    await user.type(screen.getByLabelText(/Contraseña/i), VALID_PASSWORD)
     await user.click(screen.getByRole('button', { name: /^Registrar$/i }))
     await waitFor(() => {
       expect(screen.getByText('LOGIN_PAGE')).toBeInTheDocument()
@@ -39,25 +41,58 @@ describe('Register page', () => {
     server.use(
       http.post('/api/auth/register', async ({ request }) => {
         received = await request.json()
-        return HttpResponse.json({ id: 'x', email: 'x@x' })
+        return HttpResponse.json({ id: 'x', email: 'x@x.com' })
       })
     )
     const user = userEvent.setup()
     renderRegister()
     await user.type(screen.getByLabelText(/Nombre/i), 'Alice')
-    await user.type(screen.getByLabelText(/Email/i), 'x@x')
-    await user.type(screen.getByLabelText(/Contraseña/i), 'pw')
+    await user.type(screen.getByLabelText(/Email/i), 'x@x.com')
+    await user.type(screen.getByLabelText(/Contraseña/i), VALID_PASSWORD)
     await user.click(screen.getByRole('button', { name: /^Registrar$/i }))
     await waitFor(() => {
-      expect(received).toEqual({ email: 'x@x', password: 'pw', name: 'Alice' })
+      expect(received).toEqual({ email: 'x@x.com', password: VALID_PASSWORD, name: 'Alice' })
     })
+  })
+
+  it('shows password rules one at a time', async () => {
+    const user = userEvent.setup()
+    renderRegister()
+    const password = screen.getByLabelText(/Contraseña/i)
+    await user.type(screen.getByLabelText(/Email/i), 'x@x.com')
+    await user.type(password, 'corta')
+    await user.click(screen.getByRole('button', { name: /^Registrar$/i }))
+    // only the first failing rule is shown
+    expect(await screen.findByText(/al menos 12 caracteres/i)).toBeInTheDocument()
+    expect(screen.queryByText(/mayúscula/i)).not.toBeInTheDocument()
+
+    // fixing the length reveals the next rule (uppercase)
+    await user.clear(password)
+    await user.type(password, 'minusculas123')
+    expect(await screen.findByText(/letra mayúscula/i)).toBeInTheDocument()
+    expect(screen.queryByText(/al menos 12 caracteres/i)).not.toBeInTheDocument()
+
+    // a valid password clears the error
+    await user.clear(password)
+    await user.type(password, VALID_PASSWORD)
+    await waitFor(() => {
+      expect(screen.queryByText(/contraseña debe/i)).not.toBeInTheDocument()
+    })
+  })
+
+  it('shows per-field required errors when submitting empty', async () => {
+    const user = userEvent.setup()
+    renderRegister()
+    await user.click(screen.getByRole('button', { name: /^Registrar$/i }))
+    const messages = await screen.findAllByText(/Completá este campo/i)
+    expect(messages).toHaveLength(2)
   })
 
   it('shows the server-provided error message on conflict', async () => {
     const user = userEvent.setup()
     renderRegister()
-    await user.type(screen.getByLabelText(/Email/i), 'taken@x')
-    await user.type(screen.getByLabelText(/Contraseña/i), 'pw')
+    await user.type(screen.getByLabelText(/Email/i), 'taken@x.com')
+    await user.type(screen.getByLabelText(/Contraseña/i), VALID_PASSWORD)
     await user.click(screen.getByRole('button', { name: /^Registrar$/i }))
     await waitFor(() => {
       expect(screen.getByText('Email already in use')).toBeInTheDocument()
@@ -72,8 +107,8 @@ describe('Register page', () => {
     )
     const user = userEvent.setup()
     renderRegister()
-    await user.type(screen.getByLabelText(/Email/i), 'x@x')
-    await user.type(screen.getByLabelText(/Contraseña/i), 'pw')
+    await user.type(screen.getByLabelText(/Email/i), 'x@x.com')
+    await user.type(screen.getByLabelText(/Contraseña/i), VALID_PASSWORD)
     await user.click(screen.getByRole('button', { name: /^Registrar$/i }))
     // server response error message "boom" propagated
     await waitFor(() => {
@@ -89,8 +124,8 @@ describe('Register page', () => {
     )
     const user = userEvent.setup()
     renderRegister()
-    await user.type(screen.getByLabelText(/Email/i), 'x@x')
-    await user.type(screen.getByLabelText(/Contraseña/i), 'pw')
+    await user.type(screen.getByLabelText(/Email/i), 'x@x.com')
+    await user.type(screen.getByLabelText(/Contraseña/i), VALID_PASSWORD)
     await user.click(screen.getByRole('button', { name: /^Registrar$/i }))
     await waitFor(() => {
       expect(

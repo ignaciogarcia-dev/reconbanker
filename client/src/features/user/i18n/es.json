@@ -29,6 +29,16 @@
     "hasAccount": "¿Ya tenés cuenta?",
     "login": "Ingresar"
   },
+  "passwordRules": {
+    "minLength": "La contraseña debe tener al menos 12 caracteres",
+    "maxLength": "La contraseña debe tener como máximo 32 caracteres",
+    "lowercase": "La contraseña debe incluir una letra minúscula",
+    "uppercase": "La contraseña debe incluir una letra mayúscula",
+    "number": "La contraseña debe incluir un número"
+  },
+  "errors": {
+    "emailInvalid": "Ingresá un email válido"
+  },
   "settings": {
     "title": "Configuración",
     "subtitle": "Gestioná tu perfil y el modo de operación",
