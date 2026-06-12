@@ -27,6 +27,16 @@
         "bankRequired": "Choose one.",
         "nameRequired": "Required."
       }
+    },
+    "otp": {
+      "assistanceNeeded": "Assistance required",
+      "title": "Enter SMS code",
+      "description": "Bank {{account}} sent an SMS code. Enter it to continue signing in.",
+      "submit": "Verify",
+      "submitting": "Verifying…",
+      "cancel": "Cancel",
+      "submitted": "Code submitted",
+      "submitError": "Could not submit the code"
     }
   },
   "banks": {
@@ -107,7 +117,8 @@
     "tabs": {
       "credentialsSession": "Credentials & session",
       "webhook": "Webhook",
-      "orders": "Orders"
+      "orders": "Orders",
+      "notifications": "Notifications"
     },
     "session": "Session",
     "sessionType": "Session type",
@@ -139,6 +150,14 @@
       "confirmDelete": "Delete permanently",
       "deleting": "Deleting...",
       "genericError": "Failed to delete account"
+    },
+    "notifications": {
+      "title": "Notification endpoint",
+      "desc": "The system posts status/assistance events (account_id + type) to this endpoint. Independent from the transaction webhook.",
+      "endpoint": "Endpoint URL",
+      "authType": "Authentication type",
+      "authToken": "Authentication token",
+      "eventAssistance": "Notify when assistance is required (SMS code)"
     }
   }
 }

@@ -8,11 +8,13 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
 import { cn } from '@/shared/lib/utils'
-import { Plus, Settings, Info, AlertCircle } from 'lucide-react'
+import { Plus, Settings, Info, AlertCircle, ShieldAlert } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAccounts, useCreateAccount } from '../hooks/useAccounts'
 import { useBanks } from '../hooks/useBanks'
+import { useRealtime } from '@/shared/realtime/useRealtime'
+import { OtpAssistanceModal } from '../components/OtpAssistanceModal'
 
 type FormErrors = { bankId?: string; name?: string }
 
@@ -31,6 +33,10 @@ export function Accounts() {
 
   const { data: accounts = [], isLoading } = useAccounts()
   const { data: banks = [] } = useBanks()
+
+  // Live OTP assistance state pushed over the realtime WebSocket
+  const { assistance, clearAccount } = useRealtime()
+  const [otpAccountId, setOtpAccountId] = useState<string | null>(null)
 
   const bankNameByCode = Object.fromEntries(banks.map(b => [b.code, b.name]))
 
@@ -176,9 +182,22 @@ export function Accounts() {
                     <TableCell className="font-medium">{a.name ?? '—'}</TableCell>
                     <TableCell>{bankNameByCode[a.bank] ?? a.bank}</TableCell>
                     <TableCell>
-                      <Badge variant={a.status === 'active' ? 'default' : 'secondary'}>
-                        {t(`common:enums.accountStatus.${a.status}`)}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={a.status === 'active' ? 'default' : 'secondary'}>
+                          {t(`common:enums.accountStatus.${a.status}`)}
+                        </Badge>
+                        {assistance[a.id] && (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-6 px-2 text-[11px]"
+                            onClick={() => setOtpAccountId(a.id)}
+                          >
+                            <ShieldAlert className="size-3 mr-1" />
+                            {t('accounts.otp.assistanceNeeded')}
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground text-xs font-mono">{a.id}</TableCell>
                     <TableCell>
@@ -201,6 +220,17 @@ export function Accounts() {
           )}
         </CardContent>
       </Card>
+
+      {otpAccountId && assistance[otpAccountId] && (
+        <OtpAssistanceModal
+          accountId={otpAccountId}
+          accountName={accounts.find(a => a.id === otpAccountId)?.name ?? otpAccountId}
+          assistance={assistance[otpAccountId]}
+          open={!!otpAccountId}
+          onOpenChange={(o) => { if (!o) setOtpAccountId(null) }}
+          onSubmitted={() => clearAccount(otpAccountId)}
+        />
+      )}
     </div>
   )
 }
