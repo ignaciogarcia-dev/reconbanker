@@ -17,6 +17,10 @@ import type { UserModule } from './userModule.js'
 import { RunBankScrapeUseCase } from '../contexts/banking/application/RunBankScrapeUseCase.js'
 import { IngestTransactionsUseCase } from '../contexts/banking/application/IngestTransactionsUseCase.js'
 import { BankSessionRepository } from '../contexts/banking/infrastructure/BankSessionRepository.js'
+import { AssistanceRequestRepository } from '../contexts/banking/infrastructure/AssistanceRequestRepository.js'
+import { OtpAssistanceCoordinator } from '../contexts/banking/infrastructure/OtpAssistanceCoordinator.js'
+import { SubmitAssistanceCodeUseCase } from '../contexts/banking/application/SubmitAssistanceCodeUseCase.js'
+import { realtimeBus } from '../shared/infrastructure/realtime/RealtimeBus.js'
 import { SessionManager } from '../contexts/banking/infrastructure/SessionManager.js'
 import { PersistentPlaywrightRunner } from '../contexts/script-engine/infrastructure/PersistentPlaywrightRunner.js'
 import { ScriptLoader } from '../contexts/script-engine/infrastructure/ScriptLoader.js'
@@ -46,6 +50,8 @@ export interface BankingModule {
   listWebhookDeadLetters: ListWebhookDeadLettersUseCase
   bankTransactionRepository: BankTransactionRepository
   sessionManager: SessionManager
+  assistanceRepo: AssistanceRequestRepository
+  submitAssistanceCode: SubmitAssistanceCodeUseCase
 }
 
 export function buildBankingModule(container: ContainerBase): BankingModule {
@@ -67,6 +73,10 @@ export function buildBankingModule(container: ContainerBase): BankingModule {
   const ingest = new IngestTransactionsUseCase({ txRepo: bankTxRepo, eventBus: container.eventBus })
 
   const bankSessionRepo = new BankSessionRepository(exec)
+  const assistanceRepo = new AssistanceRequestRepository(exec)
+  const otpCoordinator = new OtpAssistanceCoordinator(
+    assistanceRepo, realtimeBus, container.logger.child('[otp-assist]')
+  )
   const persistentRunner = new PersistentPlaywrightRunner()
 
   const monitorLog = container.logger.child('[bank-monitor]')
@@ -87,7 +97,9 @@ export function buildBankingModule(container: ContainerBase): BankingModule {
 
     const lastExternalId = await bankTxRepo.findLatestExternalId(accountId)
 
-    return persistentRunner.start({
+    const requestOtp = otpCoordinator.forSession({ accountId, userId: account.userId })
+
+    const handle = await persistentRunner.start({
       scriptCode: script.codeSnapshot,
       loginMode: account.loginMode,
       pollIntervalMs: Number(process.env.PERSISTENT_POLL_INTERVAL_MS ?? 60_000),
@@ -97,26 +109,30 @@ export function buildBankingModule(container: ContainerBase): BankingModule {
         password: credentialsCipher().decrypt(creds.encrypted_password),
         lastExternalId,
         debugLog: makeDebugLogSink(monitorLog, { accountId, bank: account.bank }),
+        requestOtp,
       },
       onTransactions: async (batch) => { await ingest.execute(accountId, script.id, batch) },
       shouldStop: () => false,
-      // Bank-local day key; a change clears runMonitor's dedup set so it stays bounded
-      // over multi-day sessions. Ecuador for Pichincha — make this bank-specific when
-      // more persistent banks are added.
+      // Bank-local day key whose change clears runMonitor's dedup set so it stays bounded over multi-day sessions
       getBankDay: () =>
         new Intl.DateTimeFormat('en-GB', {
           timeZone: 'America/Guayaquil', year: 'numeric', month: '2-digit', day: '2-digit',
         }).format(new Date()),
     })
+
+    // Clear the pending assistance request on session end so the dashboard alert never dangles
+    void handle.done.catch(() => {}).finally(() => {
+      void otpCoordinator.cancel(accountId, account.userId).catch(() => {})
+    })
+
+    return handle
   }
 
   const sessionManager = new SessionManager(startFn, bankSessionRepo, container.logger.child('[session-manager]'))
 
   const enqueueNotify = async (bankTransactionId: string) => {
     const jobId = `bank-movement-webhook_${bankTransactionId}`
-    // A prior failed delivery is retained in the queue (removeOnFail: false), and
-    // BullMQ treats a re-add with an existing jobId as a no-op. Drop the stale job
-    // first so a re-drive genuinely re-enqueues instead of silently doing nothing.
+    // BullMQ treats a re-add with an existing jobId as a no-op so drop the stale failed job first
     await Queues.bankMovementWebhook.remove(jobId)
     await Queues.bankMovementWebhook.add(
       'notify',
@@ -144,5 +160,7 @@ export function buildBankingModule(container: ContainerBase): BankingModule {
     }),
     bankTransactionRepository: bankTxRepo,
     sessionManager,
+    assistanceRepo,
+    submitAssistanceCode: new SubmitAssistanceCodeUseCase(assistanceRepo, realtimeBus),
   }
 }

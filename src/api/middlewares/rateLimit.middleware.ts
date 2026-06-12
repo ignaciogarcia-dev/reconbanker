@@ -1,9 +1,6 @@
 import rateLimit, { ipKeyGenerator, type Options } from 'express-rate-limit'
 
-/**
- * Rate limiters are disabled under tests so the suite stays deterministic.
- * They are exercised directly in rateLimit.middleware.test.ts with skip off.
- */
+// Disabled under tests for determinism and exercised directly in rateLimit.middleware.test.ts
 const skipInTest = (): boolean => process.env.NODE_ENV === 'test'
 
 const RATE_LIMITED_BODY = {
@@ -21,38 +18,41 @@ export function buildRateLimiter(overrides: Partial<Options> = {}) {
   })
 }
 
-/** Brute-force protection on login: a handful of attempts per IP per 15 min. */
+// Brute-force protection allowing a handful of login attempts per IP per 15 min
 export const loginRateLimiter = buildRateLimiter({
   windowMs: 15 * 60 * 1000,
   limit: Number(process.env.RATE_LIMIT_LOGIN_MAX ?? 5),
   skip: skipInTest,
 })
 
-/** Slows down account enumeration / mass registration. */
+// Slows down account enumeration and mass registration
 export const registerRateLimiter = buildRateLimiter({
   windowMs: 60 * 60 * 1000,
   limit: Number(process.env.RATE_LIMIT_REGISTER_MAX ?? 3),
   skip: skipInTest,
 })
 
-/** Coarse global cap on the whole API surface. */
+// Coarse global cap on the whole API surface
 export const apiRateLimiter = buildRateLimiter({
   windowMs: 15 * 60 * 1000,
   limit: Number(process.env.RATE_LIMIT_API_MAX ?? 300),
   skip: skipInTest,
 })
 
-/**
- * Stricter, per-user cap for expensive authenticated actions that each enqueue
- * background work (bank scrapes, conciliation runs, webhook re-notifications,
- * order polling). Keyed by user id so a single account cannot flood the queues;
- * falls back to the (subnet-masked) IP if userId is somehow absent. Mount these
- * behind the auth middleware so req.userId is populated.
- */
+// Keyed by user id so one account cannot flood the queues so mount behind auth so req.userId exists
 export const expensiveActionRateLimiter = buildRateLimiter({
   windowMs: 15 * 60 * 1000,
   limit: Number(process.env.RATE_LIMIT_ACTION_MAX ?? 30),
   keyGenerator: (req) =>
     (req as { userId?: string }).userId ?? ipKeyGenerator(req.ip ?? '', 56),
+  skip: skipInTest,
+})
+
+// Keyed by accountId so OTP guesses cannot burn the bank's limited real attempts from either entry point
+export const otpSubmitRateLimiter = buildRateLimiter({
+  windowMs: Number(process.env.RATE_LIMIT_OTP_WINDOW_MS ?? 10 * 60 * 1000),
+  limit: Number(process.env.RATE_LIMIT_OTP_MAX ?? 5),
+  keyGenerator: (req) =>
+    (req.params as { accountId?: string }).accountId ?? ipKeyGenerator(req.ip ?? '', 56),
   skip: skipInTest,
 })
