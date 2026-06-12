@@ -1,24 +1,19 @@
-/**
- * - `access`: a full session token accepted by the auth middleware.
- * - `2fa_pending`: a short-lived challenge token issued after the password step
- *   when a user has 2FA enabled. It only authorizes completing the TOTP step and
- *   is rejected by the auth middleware.
- */
-export type TokenScope = 'access' | '2fa_pending'
+// Only `access` is accepted by the auth middleware while `2fa_pending` and `ws` are short-lived single-purpose tokens
+export type TokenScope = 'access' | '2fa_pending' | 'ws'
 
 export interface TokenPayload {
   sub: string
   email: string
-  /** Token purpose; defaults to 'access' when absent (legacy tokens). */
+  // Legacy tokens lack scope and default to 'access'
   scope?: TokenScope
-  /** JWT id — present on issued tokens; used for revocation. */
+  // JWT id used for revocation
   jti?: string
-  /** Expiry as epoch seconds — populated by verify(). */
+  // Expiry as epoch seconds populated by verify()
   exp?: number
 }
 
 export interface IssueOptions {
-  /** Overrides the issuer's default lifetime (e.g. '5m' for a 2FA challenge). */
+  // Overrides the issuer's default lifetime such as '5m' for a 2FA challenge
   expiresIn?: string
 }
 
