@@ -52,5 +52,10 @@
     "typescript": "^6.0.3",
     "vitest": "^4.1.6"
   },
-  "type": "module"
+  "type": "module",
+  "pnpm": {
+    "overrides": {
+      "esbuild": ">=0.28.1"
+    }
+  }
 }
