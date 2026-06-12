@@ -6,6 +6,9 @@ import type { IUnitOfWork } from '../shared/persistence/IUnitOfWork.js'
 import { executorFromPool } from '../contexts/user/infrastructure/Executor.js'
 import { UserRepository } from '../contexts/user/infrastructure/UserRepository.js'
 import { BackupCodeRepository } from '../contexts/user/infrastructure/BackupCodeRepository.js'
+import { ApiKeyRepository } from '../contexts/user/infrastructure/ApiKeyRepository.js'
+import { CreateApiKeyUseCase } from '../contexts/user/application/CreateApiKeyUseCase.js'
+import { ListApiKeysUseCase, RevokeApiKeyUseCase, AuthenticateApiKeyUseCase } from '../contexts/user/application/ManageApiKeysUseCase.js'
 import { BcryptPasswordHasher } from '../contexts/user/infrastructure/adapters/BcryptPasswordHasher.js'
 import { JwtTokenIssuer } from '../contexts/user/infrastructure/adapters/JwtTokenIssuer.js'
 import { OtplibTotpProvider } from '../contexts/user/infrastructure/adapters/OtplibTotpProvider.js'
@@ -42,14 +45,19 @@ export interface UserModule {
   changeOperationMode: ChangeOperationModeUseCase
   userRepository: UserRepository
   tokenIssuer: ITokenIssuer
-  /** Present only when a Redis client is wired (runtime); enables logout/revocation. */
+  // Present only when a Redis client is wired and enables logout and revocation
   tokenDenylist?: ITokenDenylist
+  createApiKey: CreateApiKeyUseCase
+  listApiKeys: ListApiKeysUseCase
+  revokeApiKey: RevokeApiKeyUseCase
+  authenticateApiKey: AuthenticateApiKeyUseCase
 }
 
 export function buildUserModule(container: ContainerBase): UserModule {
   const exec = executorFromPool(container.pool)
   const userRepository = new UserRepository(exec)
   const backupCodeRepository = new BackupCodeRepository(exec)
+  const apiKeyRepository = new ApiKeyRepository(exec)
 
   const passwordHasher = new BcryptPasswordHasher()
   const secret = process.env.JWT_SECRET
@@ -78,5 +86,9 @@ export function buildUserModule(container: ContainerBase): UserModule {
     changeOperationMode: new ChangeOperationModeUseCase(
       userRepository, container.unitOfWork, dataCleaner, container.eventBus
     ),
+    createApiKey: new CreateApiKeyUseCase(apiKeyRepository),
+    listApiKeys: new ListApiKeysUseCase(apiKeyRepository),
+    revokeApiKey: new RevokeApiKeyUseCase(apiKeyRepository),
+    authenticateApiKey: new AuthenticateApiKeyUseCase(apiKeyRepository),
   }
 }
