@@ -7,7 +7,7 @@ function parse<T>(schema: ZodType<T>, data: unknown, source: string): T {
   if (!result.success) {
     throw new ValidationError(`Invalid ${source}`, {
       source,
-      issues: result.error.issues,
+      issues: result.error.issues.map((i) => ({ path: i.path, message: i.message, code: i.code })),
     })
   }
   return result.data
