@@ -25,7 +25,7 @@ function buildSut(mode: 'reconcile' | 'passthrough' = 'reconcile') {
 const baseInput = {
   userId: 'user-1',
   accountId: 'acc-1',
-  // Literal public IPs so the SSRF guard runs without needing DNS in tests.
+  // Literal public IPs so the SSRF guard runs without needing DNS in tests
   pendingOrdersEndpoint: 'https://93.184.216.34/orders',
   webhookUrl: 'https://93.184.216.34/hook',
   retryLimit: 3,
@@ -40,6 +40,10 @@ const baseInput = {
   silentIngestion: false,
   sessionType: 'one-shot' as const,
   loginMode: 'simple' as const,
+  notificationEndpointUrl: null,
+  notificationAuthType: null,
+  notificationAuthToken: null,
+  notificationEvents: null,
   bankUsername: null,
   bankPassword: null,
 }
