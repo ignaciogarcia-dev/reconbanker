@@ -39,17 +39,21 @@ describe('bindRoutes', () => {
       '/api/auth',
       '/api/auth/logout',
       '/api/me',
+      '/v1',
       '/api/accounts/:accountId/movements',
       '/api/accounts',
       '/api/banks',
       '/api/conciliation',
       '/api/scripts',
     ])
-    // Auth (login/register) path has no middleware before the router; all others
-    // (including the protected logout) have the protected middleware first.
-    expect(calls[0].handlers).toHaveLength(1)
-    for (let i = 1; i < calls.length; i++) {
-      expect(calls[i].handlers.length).toBeGreaterThanOrEqual(2)
+    // Only public /api/auth and the API-key-authenticated /v1 mount without the JWT middleware
+    const singleHandlerPaths = new Set(['/api/auth', '/v1'])
+    for (const c of calls) {
+      if (singleHandlerPaths.has(c.path)) {
+        expect(c.handlers).toHaveLength(1)
+      } else {
+        expect(c.handlers.length).toBeGreaterThanOrEqual(2)
+      }
     }
   })
 })

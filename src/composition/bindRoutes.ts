@@ -7,6 +7,7 @@ import { buildBanksRouter } from '../api/routes/banks.routes.js'
 import { buildConciliationRouter } from '../api/routes/conciliation.routes.js'
 import { buildUserRouter } from '../api/routes/user.routes.js'
 import { buildScriptsRouter } from '../api/routes/scripts.routes.js'
+import { buildV1Router } from '../api/routes/v1.routes.js'
 import { buildAuthMiddleware } from '../api/middlewares/auth.middleware.js'
 import { buildRequireAdmin } from '../api/middlewares/requireAdmin.middleware.js'
 
@@ -18,6 +19,13 @@ export function bindRoutes(app: Express, container: Container): void {
 
   app.use('/api/auth/logout', protectedApi, buildLogoutRouter(container.user.tokenDenylist))
   app.use('/api/me', protectedApi, buildUserRouter(container.user))
+
+  // External API-key-authenticated surface with no JWT middleware
+  app.use('/v1', buildV1Router({
+    user: container.user,
+    banking: container.banking,
+    accountRepo: container.account.accountRepository,
+  }))
   app.use(
     '/api/accounts/:accountId/movements',
     protectedApi,
