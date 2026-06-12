@@ -39,6 +39,7 @@ describe('bindRoutes', () => {
       '/api/auth',
       '/api/auth/logout',
       '/api/me',
+      '/api/me/api-keys',
       '/api/accounts/:accountId/movements',
       '/api/accounts',
       '/api/banks',
