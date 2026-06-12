@@ -36,7 +36,8 @@
     "tabs": {
       "general": "General",
       "security": "Seguridad",
-      "operation": "Operación"
+      "operation": "Operación",
+      "apiKeys": "API Keys"
     },
     "profile": {
       "title": "Perfil",
@@ -78,6 +79,21 @@
       "confirmBody": "Al cambiar de modo se eliminarán de forma permanente todos los movimientos y conciliaciones registrados hasta ahora. Por motivos de seguridad y cumplimiento, los datos procesados bajo un modo no pueden conservarse al pasar al otro. Esta acción es irreversible.",
       "confirmCancel": "Cancelar",
       "confirmConfirm": "Sí, cambiar y borrar datos"
+    },
+    "apiKeys": {
+      "subtitle": "Llaves para integraciones externas (servidor SMS, etc.)",
+      "name": "Nombre",
+      "namePlaceholder": "Servidor SMS",
+      "scopes": "Permisos (scopes)",
+      "create": "Crear llave",
+      "creating": "Creando…",
+      "created": "Llave creada",
+      "createError": "No se pudo crear la llave",
+      "secretOnce": "Copia esta llave ahora. No se volverá a mostrar.",
+      "dismiss": "Listo",
+      "empty": "No hay llaves activas.",
+      "revoke": "Revocar",
+      "revoked": "Llave revocada"
     }
   },
   "modeSelect": {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { GitMerge, ArrowDownUp, AlertTriangle, UserRound, Settings2, ShieldCheck } from 'lucide-react'
+import { GitMerge, ArrowDownUp, AlertTriangle, UserRound, Settings2, ShieldCheck, KeyRound } from 'lucide-react'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
 import { Button } from '@/shared/ui/button'
@@ -11,6 +11,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/shared/ui/tabs'
 import { useUser } from '../hooks/useUser'
 import { useSetOperationMode } from '../hooks/useSetOperationMode'
 import { TwoFactorSection } from './TwoFactorSection'
+import { ApiKeysSection } from './ApiKeysSection'
 import type { OperationMode } from '../types'
 import { cn } from '@/shared/lib/utils'
 
@@ -23,6 +24,7 @@ const SECTIONS = [
   { key: 'general', icon: UserRound },
   { key: 'security', icon: ShieldCheck },
   { key: 'operation', icon: Settings2 },
+  { key: 'apiKeys', icon: KeyRound },
 ] as const
 
 export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
@@ -358,6 +360,16 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                         </div>
                       </div>
 
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent
+                    value="apiKeys"
+                    className="flex-1 overflow-y-auto px-8 py-7 outline-none data-[active]:flex data-[active]:flex-col"
+                  >
+                    <PaneHeader title={t('settings.tabs.apiKeys')} subtitle={t('settings.apiKeys.subtitle')} />
+                    <div className="mt-6">
+                      <ApiKeysSection />
                     </div>
                   </TabsContent>
                 </div>
