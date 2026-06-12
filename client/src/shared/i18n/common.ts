@@ -71,6 +71,26 @@ export const commonEs = {
   validation: {
     required: 'Completá este campo',
   },
+  errors: {
+    generic: 'Algo salió mal',
+    loadFailed: 'No se pudieron cargar los datos',
+    retry: 'Reintentar',
+  },
+  apiErrors: {
+    RATE_LIMITED: 'Demasiados intentos. Probá de nuevo en unos minutos',
+    UNAUTHORIZED: 'No autorizado',
+    INVALID_TOKEN: 'Sesión inválida o expirada',
+    INVALID_API_KEY: 'API key inválida',
+    FORBIDDEN: 'No tenés permisos para esta acción',
+    NOT_FOUND: 'No encontrado',
+    CONFLICT: 'Ya existe un registro con esos datos',
+    INTERNAL_ERROR: 'Error interno del servidor. Probá más tarde',
+  },
+  errorBoundary: {
+    title: 'Algo salió mal',
+    description: 'Ocurrió un error inesperado. Podés volver al inicio e intentar de nuevo.',
+    goHome: 'Ir al inicio',
+  },
 }
 
 export const commonEn = {
@@ -144,5 +164,25 @@ export const commonEn = {
   },
   validation: {
     required: 'Please fill out this field',
+  },
+  errors: {
+    generic: 'Something went wrong',
+    loadFailed: 'Could not load the data',
+    retry: 'Retry',
+  },
+  apiErrors: {
+    RATE_LIMITED: 'Too many attempts. Try again in a few minutes',
+    UNAUTHORIZED: 'Unauthorized',
+    INVALID_TOKEN: 'Invalid or expired session',
+    INVALID_API_KEY: 'Invalid API key',
+    FORBIDDEN: 'You do not have permission for this action',
+    NOT_FOUND: 'Not found',
+    CONFLICT: 'A record with that data already exists',
+    INTERNAL_ERROR: 'Internal server error. Try again later',
+  },
+  errorBoundary: {
+    title: 'Something went wrong',
+    description: 'An unexpected error occurred. You can go back home and try again.',
+    goHome: 'Go home',
   },
 }

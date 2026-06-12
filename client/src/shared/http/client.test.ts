@@ -1,7 +1,8 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { server } from '../../../tests/msw/server'
-import { httpClient, resolveApiBaseUrl } from './client'
+import { httpClient, resolveApiBaseUrl, apiErrorMessage, localizedApiError } from './client'
+import i18n from '@/shared/i18n'
 
 describe('httpClient', () => {
   it('uses the api prefix by default', () => {
@@ -15,6 +16,58 @@ describe('httpClient', () => {
 
   it('uses a custom api base url when configured', () => {
     expect(resolveApiBaseUrl('https://api.example.com')).toBe('https://api.example.com')
+  })
+})
+
+describe('apiErrorMessage', () => {
+  const axiosErr = (error: unknown) => ({ response: { data: { error } } })
+
+  it('returns string errors from ad hoc middlewares as is', () => {
+    expect(apiErrorMessage(axiosErr('Unauthorized'))).toBe('Unauthorized')
+  })
+
+  it('returns the message of structured errors', () => {
+    expect(apiErrorMessage(axiosErr({ code: 'RATE_LIMITED', message: 'Too many requests' }))).toBe('Too many requests')
+  })
+
+  it('joins validation issue messages', () => {
+    const error = {
+      code: 'VALIDATION_ERROR',
+      message: 'Invalid body',
+      details: { source: 'body', issues: [{ message: 'Invalid email address' }, { message: 'Password too short' }] },
+    }
+    expect(apiErrorMessage(axiosErr(error))).toBe('Invalid email address. Password too short')
+  })
+
+  it('falls back to message when issues are malformed', () => {
+    const error = { message: 'Invalid body', details: { issues: [{ message: 42 }] } }
+    expect(apiErrorMessage(axiosErr(error))).toBe('Invalid body')
+  })
+
+  it('returns undefined for malformed or non axios errors', () => {
+    expect(apiErrorMessage(axiosErr({ code: 'X' }))).toBeUndefined()
+    expect(apiErrorMessage(axiosErr(null))).toBeUndefined()
+    expect(apiErrorMessage(new Error('boom'))).toBeUndefined()
+    expect(apiErrorMessage(undefined)).toBeUndefined()
+  })
+})
+
+describe('localizedApiError', () => {
+  const axiosErr = (error: unknown) => ({ response: { data: { error } } })
+
+  it('returns the localized message for known codes when the language is spanish', async () => {
+    await i18n.changeLanguage('es')
+    expect(localizedApiError(axiosErr({ code: 'RATE_LIMITED', message: 'Too many requests' }))).toBe(
+      'Demasiados intentos. Probá de nuevo en unos minutos'
+    )
+  })
+
+  it('falls back to the raw message for unknown codes', () => {
+    expect(localizedApiError(axiosErr({ code: 'WEIRD_CODE', message: 'Something odd' }))).toBe('Something odd')
+  })
+
+  it('falls back to the string error from ad hoc middlewares', () => {
+    expect(localizedApiError(axiosErr('plain failure'))).toBe('plain failure')
   })
 })
 
