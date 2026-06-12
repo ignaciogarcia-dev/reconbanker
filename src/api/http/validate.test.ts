@@ -20,6 +20,9 @@ describe('validate helpers', () => {
       expect(e).toBeInstanceOf(ValidationError)
       expect((e as ValidationError).details?.source).toBe('body')
       expect(Array.isArray((e as ValidationError).details?.issues)).toBe(true)
+      const issue = ((e as ValidationError).details?.issues as object[])[0]
+      // Sanitized issues expose only safe fields so schema internals never leak
+      expect(Object.keys(issue).sort()).toEqual(['code', 'message', 'path'])
     }
   })
 

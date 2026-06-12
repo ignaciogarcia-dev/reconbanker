@@ -31,7 +31,7 @@ export class User extends AggregateRoot<string> {
   static create(id: string, email: string, passwordHash: string, name?: string | null): User {
     const trimmedEmail = email?.trim().toLowerCase()
     if (!trimmedEmail || !EMAIL_RE.test(trimmedEmail)) {
-      throw new ValidationError('email is invalid', { email })
+      throw new ValidationError('email is invalid')
     }
     if (!passwordHash) throw new ValidationError('passwordHash is required')
     return new User(id, {
