@@ -8,6 +8,7 @@ export function useSetOperationMode() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: setOperationMode,
+    meta: { errorHandled: true },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: meQueryKey })
       qc.invalidateQueries({ queryKey: accountsQueryKey })

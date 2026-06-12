@@ -14,6 +14,7 @@
     "colOrigin": "Origen",
     "colStatus": "Estado",
     "colActions": "Acciones",
-    "promote": "Promover"
+    "promote": "Promover",
+    "promoteError": "No se pudo promover el script"
   }
 }

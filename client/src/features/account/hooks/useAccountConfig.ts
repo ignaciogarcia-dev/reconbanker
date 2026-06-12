@@ -16,6 +16,7 @@ export function useUpsertAccountConfig(accountId: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (input: UpsertAccountConfigInput) => upsertAccountConfig(accountId, input),
+    meta: { errorHandled: true },
     onSuccess: () => qc.invalidateQueries({ queryKey: accountConfigQueryKey(accountId) }),
   })
 }

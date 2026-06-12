@@ -26,6 +26,7 @@
     "renotifyTitle": "¿Seguro que querés volver a notificar?",
     "renotifyDesc": "Esto enviará el webhook nuevamente y provocará que se ejecuten acciones en el sistema al que apunta.",
     "renotifyConfirm": "Notificar",
-    "renotifyCancel": "Cancelar"
+    "renotifyCancel": "Cancelar",
+    "renotifyError": "No se pudo reenviar la notificación"
   }
 }
