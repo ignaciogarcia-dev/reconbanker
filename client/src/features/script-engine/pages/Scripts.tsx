@@ -1,3 +1,4 @@
+import { QueryError } from '@/shared/ui/QueryError'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
@@ -6,6 +7,8 @@ import { Tabs, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import { CheckCircle } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+import { localizedApiError } from '@/shared/http/client'
 import { useScripts, usePromoteScript } from '../hooks/useScripts'
 import { useBanks } from '@/features/account/hooks/useBanks'
 import type { ScriptStatus } from '../types'
@@ -23,7 +26,7 @@ type ScriptTab = 'active' | 'all'
 
 export function Scripts() {
   const { t } = useTranslation(['script-engine', 'common'])
-  const { data: scripts = [], isLoading } = useScripts()
+  const { data: scripts = [], isLoading, isError, refetch } = useScripts()
   const { data: banks = [] } = useBanks()
   const promote = usePromoteScript()
   const [tab, setTab] = useState<ScriptTab>('active')
@@ -58,6 +61,8 @@ export function Scripts() {
           <CardContent>
             {isLoading ? (
               <p className="text-muted-foreground text-sm">{t('scripts.loading')}</p>
+            ) : isError ? (
+              <QueryError onRetry={() => refetch()} />
             ) : (
               <Table>
                 <TableHeader>
@@ -82,7 +87,9 @@ export function Scripts() {
                       </TableCell>
                       <TableCell>
                         {s.status === 'review' && (
-                          <Button size="sm" variant="outline" onClick={() => promote.mutate(s.id)}>
+                          <Button size="sm" variant="outline" onClick={() => promote.mutate(s.id, {
+                            onError: err => toast.error(localizedApiError(err) ?? t('common:errors.generic')),
+                          })}>
                             <CheckCircle className="size-3 mr-1" />
                             {t('scripts.promote')}
                           </Button>

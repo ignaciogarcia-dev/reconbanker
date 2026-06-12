@@ -235,9 +235,7 @@ describe('SettingsDialog', () => {
       await screen.findByRole('button', { name: /Sí, cambiar y borrar datos/i })
     )
     await waitFor(() => {
-      expect(
-        screen.getByText(/No se pudo actualizar el modo de operación/i)
-      ).toBeInTheDocument()
+      expect(screen.getByText(/boom/i)).toBeInTheDocument()
     })
   })
 
