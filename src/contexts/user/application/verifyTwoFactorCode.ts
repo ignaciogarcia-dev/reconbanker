@@ -20,19 +20,26 @@ export async function verifyTwoFactorCode(
   deps: TwoFactorDeps,
 ): Promise<boolean> {
   const trimmed = code.trim()
-  if (user.totpSecret && (await deps.totp.verify(user.totpSecret, trimmed))) {
-    return true
+  if (user.totpSecret) {
+    // afterTimeStep rejects a code whose time step was already consumed, so the
+    // same TOTP cannot be replayed within its validity window.
+    const res = await deps.totp.verify(user.totpSecret, trimmed, { afterTimeStep: user.totpLastStep })
+    if (res.valid) {
+      if (res.timeStep !== undefined) user.recordTotpStep(res.timeStep)
+      return true
+    }
   }
   const normalized = normalizeBackupCode(trimmed)
   if (!normalized) return false
   const active = await deps.backupCodes.listActive(user.id)
+  // Check every code (no early return) so response time does not reveal which
+  // position matched. Codes are unique, so at most one matches.
+  let matched: { id: string } | null = null
   for (const bc of active) {
-    if (await deps.hasher.verify(normalized, bc.codeHash)) {
-      // Consume atomically: markUsed only succeeds if the code was still
-      // unused, so two concurrent requests racing on the same code cannot
-      // both be accepted.
-      return await deps.backupCodes.markUsed(bc.id)
-    }
+    if (await deps.hasher.verify(normalized, bc.codeHash)) matched = bc
   }
-  return false
+  if (!matched) return false
+  // Consume atomically: markUsed only succeeds if the code was still unused, so
+  // two concurrent requests racing on the same code cannot both be accepted.
+  return await deps.backupCodes.markUsed(matched.id)
 }

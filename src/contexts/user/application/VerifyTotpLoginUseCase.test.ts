@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { VerifyTotpLoginUseCase } from './VerifyTotpLoginUseCase.js'
 import { User } from '../domain/User.js'
 import { InMemoryUserRepository } from '../../../../tests/helpers/inMemoryUserRepo.js'
@@ -14,7 +14,10 @@ const hasher = {
 const totp = {
   generateSecret: () => 'SECRET',
   keyUri: () => 'otpauth://totp/x',
-  verify: async (secret: string, token: string) => secret === 'SECRET' && token === '123456',
+  verify: async (secret: string, token: string) => ({
+    valid: secret === 'SECRET' && token === '123456',
+    timeStep: 100,
+  }),
 }
 
 const issuer = {
@@ -42,6 +45,14 @@ describe('VerifyTotpLoginUseCase', () => {
     const result = await useCase.execute({ challengeToken: 'token:2fa_pending:id-1', code: '123456' })
     expect(result.token).toBe('token:access:id-1')
     expect(result.user.email).toBe('alice@example.com')
+  })
+
+  it('persists the verified TOTP time step so the code cannot be replayed', async () => {
+    const { useCase, repo, user } = setup()
+    const saveSpy = vi.spyOn(repo, 'save')
+    await useCase.execute({ challengeToken: 'token:2fa_pending:id-1', code: '123456' })
+    expect(saveSpy).toHaveBeenCalledWith(user)
+    expect(user.totpLastStep).toBe(100)
   })
 
   it('accepts a valid backup code and consumes it', async () => {

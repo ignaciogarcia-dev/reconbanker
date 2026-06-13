@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest'
+import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest'
 import { generateSync } from 'otplib'
 import { getTestPool, truncateAll, closeTestPool } from '../helpers/testDb.js'
 import { seedUser } from '../helpers/seed.js'
@@ -8,6 +8,7 @@ import { BackupCodeRepository } from '../../../src/contexts/user/infrastructure/
 import { BcryptPasswordHasher } from '../../../src/contexts/user/infrastructure/adapters/BcryptPasswordHasher.js'
 import { JwtTokenIssuer } from '../../../src/contexts/user/infrastructure/adapters/JwtTokenIssuer.js'
 import { OtplibTotpProvider } from '../../../src/contexts/user/infrastructure/adapters/OtplibTotpProvider.js'
+import { PgUnitOfWork } from '../../../src/shared/persistence/PgUnitOfWork.js'
 import { StartTotpEnrollmentUseCase } from '../../../src/contexts/user/application/StartTotpEnrollmentUseCase.js'
 import { ConfirmTotpEnrollmentUseCase } from '../../../src/contexts/user/application/ConfirmTotpEnrollmentUseCase.js'
 import { DisableTotpUseCase } from '../../../src/contexts/user/application/DisableTotpUseCase.js'
@@ -26,11 +27,12 @@ function build() {
   const totp = new OtplibTotpProvider()
   const issuer = new JwtTokenIssuer(SECRET)
   const twoFactor: TwoFactorDeps = { totp, backupCodes, hasher }
+  const uow = new PgUnitOfWork(getTestPool())
   return {
     userRepo, backupCodes, totp, issuer,
     start: new StartTotpEnrollmentUseCase(userRepo, totp),
-    confirm: new ConfirmTotpEnrollmentUseCase(userRepo, totp, backupCodes, hasher),
-    disable: new DisableTotpUseCase(userRepo, hasher, backupCodes, twoFactor),
+    confirm: new ConfirmTotpEnrollmentUseCase(userRepo, totp, backupCodes, hasher, uow),
+    disable: new DisableTotpUseCase(userRepo, hasher, backupCodes, twoFactor, uow),
     login: new LoginUseCase(userRepo, hasher, issuer),
     verify: new VerifyTotpLoginUseCase(userRepo, issuer, twoFactor),
   }
@@ -44,6 +46,12 @@ describe('TOTP 2FA flow (integration)', () => {
   afterAll(async () => { await closeTestPool() })
 
   it('runs the full enroll → login → verify (TOTP & backup) → disable lifecycle', async () => {
+    // Fake only the clock (leave I/O timers real for pg) so we can step into a
+    // fresh TOTP window between enrollment and login — the enrollment code is now
+    // consumed (replay protection), so the same-window code can't log in.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
     const password = 'SuperSecret123'
     const seeded = await seedUser({ email: 'flow@test.com', password })
     const m = build()
@@ -62,7 +70,8 @@ describe('TOTP 2FA flow (integration)', () => {
     // the challenge token must NOT verify as an access token
     expect(m.issuer.verify(challenge.challengeToken)?.scope).toBe('2fa_pending')
 
-    // --- complete with a TOTP code ---
+    // --- complete with a TOTP code from a later window (enrollment step consumed) ---
+    vi.setSystemTime(new Date('2026-01-01T00:01:00Z'))
     const session = await m.verify.execute({
       challengeToken: challenge.challengeToken,
       code: generateSync({ secret }),
@@ -84,7 +93,10 @@ describe('TOTP 2FA flow (integration)', () => {
     ).rejects.toBeInstanceOf(UnauthorizedError)
 
     // --- disable requires password + a valid code ---
-    await m.disable.execute({ userId: seeded.id, password, code: generateSync({ secret }) })
+    // Use an unused backup code: the current TOTP step was already consumed by
+    // the login above, and replay protection (single-use per window) would
+    // reject the same code here.
+    await m.disable.execute({ userId: seeded.id, password, code: backupCodes[1] })
 
     const after = await m.userRepo.findById(seeded.id)
     expect(after!.isTotpEnabled()).toBe(false)
@@ -99,6 +111,9 @@ describe('TOTP 2FA flow (integration)', () => {
     // login no longer challenges
     const plainLogin = await m.login.execute({ email: 'flow@test.com', password })
     expect(isTotpChallenge(plainLogin)).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('rejects disabling 2FA with a wrong password', async () => {

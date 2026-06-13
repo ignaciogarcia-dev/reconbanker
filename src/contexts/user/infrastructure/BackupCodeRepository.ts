@@ -9,6 +9,10 @@ interface BackupCodeRow {
 export class BackupCodeRepository implements IBackupCodeRepository {
   constructor(private readonly executor: Executor) {}
 
+  withTx(tx: Executor): BackupCodeRepository {
+    return new BackupCodeRepository(tx)
+  }
+
   async replaceForUser(userId: string, codeHashes: string[]): Promise<void> {
     await this.executor.query(`DELETE FROM user_backup_codes WHERE user_id = $1`, [userId])
     for (const hash of codeHashes) {

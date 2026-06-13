@@ -6,7 +6,7 @@ import { credentialsCipher } from '../../../shared/infrastructure/crypto/Credent
 
 const SELECT_COLUMNS =
   `id, email, name, password_hash, operation_mode, status, created_at,
-   totp_secret, totp_enabled, totp_confirmed_at`
+   totp_secret, totp_enabled, totp_confirmed_at, totp_last_step`
 
 export class UserRepository implements IUserRepository {
   constructor(private readonly executor: Executor) {}
@@ -44,8 +44,8 @@ export class UserRepository implements IUserRepository {
     await this.executor.query(
       `INSERT INTO users
          (id, email, password_hash, name, operation_mode, status, created_at,
-          totp_secret, totp_enabled, totp_confirmed_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          totp_secret, totp_enabled, totp_confirmed_at, totp_last_step)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        ON CONFLICT (id) DO UPDATE SET
          email             = $2,
          password_hash     = $3,
@@ -54,11 +54,12 @@ export class UserRepository implements IUserRepository {
          status            = $6,
          totp_secret       = $8,
          totp_enabled      = $9,
-         totp_confirmed_at = $10`,
+         totp_confirmed_at = $10,
+         totp_last_step    = $11`,
       [
         user.id, user.email, user.passwordHash, user.name,
         user.operationMode, user.status, user.createdAt,
-        encryptedSecret, user.isTotpEnabled(), user.totpConfirmedAt,
+        encryptedSecret, user.isTotpEnabled(), user.totpConfirmedAt, user.totpLastStep,
       ]
     )
   }

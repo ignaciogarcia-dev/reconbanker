@@ -25,6 +25,15 @@ export const loginRateLimiter = buildRateLimiter({
   skip: skipInTest,
 })
 
+// Brute-force protection for the 2FA code endpoints (enrollment confirm and
+// disable). Without it those routes would inherit only the coarse 300/15min
+// global cap, far looser than login's 5 attempts.
+export const totpRateLimiter = buildRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  limit: Number(process.env.RATE_LIMIT_TOTP_MAX ?? 5),
+  skip: skipInTest,
+})
+
 // Slows down account enumeration and mass registration
 export const registerRateLimiter = buildRateLimiter({
   windowMs: 60 * 60 * 1000,
