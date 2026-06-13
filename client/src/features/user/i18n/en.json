@@ -46,7 +46,8 @@
     "tabs": {
       "general": "General",
       "security": "Security",
-      "operation": "Operation"
+      "operation": "Operation",
+      "apiKeys": "API Keys"
     },
     "profile": {
       "title": "Profile",
@@ -88,6 +89,21 @@
       "confirmBody": "Changing the mode will permanently delete all movements and conciliations recorded so far. For security and compliance reasons, data processed under one mode cannot be carried over to the other. This action is irreversible.",
       "confirmCancel": "Cancel",
       "confirmConfirm": "Yes, change and delete data"
+    },
+    "apiKeys": {
+      "subtitle": "Keys for external integrations (SMS server, etc.)",
+      "name": "Name",
+      "namePlaceholder": "SMS server",
+      "scopes": "Scopes",
+      "create": "Create key",
+      "creating": "Creating…",
+      "created": "Key created",
+      "createError": "Could not create the key",
+      "secretOnce": "Copy this key now. It will not be shown again.",
+      "dismiss": "Done",
+      "empty": "No active keys.",
+      "revoke": "Revoke",
+      "revoked": "Key revoked"
     }
   },
   "modeSelect": {
