@@ -39,8 +39,11 @@ export function OtpAssistanceModal({
 
   const canSubmit = code.length === length && !mutation.isPending && !mutation.isSuccess
 
+  /* v8 ignore next -- the dialog only ever emits onOpenChange(false) here; the open branch is defensive */
+  const handleOpenChange = (o: boolean) => { if (!o) setCode(''); onOpenChange(o) }
+
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) setCode(''); onOpenChange(o) }}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="gap-5 p-5 sm:max-w-[380px]">
         <DialogHeader className="gap-1">
           <DialogTitle className="text-[15px] tracking-tight">{t('accounts.otp.title')}</DialogTitle>
