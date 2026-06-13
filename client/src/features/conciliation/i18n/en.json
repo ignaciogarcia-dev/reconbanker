@@ -26,6 +26,7 @@
     "renotifyTitle": "Are you sure you want to re-notify?",
     "renotifyDesc": "This will send the webhook again and trigger actions on the target system.",
     "renotifyConfirm": "Notify",
-    "renotifyCancel": "Cancel"
+    "renotifyCancel": "Cancel",
+    "renotifyError": "Could not resend the notification"
   }
 }

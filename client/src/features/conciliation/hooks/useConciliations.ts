@@ -1,3 +1,6 @@
+import { toast } from 'sonner'
+import { localizedApiError } from '@/shared/http/client'
+import i18n from '@/shared/i18n'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { listConciliations, getConciliation, enqueueRun, enqueueNotify, enqueuePoll } from '../api/conciliations'
 import type { ListFilter } from '../types'
@@ -24,7 +27,10 @@ export function useRunConciliation() {
 }
 
 export function useNotifyConciliation() {
-  return useMutation({ mutationFn: enqueueNotify })
+  return useMutation({
+    mutationFn: enqueueNotify,
+    onError: (err) => toast.error(localizedApiError(err) ?? i18n.t('conciliation:conciliations.renotifyError')),
+  })
 }
 
 export function usePollConciliation() {

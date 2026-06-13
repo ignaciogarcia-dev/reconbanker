@@ -66,14 +66,14 @@ describe('createServer routing', () => {
     const res = await request(createServer(fakeContainer())).get('/api/accounts')
 
     expect(res.status).toBe(401)
-    expect(res.body).toEqual({ error: 'Unauthorized' })
+    expect(res.body).toEqual({ error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } })
   })
 
   it('returns json not found for unknown api routes', async () => {
     const res = await request(createServer(fakeContainer())).get('/api/unknown')
 
     expect(res.status).toBe(404)
-    expect(res.body).toEqual({ error: 'Not found' })
+    expect(res.body).toEqual({ error: { code: 'NOT_FOUND', message: 'Not found' } })
   })
 
   it.each(['/', '/banks', '/accounts'])(

@@ -1,14 +1,16 @@
-import { useId, useState, type ReactNode } from 'react'
+import { QueryError } from '@/shared/ui/QueryError'
+import { useId, useState } from 'react'
+import { toast } from 'sonner'
+import { localizedApiError } from '@/shared/http/client'
+import { FormField } from '@/shared/ui/FormField'
 import { Button, buttonVariants } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
-import { Label } from '@/shared/ui/label'
 import { Badge } from '@/shared/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
-import { cn } from '@/shared/lib/utils'
-import { Plus, Settings, Info, AlertCircle } from 'lucide-react'
+import { Plus, Settings } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAccounts, useCreateAccount } from '../hooks/useAccounts'
@@ -29,7 +31,7 @@ export function Accounts() {
   const bankHelpId = useId()
   const nameHelpId = useId()
 
-  const { data: accounts = [], isLoading } = useAccounts()
+  const { data: accounts = [], isLoading, isError, refetch } = useAccounts()
   const { data: banks = [] } = useBanks()
 
   const bankNameByCode = Object.fromEntries(banks.map(b => [b.code, b.name]))
@@ -55,6 +57,7 @@ export function Accounts() {
         setErrors({})
         setSubmitted(false)
       },
+      onError: err => toast.error(localizedApiError(err) ?? t('common:errors.generic')),
     })
   }
 
@@ -66,7 +69,7 @@ export function Accounts() {
     })
   }
 
-  /* v8 ignore next -- base-ui Select always passes a string; `?? ''` is a defensive fallback for null. */
+  /* v8 ignore next -- base-ui Select always passes a string so `?? ''` is defensive */
   const onBankChange = (v: string | null) => updateForm('bankId', v ?? '')
 
   function handleOpenChange(next: boolean) {
@@ -97,7 +100,7 @@ export function Accounts() {
               </DialogDescription>
             </DialogHeader>
             <div className="flex flex-col gap-3.5">
-              <Field
+              <FormField
                 label={t('accounts.dialog.name')}
                 htmlFor={nameId}
                 helpId={nameHelpId}
@@ -112,8 +115,8 @@ export function Accounts() {
                   aria-invalid={errors.name ? true : undefined}
                   aria-describedby={nameHelpId}
                 />
-              </Field>
-              <Field
+              </FormField>
+              <FormField
                 label={t('accounts.dialog.bank')}
                 htmlFor={bankId}
                 helpId={bankHelpId}
@@ -137,7 +140,7 @@ export function Accounts() {
                     ))}
                   </SelectContent>
                 </Select>
-              </Field>
+              </FormField>
             </div>
             <div className="flex items-center justify-end gap-2 pt-1">
               <DialogClose render={<Button variant="ghost" size="sm" />}>
@@ -159,6 +162,8 @@ export function Accounts() {
         <CardContent>
           {isLoading ? (
             <p className="text-muted-foreground text-sm">{t('accounts.loading')}</p>
+          ) : isError ? (
+            <QueryError onRetry={() => refetch()} />
           ) : (
             <Table>
               <TableHeader>
@@ -201,53 +206,6 @@ export function Accounts() {
           )}
         </CardContent>
       </Card>
-    </div>
-  )
-}
-
-interface FieldProps {
-  label: string
-  htmlFor: string
-  helpId: string
-  hint: string
-  error?: string
-  children: ReactNode
-}
-
-/**
- * Field wrapper with field-state emphasis: the input itself carries the
- * red border/ring (via aria-invalid), the label tints destructive on error,
- * and the helper line below stays muted unless it's communicating an error.
- */
-function Field({ label, htmlFor, helpId, hint, error, children }: FieldProps) {
-  const hasError = Boolean(error)
-  return (
-    <div className="grid gap-1.5">
-      <Label
-        htmlFor={htmlFor}
-        className={cn(
-          'text-[13px] transition-colors',
-          hasError && 'text-destructive'
-        )}
-      >
-        {label}
-      </Label>
-      {children}
-      <p
-        id={helpId}
-        aria-live="polite"
-        className={cn(
-          'flex items-center gap-1 text-[11px] leading-4 min-h-4 transition-colors',
-          hasError ? 'text-destructive' : 'text-muted-foreground'
-        )}
-      >
-        {hasError ? (
-          <AlertCircle className="size-3 shrink-0" aria-hidden />
-        ) : (
-          <Info className="size-3 shrink-0 opacity-60" aria-hidden />
-        )}
-        <span>{hasError ? error : hint}</span>
-      </p>
     </div>
   )
 }

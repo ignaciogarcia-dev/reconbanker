@@ -115,7 +115,7 @@ describe('auth.routes', () => {
 
     it('returns 409 when the use case throws ConflictError', async () => {
       user.registerUser.execute.mockRejectedValue(
-        new ConflictError('Email already exists', { email: 'a@b.com' }),
+        new ConflictError('Email already exists'),
       )
 
       const res = await request(makeApp(user))
@@ -127,7 +127,6 @@ describe('auth.routes', () => {
         error: {
           code: 'CONFLICT',
           message: 'Email already exists',
-          details: { email: 'a@b.com' },
         },
       })
     })
