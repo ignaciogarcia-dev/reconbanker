@@ -1474,4 +1474,47 @@ describe('AccountConfig page', () => {
     expect(screen.getByText('Credenciales bancarias')).toBeInTheDocument()
   })
 
+  it('saves the notification endpoint settings from the notifications tab', async () => {
+    const user = userEvent.setup()
+    let putBody: Record<string, unknown> | undefined
+    server.use(
+      http.get('/api/accounts/:accountId/config', ({ params }) =>
+        HttpResponse.json({
+          id: 'cfg-1', account_id: params.accountId, pending_orders_endpoint: null,
+          webhook_url: 'https://hook.example.com/x', retry_limit: 3, polling_method: 'GET',
+          polling_body: null, auth_type: 'bearer', auth_token: null, webhook_auth_type: null,
+          webhook_auth_token: null, notify_on_expired: false, webhook_extra_fields: null,
+          silent_ingestion: false, session_type: 'one-shot', login_mode: 'simple', bank_username: 'alice',
+          notification_endpoint_url: null, notification_auth_type: null,
+          notification_auth_token: null, notification_events: null,
+        })
+      ),
+      http.put('/api/accounts/:accountId/config', async ({ request, params }) => {
+        putBody = (await request.json()) as Record<string, unknown>
+        return HttpResponse.json({ id: 'cfg-1', account_id: params.accountId })
+      })
+    )
+
+    renderAccountConfig()
+    await waitFor(() => expect(screen.getByDisplayValue('alice')).toBeInTheDocument())
+
+    await user.click(screen.getByRole('tab', { name: /Notificaciones/i }))
+    await user.type(screen.getByLabelText('URL del endpoint'), 'https://hooks.example.com/recon')
+    await user.type(screen.getByLabelText('Token de autenticación'), 'sekret')
+    // Exercise the auth-type select.
+    await user.click(screen.getByRole('combobox'))
+    await user.click(await screen.findByRole('option', { name: 'Api-Key' }))
+    await user.click(screen.getByRole('checkbox'))
+
+    await user.click(screen.getByRole('button', { name: /Guardar configuración/i }))
+
+    await waitFor(() => expect(putBody).toBeDefined())
+    expect(putBody).toMatchObject({
+      notification_endpoint_url: 'https://hooks.example.com/recon',
+      notification_auth_type: 'api_key',
+      notification_auth_token: 'sekret',
+      notification_events: ['assistance_required'],
+    })
+  })
+
 })

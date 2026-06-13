@@ -63,6 +63,10 @@ function configFixture(overrides: Record<string, unknown> = {}) {
     silentIngestion: false,
     sessionType: 'one-shot',
     loginMode: 'simple',
+    notificationEndpointUrl: null,
+    notificationAuthType: null,
+    notificationAuthToken: null,
+    notificationEvents: null,
     bankUsername: null,
     ...overrides,
   }
@@ -239,6 +243,10 @@ describe('accounts.routes', () => {
         silent_ingestion: false,
         session_type: 'one-shot',
         login_mode: 'simple',
+        notification_endpoint_url: null,
+        notification_auth_type: null,
+        notification_auth_token: null,
+        notification_events: null,
         bank_username: null,
       })
     })
@@ -594,8 +602,7 @@ describe('accounts.routes', () => {
 
   describe('requireUserId defensive guard', () => {
     it('returns 401 when middleware does not set userId', async () => {
-      // Mount unprotected so req.userId is undefined and requireUserId itself
-      // throws UnauthorizedError (defensive guard branch).
+      // Mount unprotected so requireUserId itself throws UnauthorizedError
       const app = buildTestApp({
         basePath: '/accounts',
         router: buildAccountsRouter(account as unknown as AccountModule),
@@ -610,8 +617,7 @@ describe('accounts.routes', () => {
   })
 
   describe('parsePollingBody defensive fallthrough', () => {
-    // The route validates polling_body via zod (record|string|null|undefined).
-    // ValidationError ensures the documented branch is reachable from tests.
+    // Confirms the ValidationError branch behind the zod schema is reachable
     it('ValidationError surfaces as 400 (sanity)', () => {
       const err = new ValidationError('polling_body must be valid JSON (or empty)')
       expect(err.statusCode).toBe(400)

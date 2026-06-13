@@ -37,6 +37,10 @@ export interface AccountConfig {
   silentIngestion: boolean
   sessionType: SessionType
   loginMode: LoginMode
+  notificationEndpointUrl: string | null
+  notificationAuthType: AuthType | null
+  notificationAuthToken: string | null
+  notificationEvents: string[] | null
   bankUsername: string | null
 }
 

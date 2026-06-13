@@ -17,6 +17,10 @@ export interface AccountConfigRow {
   silent_ingestion: boolean | null
   session_type: SessionType
   login_mode: LoginMode
+  notification_endpoint_url: string | null
+  notification_auth_type: AuthType | null
+  notification_auth_token: string | null
+  notification_events: string[] | null
 }
 
 export const AccountConfigRowMapper = {
@@ -38,6 +42,10 @@ export const AccountConfigRowMapper = {
       silentIngestion: row.silent_ingestion ?? false,
       sessionType: row.session_type,
       loginMode: row.login_mode,
+      notificationEndpointUrl: row.notification_endpoint_url,
+      notificationAuthType: row.notification_auth_type,
+      notificationAuthToken: row.notification_auth_token,
+      notificationEvents: row.notification_events,
     }
   },
 }

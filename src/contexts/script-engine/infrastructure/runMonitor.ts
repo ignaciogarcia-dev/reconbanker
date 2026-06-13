@@ -1,6 +1,4 @@
-// Local transaction shape — identical fields to banking's ScrapedTransaction.
-// (PlaywrightRunner already declares its own local copy; we follow that precedent
-// to avoid script-engine depending on the banking context.)
+// Local copy of banking's ScrapedTransaction so script-engine never depends on the banking context
 export interface MonitorTransaction {
   externalId: string
   referenceHash: string
@@ -11,18 +9,23 @@ export interface MonitorTransaction {
   raw: Record<string, unknown>
 }
 
-// The object a hook-based bank script returns.
+// The object a hook-based bank script returns
 export interface ScriptHooks {
-  // Navigate + fill credentials + submit. Does NOT wait for the dashboard.
+  // Submits credentials but does NOT wait for the dashboard
   login(page: any, context: MonitorScriptContext): Promise<void>
-  // True once the authenticated area (dashboard) is reached. May throw a fatal
-  // Error (e.g. wrong credentials) to abort without retry.
+  // True once the dashboard is reached and may throw a fatal Error to abort without retry
   isAuthenticated(page: any): Promise<boolean>
-  // Open movements, read today's incoming, expand detail; return the visible
-  // batch (NOT deduplicated — runMonitor handles dedup).
+  // Returns the visible batch without deduplication since runMonitor handles dedup
   poll(page: any, context: MonitorScriptContext): Promise<MonitorTransaction[]>
-  // Optional bank-specific session keep-alive (dismiss modals, scroll, etc.).
+  // Optional bank-specific session keep-alive
   keepAlive?(page: any): Promise<void>
+}
+
+// `length` and `type` drive the UI's segmented input while `purpose` is free-form context
+export interface OtpRequestDescriptor {
+  length: number
+  type: 'numeric' | 'alphanumeric'
+  purpose?: string
 }
 
 export interface MonitorScriptContext {
@@ -31,23 +34,24 @@ export interface MonitorScriptContext {
   password: string
   lastExternalId: string | null
   debugLog?(line: string): void
+  // Owns the wait and resend policy and only resolves once a code arrives so the script awaits it once or falls back to manual auth when absent
+  requestOtp?(descriptor: OtpRequestDescriptor, onResend?: () => Promise<void>): Promise<string>
 }
 
 export interface RunMonitorOptions {
   hooks: ScriptHooks
   page: any
   context: MonitorScriptContext
-  // Emits each batch of NEW (deduplicated) incoming transactions.
+  // Emits each batch of new deduplicated incoming transactions
   onTransactions(batch: MonitorTransaction[]): Promise<void>
-  // Returns true to stop the monitor cleanly.
+  // Returns true to stop the monitor cleanly
   shouldStop?(): boolean | Promise<boolean>
-  // Returns the current bank-local day key (e.g. "21052026"); a change clears
-  // the dedup set. Defaults to a single static day if omitted.
+  // Returns the bank-local day key whose change clears the dedup set
   getBankDay?(): string
   pollIntervalMs?: number       // default 60_000
-  maxRuntimeMs?: number         // 0/undefined = no limit
-  authTimeoutMs?: number        // assisted: ~300_000; simple: ~30_000
-  // Injectable sleep so tests run without real timers.
+  maxRuntimeMs?: number         // 0 or undefined means no limit
+  authTimeoutMs?: number        // around 300_000 assisted and 30_000 simple
+  // Injectable sleep so tests run without real timers
   sleep?(ms: number): Promise<void>
 }
 
@@ -71,7 +75,7 @@ export async function runMonitor(opts: RunMonitorOptions): Promise<MonitorStopRe
   const log = (event: string, data?: Record<string, unknown>) =>
     context.debugLog?.(JSON.stringify({ at: new Date().toISOString(), event, ...data }))
 
-  // 1) Login + wait for authentication (assisted: long timeout for human 2FA).
+  // Login then wait for authentication with a long timeout for assisted human 2FA
   await hooks.login(page, context)
   const authDeadline = Date.now() + authTimeoutMs
   let authed = false
@@ -82,7 +86,7 @@ export async function runMonitor(opts: RunMonitorOptions): Promise<MonitorStopRe
   if (!authed) { log('auth_timeout'); return 'auth_timeout' }
   log('authenticated')
 
-  // 2) Monitor loop.
+  // Monitor loop
   const seen = new Set<string>()
   if (context.lastExternalId) seen.add(String(context.lastExternalId))
   let currentDay = getBankDay()
@@ -92,11 +96,11 @@ export async function runMonitor(opts: RunMonitorOptions): Promise<MonitorStopRe
     if (await Promise.resolve(shouldStop())) { log('stop_requested'); return 'stop_requested' }
     if (runDeadline && Date.now() >= runDeadline) { log('max_runtime'); return 'max_runtime' }
 
-    // Day rollover clears the dedup set (poll only returns "today", so old ids never recur).
+    // Day rollover clears the dedup set since poll only returns today so old ids never recur
     const day = getBankDay()
     if (day !== currentDay) { seen.clear(); currentDay = day }
 
-    // Lost the session?
+    // Detect a lost session
     if (!(await hooks.isAuthenticated(page))) { log('logged_out'); return 'logged_out' }
 
     let batch: MonitorTransaction[]

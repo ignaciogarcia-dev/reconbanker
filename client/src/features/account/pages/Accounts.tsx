@@ -10,11 +10,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
-import { Plus, Settings } from 'lucide-react'
+import { Plus, Settings, ShieldAlert } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAccounts, useCreateAccount } from '../hooks/useAccounts'
 import { useBanks } from '../hooks/useBanks'
+import { useRealtime } from '@/shared/realtime/useRealtime'
+import { OtpAssistanceModal } from '../components/OtpAssistanceModal'
 
 type FormErrors = { bankId?: string; name?: string }
 
@@ -33,6 +35,18 @@ export function Accounts() {
 
   const { data: accounts = [], isLoading, isError, refetch } = useAccounts()
   const { data: banks = [] } = useBanks()
+
+  // Live OTP assistance state pushed over the realtime WebSocket
+  const { assistance, clearAccount } = useRealtime()
+  const [otpAccountId, setOtpAccountId] = useState<string | null>(null)
+  const otpAssistance = otpAccountId ? assistance.get(otpAccountId) : undefined
+
+  /* v8 ignore next -- the modal only ever requests close here; the open branch is defensive */
+  const closeOtpModal = (o: boolean) => { if (!o) setOtpAccountId(null) }
+
+  /* v8 ignore next 2 -- the OTP button only renders for listed accounts, so find matches; the name/id fallbacks are defensive */
+  const otpAccountName =
+    accounts.find(a => a.id === otpAccountId)?.name ?? otpAccountId ?? ''
 
   const bankNameByCode = Object.fromEntries(banks.map(b => [b.code, b.name]))
 
@@ -181,9 +195,22 @@ export function Accounts() {
                     <TableCell className="font-medium">{a.name ?? '—'}</TableCell>
                     <TableCell>{bankNameByCode[a.bank] ?? a.bank}</TableCell>
                     <TableCell>
-                      <Badge variant={a.status === 'active' ? 'default' : 'secondary'}>
-                        {t(`common:enums.accountStatus.${a.status}`)}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={a.status === 'active' ? 'default' : 'secondary'}>
+                          {t(`common:enums.accountStatus.${a.status}`)}
+                        </Badge>
+                        {assistance.has(a.id) && (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-6 px-2 text-[11px]"
+                            onClick={() => setOtpAccountId(a.id)}
+                          >
+                            <ShieldAlert className="size-3 mr-1" />
+                            {t('accounts.otp.assistanceNeeded')}
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground text-xs font-mono">{a.id}</TableCell>
                     <TableCell>
@@ -206,6 +233,17 @@ export function Accounts() {
           )}
         </CardContent>
       </Card>
+
+      {otpAccountId && otpAssistance && (
+        <OtpAssistanceModal
+          accountId={otpAccountId}
+          accountName={otpAccountName}
+          assistance={otpAssistance}
+          open={!!otpAccountId}
+          onOpenChange={closeOtpModal}
+          onSubmitted={() => clearAccount(otpAccountId)}
+        />
+      )}
     </div>
   )
 }
