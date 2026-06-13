@@ -27,10 +27,10 @@ export class Scheduler {
     await this.expireStaleRequests()
 
     this.timers.push(
-      setInterval(() => this.enqueuePolling(),  pollingInterval),
-      setInterval(() => this.enqueueScraping(), scrapeInterval),
-      setInterval(() => this.ensurePersistentSessions(), sessionCheckInterval),
-      setInterval(() => this.expireStaleRequests(), expireInterval),
+      setInterval(() => this.runSafely('enqueuePolling', () => this.enqueuePolling()),  pollingInterval),
+      setInterval(() => this.runSafely('enqueueScraping', () => this.enqueueScraping()), scrapeInterval),
+      setInterval(() => this.runSafely('ensurePersistentSessions', () => this.ensurePersistentSessions()), sessionCheckInterval),
+      setInterval(() => this.runSafely('expireStaleRequests', () => this.expireStaleRequests()), expireInterval),
     )
 
     this.log.info('started', {
@@ -47,6 +47,20 @@ export class Scheduler {
     this.log.info('stopped')
   }
 
+  // setInterval callbacks are fire-and-forget: an unawaited rejection would
+  // become an unhandledRejection and (Node 18+) can terminate the process,
+  // silently stopping all scheduling. Catch and log so the next tick still runs.
+  private async runSafely(name: string, fn: () => Promise<void>): Promise<void> {
+    try {
+      await fn()
+    } catch (err) {
+      this.log.error('scheduled task failed', {
+        task: name,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+  }
+
   private async enqueuePolling(): Promise<void> {
     const { rows: accounts } = await db.query(
       `SELECT id FROM accounts WHERE status = 'active'`
@@ -56,7 +70,7 @@ export class Scheduler {
       await Queues.orderIngestion.add(
         'poll',
         { accountId: account.id },
-        { jobId: `poll:${account.id}:${Date.now()}`, removeOnComplete: true, removeOnFail: 100 }
+        { jobId: `poll:${account.id}`, removeOnComplete: true, removeOnFail: 100 }
       )
     }
 

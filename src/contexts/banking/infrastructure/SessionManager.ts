@@ -86,6 +86,15 @@ export class SessionManager {
         return this.recordStop(accountId, error)
       })
       .finally(() => { this.live.delete(accountId) })
+      // recordStop itself can reject (e.g. DB down); finally does not absorb it,
+      // so without this trailing catch the rejection would be unhandled and can
+      // (Node 18+) crash the process.
+      .catch((err) => {
+        this.logger?.error('failed to record session stop', {
+          accountId,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      })
   }
 
   stopAll(): void {

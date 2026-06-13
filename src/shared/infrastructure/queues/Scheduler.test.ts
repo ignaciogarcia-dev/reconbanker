@@ -87,6 +87,9 @@ describe('Scheduler', () => {
     expect(orderIngestionAdd).toHaveBeenCalledTimes(2)
     expect(orderIngestionAdd.mock.calls[0][0]).toBe('poll')
     expect(orderIngestionAdd.mock.calls[0][1]).toEqual({ accountId: 'a1' })
+    // Idempotent jobId (no timestamp) so a slow/failed poll does not spawn a
+    // second concurrent poll for the same account.
+    expect(orderIngestionAdd.mock.calls[0][2]).toMatchObject({ jobId: 'poll:a1' })
 
     // scraping called for 2 one-shot accounts
     // persistent session: a5 is running, a6 not -> only a6 enqueued
@@ -122,6 +125,22 @@ describe('Scheduler', () => {
     orderIngestionAdd.mockClear()
     await vi.advanceTimersByTimeAsync(5000)
     expect(orderIngestionAdd).not.toHaveBeenCalled()
+  })
+
+  it('absorbs and logs errors thrown by recurring interval callbacks', async () => {
+    vi.stubEnv('POLLING_INTERVAL_SECONDS', '1')
+    dbQuery.mockResolvedValue({ rows: [] })
+    const { container, log } = makeContainer()
+    const scheduler = new Scheduler(container)
+    await scheduler.start()
+
+    // The recurring polling query now fails; the interval must not leak an
+    // unhandled rejection — it should be caught and logged.
+    dbQuery.mockRejectedValue(new Error('db down'))
+    await vi.advanceTimersByTimeAsync(1100)
+    scheduler.stop()
+
+    expect(log.error).toHaveBeenCalled()
   })
 
   it('uses default intervals when env vars are not set', async () => {
