@@ -10,6 +10,20 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            { name: 'react', test: /node_modules[\\/](react|react-dom|react-router|scheduler)/ },
+            { name: 'charts', test: /node_modules[\\/](recharts|d3-|victory-|decimal\.js|es-toolkit)/ },
+            { name: 'ui', test: /node_modules[\\/](@base-ui|lucide-react|sonner)/ },
+            { name: 'vendor', test: /node_modules/ },
+          ],
+        },
+      },
+    },
+  },
   server: {
     proxy: {
       '/api': 'http://localhost:3000',

@@ -21,6 +21,10 @@ describe('AccountConfigRowMapper', () => {
     silent_ingestion: true,
     session_type: 'one-shot',
     login_mode: 'simple',
+    notification_endpoint_url: null,
+    notification_auth_type: null,
+    notification_auth_token: null,
+    notification_events: null,
   }
 
   it('maps a full row into the domain config', () => {
@@ -41,6 +45,10 @@ describe('AccountConfigRowMapper', () => {
       silentIngestion: true,
       sessionType: 'one-shot',
       loginMode: 'simple',
+      notificationEndpointUrl: null,
+      notificationAuthType: null,
+      notificationAuthToken: null,
+      notificationEvents: null,
     })
   })
 

@@ -38,8 +38,12 @@ export class UpsertAccountConfigUseCase {
       await assertSafeUrl(normalizedPendingEndpoint, 'pending_orders_endpoint')
     }
 
-    // Clients receive a masked sentinel instead of the real token; echoing it
-    // back on save means "leave the stored secret untouched".
+    const normalizedNotificationUrl = input.notificationEndpointUrl?.trim() || null
+    if (normalizedNotificationUrl) {
+      await assertSafeUrl(normalizedNotificationUrl, 'notification_endpoint_url')
+    }
+
+    // Clients echo back a masked sentinel to mean leave the stored secret untouched
     const existing = await this.configRepo.findByAccountId(input.accountId)
     const resolveSecret = (incoming: string | null, current: string | null | undefined) =>
       incoming === SECRET_PRESENT_MASK ? (current ?? null) : (incoming?.trim() || null)
@@ -60,6 +64,10 @@ export class UpsertAccountConfigUseCase {
       silentIngestion: input.silentIngestion,
       sessionType: input.sessionType,
       loginMode: input.loginMode,
+      notificationEndpointUrl: normalizedNotificationUrl,
+      notificationAuthType: input.notificationAuthType,
+      notificationAuthToken: resolveSecret(input.notificationAuthToken, existing?.notificationAuthToken),
+      notificationEvents: input.notificationEvents,
     })
 
     if (input.bankUsername && input.bankPassword) {

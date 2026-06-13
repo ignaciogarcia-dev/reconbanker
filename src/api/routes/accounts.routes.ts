@@ -38,6 +38,10 @@ const upsertConfigSchema = z.object({
   silent_ingestion: z.boolean().optional(),
   session_type: z.enum(['one-shot', 'persistent']).optional(),
   login_mode: z.enum(['simple', 'assisted']).optional(),
+  notification_endpoint_url: z.string().nullable().optional(),
+  notification_auth_type: z.enum(['bearer', 'api_key']).nullable().optional(),
+  notification_auth_token: z.string().nullable().optional(),
+  notification_events: z.array(z.string()).nullable().optional(),
 })
 
 const RESERVED_WEBHOOK_KEYS = ['external_id', 'status', 'amount', 'currency', 'name', 'id', 'received_at']
@@ -73,8 +77,7 @@ function parsePollingBody(method: string, raw: unknown): Record<string, unknown>
     try { return JSON.parse(trimmed) as Record<string, unknown> }
     catch { throw new ValidationError('polling_body must be valid JSON (or empty)') }
   }
-  // At this point raw must be a non-null, non-string value that passed the zod
-  // schema (record | string | null | undefined), so it's a plain object.
+  // Anything non-null and non-string that passed the zod schema is a plain object
   return raw as Record<string, unknown>
 }
 
@@ -88,7 +91,7 @@ function toJson(config: AccountConfigDto) {
     polling_method: config.pollingMethod,
     polling_body: config.pollingBody,
     auth_type: config.authType,
-    // Never expose stored secrets; signal presence with a sentinel the client echoes back.
+    // Never expose stored secrets so presence is signaled with a sentinel the client echoes back
     auth_token: config.authToken ? SECRET_PRESENT_MASK : null,
     webhook_auth_type: config.webhookAuthType,
     webhook_auth_token: config.webhookAuthToken ? SECRET_PRESENT_MASK : null,
@@ -97,6 +100,10 @@ function toJson(config: AccountConfigDto) {
     silent_ingestion: config.silentIngestion,
     session_type: config.sessionType,
     login_mode: config.loginMode,
+    notification_endpoint_url: config.notificationEndpointUrl,
+    notification_auth_type: config.notificationAuthType,
+    notification_auth_token: config.notificationAuthToken ? SECRET_PRESENT_MASK : null,
+    notification_events: config.notificationEvents,
     bank_username: config.bankUsername,
   }
 }
@@ -169,6 +176,10 @@ export function buildAccountsRouter(account: AccountModule): Router {
       silentIngestion: body.silent_ingestion ?? false,
       sessionType: body.session_type ?? 'one-shot',
       loginMode: body.login_mode ?? 'simple',
+      notificationEndpointUrl: body.notification_endpoint_url ?? null,
+      notificationAuthType: body.notification_auth_type ?? null,
+      notificationAuthToken: body.notification_auth_token ?? null,
+      notificationEvents: body.notification_events ?? null,
       bankUsername: body.bank_username ?? null,
       bankPassword: body.bank_password ?? null,
     })

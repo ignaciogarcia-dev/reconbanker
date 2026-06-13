@@ -27,6 +27,16 @@
         "bankRequired": "Elegí uno.",
         "nameRequired": "Requerido."
       }
+    },
+    "otp": {
+      "assistanceNeeded": "Asistencia requerida",
+      "title": "Ingresar código SMS",
+      "description": "Banco {{account}} envió un código por SMS. Ingrésalo para continuar el inicio de sesión.",
+      "submit": "Verificar",
+      "submitting": "Verificando…",
+      "cancel": "Cancelar",
+      "submitted": "Código enviado",
+      "submitError": "No se pudo enviar el código"
     }
   },
   "banks": {
@@ -107,7 +117,8 @@
     "tabs": {
       "credentialsSession": "Credenciales y sesión",
       "webhook": "Webhook",
-      "orders": "Órdenes"
+      "orders": "Órdenes",
+      "notifications": "Notificaciones"
     },
     "session": "Sesión",
     "sessionType": "Tipo de sesión",
@@ -139,6 +150,14 @@
       "confirmDelete": "Eliminar definitivamente",
       "deleting": "Eliminando...",
       "genericError": "No se pudo eliminar la cuenta"
+    },
+    "notifications": {
+      "title": "Endpoint de notificación",
+      "desc": "El sistema enviará eventos de estado/asistencia (account_id + tipo) a este endpoint. Independiente del webhook de transacciones.",
+      "endpoint": "URL del endpoint",
+      "authType": "Tipo de autenticación",
+      "authToken": "Token de autenticación",
+      "eventAssistance": "Notificar cuando se requiera asistencia (código SMS)"
     }
   }
 }
