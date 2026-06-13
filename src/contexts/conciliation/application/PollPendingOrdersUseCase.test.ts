@@ -101,6 +101,24 @@ describe('PollPendingOrdersUseCase', () => {
     expect(deps.logger.info).not.toHaveBeenCalled()
   })
 
+  it('creates and enqueues only once when the same external id appears twice (idempotent create)', async () => {
+    const deps = buildDeps({
+      config: { accountId: 'acc-1', pendingOrdersEndpoint: 'https://x', pollingMethod: 'GET', authType: null, authToken: null },
+      account: { id: 'acc-1', userId: 'u-1' },
+      mode: 'reconcile',
+      orders: [
+        { externalId: 'dup', amount: 100, currency: 'USD', senderName: 'Alice' },
+        { externalId: 'dup', amount: 100, currency: 'USD', senderName: 'Alice' },
+      ],
+      cancelledCount: 0,
+    })
+    const useCase = new PollPendingOrdersUseCase(deps as any)
+    await useCase.execute({ accountId: 'acc-1' })
+
+    expect(deps.enqueueRun).toHaveBeenCalledTimes(1)
+    expect([...deps.requestRepo.store.values()].filter((r) => r.externalId === 'dup')).toHaveLength(1)
+  })
+
   it('logs cancellations when cancelledCount > 0', async () => {
     const deps = buildDeps({
       config: { accountId: 'acc-1', pendingOrdersEndpoint: 'https://x', pollingMethod: 'GET', authType: null, authToken: null },

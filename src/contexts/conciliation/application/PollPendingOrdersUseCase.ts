@@ -52,8 +52,11 @@ export class PollPendingOrdersUseCase {
         currency: order.currency,
         senderName: order.senderName,
       })
-      await requestRepo.save(request)
-      await enqueueRun(request.id)
+      // Conflict-safe insert: under concurrent polls only the winner inserts
+      // and enqueues, so a duplicate (account_id, external_id) never crashes the
+      // job nor double-enqueues.
+      const created = await requestRepo.createIfAbsent(request)
+      if (created) await enqueueRun(request.id)
     }
 
     const cancelledCount = await requestRepo.cancelMissing(accountId, seenExternalIds)
