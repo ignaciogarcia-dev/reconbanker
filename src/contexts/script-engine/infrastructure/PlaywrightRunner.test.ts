@@ -115,6 +115,30 @@ describe('PlaywrightRunner', () => {
     expect(close).toHaveBeenCalled()
   })
 
+  it('closes the browser when context/page setup fails after launch', async () => {
+    dbQueryMock.mockResolvedValueOnce({ rows: [{ username: 'u', encrypted_password: 'p' }] })
+    const close = vi.fn().mockResolvedValue(undefined)
+    launchMock.mockResolvedValue({
+      newContext: vi.fn().mockRejectedValue(new Error('context boom')),
+      close,
+    })
+    const runner = new PlaywrightRunner()
+    await expect(
+      runner.execute({ id: 's', codeSnapshot: 'return []' } as any, { accountId: 'a', lastExternalId: null }),
+    ).rejects.toThrow('context boom')
+    expect(close).toHaveBeenCalled()
+  })
+
+  it('clears the timeout timer after the script completes (no lingering 10-min timer)', async () => {
+    dbQueryMock.mockResolvedValueOnce({ rows: [{ username: 'u', encrypted_password: 'p' }] })
+    buildBrowserChain('')
+    const clearSpy = vi.spyOn(globalThis, 'clearTimeout')
+    const runner = new PlaywrightRunner()
+    await runner.execute({ id: 's', codeSnapshot: 'return []' } as any, { accountId: 'a', lastExternalId: null })
+    expect(clearSpy).toHaveBeenCalled()
+    clearSpy.mockRestore()
+  })
+
   it('exercises the addInitScript navigator.webdriver guard', async () => {
     dbQueryMock.mockResolvedValueOnce({ rows: [{ username: 'u', encrypted_password: 'p' }] })
     const { page } = buildBrowserChain('')

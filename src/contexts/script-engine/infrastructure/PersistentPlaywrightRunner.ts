@@ -37,32 +37,39 @@ export class PersistentPlaywrightRunner {
       args: CHROMIUM_ARGS,
     })
 
-    const page = browserContext.pages()[0] ?? (await browserContext.newPage())
-    await applyAntiWebdriver(page)
+    // Once the monitor starts its .finally closes the context. Until then any
+    // failure (page setup, the script body throwing, or missing hooks) must
+    // close it here, or the browser process + on-disk profile leak.
+    try {
+      const page = browserContext.pages()[0] ?? (await browserContext.newPage())
+      await applyAntiWebdriver(page)
 
-    // Execute the script body; a hook-based script returns the hooks object.
-    const fn = new Function('page', 'context', `return (async function(page, context){\n${input.scriptCode}\n})(page, context)`)
-    const result = await fn(page, input.context)
-    if (!result || typeof result.poll !== 'function') {
-      await browserContext.close()
-      throw new Error('persistent script did not return a hooks object with a poll() function')
-    }
-    const hooks = result as ScriptHooks
+      // Execute the script body; a hook-based script returns the hooks object.
+      const fn = new Function('page', 'context', `return (async function(page, context){\n${input.scriptCode}\n})(page, context)`)
+      const result = await fn(page, input.context)
+      if (!result || typeof result.poll !== 'function') {
+        throw new Error('persistent script did not return a hooks object with a poll() function')
+      }
+      const hooks = result as ScriptHooks
 
-    let stopped = false
-    const done = runMonitor({
-      hooks,
-      page,
-      context: input.context,
-      onTransactions: input.onTransactions,
-      shouldStop: () => stopped || input.shouldStop(),
-      getBankDay: input.getBankDay,
-      pollIntervalMs: input.pollIntervalMs,
-      authTimeoutMs: input.loginMode === 'assisted' ? 300_000 : 30_000,
-    }).finally(async () => {
+      let stopped = false
+      const done = runMonitor({
+        hooks,
+        page,
+        context: input.context,
+        onTransactions: input.onTransactions,
+        shouldStop: () => stopped || input.shouldStop(),
+        getBankDay: input.getBankDay,
+        pollIntervalMs: input.pollIntervalMs,
+        authTimeoutMs: input.loginMode === 'assisted' ? 300_000 : 30_000,
+      }).finally(async () => {
+        await browserContext.close().catch(() => {})
+      })
+
+      return { stop: () => { stopped = true }, done }
+    } catch (err) {
       await browserContext.close().catch(() => {})
-    })
-
-    return { stop: () => { stopped = true }, done }
+      throw err
+    }
   }
 }

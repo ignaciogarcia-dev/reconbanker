@@ -104,6 +104,29 @@ describe('ScriptLoader', () => {
     ).rejects.toThrow(/Script file not found/i)
   })
 
+  it('rejects a bank slug containing path-traversal characters before touching the filesystem', async () => {
+    dbQueryMock
+      .mockResolvedValueOnce({ rows: [{ id: 'bank-id' }] })
+      .mockResolvedValueOnce({
+        rows: [{
+          id: 'script-id',
+          bank_code: '../../../etc/passwd',
+          flow_type: 'extract_transactions',
+          version: '1.0.0',
+          status: 'active',
+          origin: 'system',
+          base_script_id: null,
+          selector_map: {},
+          created_at: new Date(),
+        }],
+      })
+
+    await expect(
+      ScriptLoader.loadActive('whatever', 'extract_transactions'),
+    ).rejects.toThrow(/invalid bank/i)
+    expect(existsSyncMock).not.toHaveBeenCalled()
+  })
+
   it('slugifies bank names with internal whitespace before resolving the file path', async () => {
     dbQueryMock
       .mockResolvedValueOnce({ rows: [{ id: 'bank-id' }] })
