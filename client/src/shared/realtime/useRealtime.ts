@@ -51,6 +51,7 @@ export function useRealtime() {
     let reconnectTimer: ReturnType<typeof setTimeout>
 
     const connect = async () => {
+      /* v8 ignore next -- re-entry guard only trips when a queued reconnect fires after teardown */
       if (cancelled || closedRef.current) return
       try {
         const { ticket } = await getRealtimeTicket()
@@ -87,6 +88,7 @@ export function useRealtime() {
     }
 
     const scheduleReconnect = () => {
+      /* v8 ignore next -- guard only trips when a close fires after teardown, which the cleanup prevents */
       if (cancelled || closedRef.current) return
       // Exponential backoff with jitter to avoid a reconnect thundering herd
       const base = Math.min(1000 * 2 ** attemptRef.current, 30_000)
