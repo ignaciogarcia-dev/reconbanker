@@ -348,4 +348,82 @@ describe('Conciliations page', () => {
       expect(screen.getAllByText('Aún no hay órdenes').length).toBeGreaterThan(0)
     })
   })
+
+  it('shows the query error state and retries all failing queries', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.get('/api/conciliation', () => HttpResponse.json({}, { status: 500 })),
+      http.get('/api/accounts', () => HttpResponse.json({}, { status: 500 })),
+      http.get('/api/me', () => HttpResponse.json({}, { status: 500 }))
+    )
+    renderWithProviders(<Conciliations />)
+    expect(await screen.findByText(/No se pudieron cargar los datos/i)).toBeInTheDocument()
+    // Fix the endpoints and retry.
+    setReconcileMode()
+    server.use(...accountHandlers, ...conciliationHandlers)
+    await user.click(screen.getByRole('button', { name: /Reintentar/i }))
+    await waitFor(() => expect(screen.getByText('ord-1')).toBeInTheDocument())
+  })
+
+  it('retries only the conciliation query when it is the only failing one', async () => {
+    const user = userEvent.setup()
+    server.use(http.get('/api/conciliation', () => HttpResponse.json({}, { status: 500 })))
+    renderWithProviders(<Conciliations />)
+    expect(await screen.findByText(/No se pudieron cargar los datos/i)).toBeInTheDocument()
+    server.use(...conciliationHandlers)
+    await user.click(screen.getByRole('button', { name: /Reintentar/i }))
+    await waitFor(() => expect(screen.getByText('ord-1')).toBeInTheDocument())
+  })
+
+  it('retries only the accounts query when it is the only failing one', async () => {
+    const user = userEvent.setup()
+    server.use(http.get('/api/accounts', () => HttpResponse.json({}, { status: 500 })))
+    renderWithProviders(<Conciliations />)
+    expect(await screen.findByText(/No se pudieron cargar los datos/i)).toBeInTheDocument()
+    server.use(...accountHandlers)
+    await user.click(screen.getByRole('button', { name: /Reintentar/i }))
+    await waitFor(() => expect(screen.getByText('ord-1')).toBeInTheDocument())
+  })
+
+  it('toasts the server message when renotifying fails', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.get('/api/conciliation', () =>
+        HttpResponse.json([{ ...baseRow, id: 'c-1', externalId: 'ord-1', status: 'matched' }])
+      ),
+      http.post('/api/conciliation/:requestId/notify', () =>
+        HttpResponse.json({ error: 'webhook caído' }, { status: 500 })
+      )
+    )
+    renderWithProviders(<Conciliations />)
+    await waitFor(() => expect(screen.getByText('ord-1')).toBeInTheDocument())
+
+    const bell = screen.getAllByRole('button').find(b => b.querySelector('.lucide-bell') && !(b as HTMLButtonElement).disabled)!
+    await user.click(bell)
+    const dialog = await screen.findByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: /^Notificar$/i }))
+
+    expect(await screen.findAllByText('webhook caído')).not.toHaveLength(0)
+  })
+
+  it('toasts the fallback messages when renotifying fails without a message', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.get('/api/conciliation', () =>
+        HttpResponse.json([{ ...baseRow, id: 'c-1', externalId: 'ord-1', status: 'matched' }])
+      ),
+      http.post('/api/conciliation/:requestId/notify', () => HttpResponse.json({}, { status: 500 }))
+    )
+    renderWithProviders(<Conciliations />)
+    await waitFor(() => expect(screen.getByText('ord-1')).toBeInTheDocument())
+
+    const bell = screen.getAllByRole('button').find(b => b.querySelector('.lucide-bell') && !(b as HTMLButtonElement).disabled)!
+    await user.click(bell)
+    const dialog = await screen.findByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: /^Notificar$/i }))
+
+    // Hook-level and dialog-level handlers each toast their own fallback copy.
+    expect(await screen.findByText(/No se pudo reenviar la notificación/i)).toBeInTheDocument()
+    expect(await screen.findByText(/Algo salió mal/i)).toBeInTheDocument()
+  })
 })

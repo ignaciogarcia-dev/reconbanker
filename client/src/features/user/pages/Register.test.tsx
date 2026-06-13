@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Routes, Route } from 'react-router-dom'
@@ -7,6 +7,22 @@ import { server } from '../../../../tests/msw/server'
 import { userHandlers } from '../../../../tests/msw/handlers/user'
 import { renderWithProviders } from '../../../../tests/utils/render'
 import { Register } from './Register'
+import { firstFailingPasswordRule } from '../utils/passwordRules'
+
+// Spy mode keeps the real implementation except where a test overrides it
+vi.mock('../utils/passwordRules', { spy: true })
+
+function passwordValidationError() {
+  return HttpResponse.json(
+    {
+      error: {
+        code: 'VALIDATION_ERROR',
+        details: { issues: [{ path: ['password'], message: 'server password message' }] },
+      },
+    },
+    { status: 400 }
+  )
+}
 
 const VALID_PASSWORD = 'ValidPassword1'
 
@@ -80,6 +96,15 @@ describe('Register page', () => {
     })
   })
 
+  it('shows an email format error when the email is malformed', async () => {
+    const user = userEvent.setup()
+    renderRegister()
+    await user.type(screen.getByLabelText(/Email/i), 'not-an-email')
+    await user.type(screen.getByLabelText(/Contraseña/i), VALID_PASSWORD)
+    await user.click(screen.getByRole('button', { name: /^Registrar$/i }))
+    expect(await screen.findByText(/Ingresá un email válido/i)).toBeInTheDocument()
+  })
+
   it('shows per-field required errors when submitting empty', async () => {
     const user = userEvent.setup()
     renderRegister()
@@ -132,6 +157,53 @@ describe('Register page', () => {
         screen.getByText(/Error al registrar el usuario/i)
       ).toBeInTheDocument()
     })
+  })
+
+  it('maps a server validation error on email to the email field', async () => {
+    server.use(
+      http.post('/api/auth/register', () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: 'VALIDATION_ERROR',
+              details: { issues: [{ path: ['email'], message: 'bad email' }] },
+            },
+          },
+          { status: 400 }
+        )
+      )
+    )
+    const user = userEvent.setup()
+    renderRegister()
+    await user.type(screen.getByLabelText(/Email/i), 'x@x.com')
+    await user.type(screen.getByLabelText(/Contraseña/i), VALID_PASSWORD)
+    await user.click(screen.getByRole('button', { name: /^Registrar$/i }))
+    expect(await screen.findByText(/Ingresá un email válido/i)).toBeInTheDocument()
+  })
+
+  it('shows the server message for a password issue when local rules all pass', async () => {
+    server.use(http.post('/api/auth/register', () => passwordValidationError()))
+    const user = userEvent.setup()
+    renderRegister()
+    await user.type(screen.getByLabelText(/Email/i), 'x@x.com')
+    await user.type(screen.getByLabelText(/Contraseña/i), VALID_PASSWORD)
+    await user.click(screen.getByRole('button', { name: /^Registrar$/i }))
+    expect(await screen.findByText('server password message')).toBeInTheDocument()
+  })
+
+  it('shows the localized rule when the server rejects a password the mirror missed', async () => {
+    server.use(http.post('/api/auth/register', () => passwordValidationError()))
+    // Simulate the local mirror drifting behind the backend policy:
+    // it passes during client-side validation but fails when mapping the server error.
+    vi.mocked(firstFailingPasswordRule)
+      .mockReturnValueOnce(null)
+      .mockReturnValueOnce('minLength')
+    const user = userEvent.setup()
+    renderRegister()
+    await user.type(screen.getByLabelText(/Email/i), 'x@x.com')
+    await user.type(screen.getByLabelText(/Contraseña/i), VALID_PASSWORD)
+    await user.click(screen.getByRole('button', { name: /^Registrar$/i }))
+    expect(await screen.findByText(/al menos 12 caracteres/i)).toBeInTheDocument()
   })
 
   it('has a link back to login', () => {

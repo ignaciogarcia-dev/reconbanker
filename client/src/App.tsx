@@ -15,8 +15,10 @@ import { accountRoutes } from '@/features/account/routes'
 import { bankingRoutes } from '@/features/banking/routes'
 import { conciliationRoutes } from '@/features/conciliation/routes'
 import { scriptEngineRoutes } from '@/features/script-engine/routes'
-// Fallback toast for mutations that declare no local onError so failures are never silent
-const queryClient = new QueryClient({
+// Fallback toast for mutations that declare no local onError so failures are never silent.
+// Exported so tests can exercise the cache-level fallback directly.
+// eslint-disable-next-line react-refresh/only-export-components
+export const queryClient = new QueryClient({
   mutationCache: new MutationCache({
     onError: (error, _vars, _ctx, mutation) => {
       // meta.errorHandled marks hooks whose callers pass onError to mutate() which the cache cannot see

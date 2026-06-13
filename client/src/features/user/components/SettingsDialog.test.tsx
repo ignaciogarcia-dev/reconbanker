@@ -239,6 +239,30 @@ describe('SettingsDialog', () => {
     })
   })
 
+  it('falls back to the localized save error when the failure has no message', async () => {
+    server.use(meHandler({ operationMode: 'passthrough' }))
+    server.use(
+      http.put('/api/me/operation-mode', () => HttpResponse.json({}, { status: 500 }))
+    )
+    const user = userEvent.setup()
+    renderWithProviders(<Host />)
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('user@x')).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole('tab', { name: /Operación/i }))
+    await user.click(screen.getByRole('button', { name: /Cambiar modo/i }))
+    await user.click(
+      await screen.findByRole('button', { name: /Conciliación/i })
+    )
+    await user.click(screen.getByRole('button', { name: /^Guardar$/i }))
+    await user.click(
+      await screen.findByRole('button', { name: /Sí, cambiar y borrar datos/i })
+    )
+    await waitFor(() => {
+      expect(screen.getByText(/No se pudo actualizar el modo de operación/i)).toBeInTheDocument()
+    })
+  })
+
   it('clicking outside closes the dialog and resets internal state', async () => {
     server.use(meHandler({ operationMode: 'passthrough' }))
     const onOpenChange = vi.fn()

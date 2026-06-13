@@ -208,4 +208,53 @@ describe('Accounts page', () => {
     // Avoid unused-vi-import warning when running in isolation.
     expect(vi).toBeDefined()
   })
+
+  it('shows the query error state with a retry button when the list fails', async () => {
+    const user = userEvent.setup()
+    server.use(http.get('/api/accounts', () => HttpResponse.json({}, { status: 500 })))
+    renderWithProviders(<Accounts />)
+    expect(await screen.findByText(/No se pudieron cargar los datos/i)).toBeInTheDocument()
+    // Fix the endpoint and retry.
+    server.use(...accountHandlers)
+    await user.click(screen.getByRole('button', { name: /Reintentar/i }))
+    await waitFor(() => {
+      expect(screen.getByText('Cuenta 1')).toBeInTheDocument()
+    })
+  })
+
+  it('toasts the server message when creating an account fails', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.post('/api/accounts', () =>
+        HttpResponse.json({ error: 'banco rechazado' }, { status: 500 })
+      )
+    )
+    renderWithProviders(<Accounts />)
+    await waitFor(() => expect(screen.getByText('Cuenta 1')).toBeInTheDocument())
+
+    await user.click(screen.getByRole('button', { name: /Nueva cuenta/i }))
+    await screen.findByRole('dialog')
+    await user.type(screen.getByPlaceholderText(/ej: Cuenta principal/i), 'Fallida')
+    await user.click(screen.getByRole('combobox'))
+    await user.click(await screen.findByRole('option', { name: /Mi Dinero/i }))
+    await user.click(screen.getByRole('button', { name: /Crear cuenta/i }))
+
+    expect(await screen.findByText('banco rechazado')).toBeInTheDocument()
+  })
+
+  it('toasts the generic error when creating an account fails without a message', async () => {
+    const user = userEvent.setup()
+    server.use(http.post('/api/accounts', () => HttpResponse.json({}, { status: 500 })))
+    renderWithProviders(<Accounts />)
+    await waitFor(() => expect(screen.getByText('Cuenta 1')).toBeInTheDocument())
+
+    await user.click(screen.getByRole('button', { name: /Nueva cuenta/i }))
+    await screen.findByRole('dialog')
+    await user.type(screen.getByPlaceholderText(/ej: Cuenta principal/i), 'Fallida')
+    await user.click(screen.getByRole('combobox'))
+    await user.click(await screen.findByRole('option', { name: /Mi Dinero/i }))
+    await user.click(screen.getByRole('button', { name: /Crear cuenta/i }))
+
+    expect(await screen.findByText(/Algo salió mal/i)).toBeInTheDocument()
+  })
 })
