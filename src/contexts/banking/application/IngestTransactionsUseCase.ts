@@ -37,7 +37,10 @@ export class IngestTransactionsUseCase {
         scriptId,
         rawPayload: tx.raw,
       })
-      await txRepo.save(bankTx)
+      const inserted = await txRepo.save(bankTx)
+      // The INSERT uses ON CONFLICT DO NOTHING; if a concurrent ingest already
+      // persisted this externalId, skip the event so it is published once.
+      if (!inserted) continue
       await eventBus.publishAll(bankTx.domainEvents)
       bankTx.clearDomainEvents()
       saved += 1

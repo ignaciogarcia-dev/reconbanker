@@ -103,4 +103,26 @@ describe('BankTransactionFinderAdapter', () => {
     await adapter.markExcluded('tx-1')
     expect(repo.markExcluded).toHaveBeenCalledWith('tx-1')
   })
+
+  describe('withTx', () => {
+    it('rebinds both the executor and the repo to the transaction', async () => {
+      const txRepo = { markExcluded: vi.fn().mockResolvedValue(undefined) }
+      const baseRepo = { withTx: vi.fn(() => txRepo) }
+      const tx = { query: vi.fn().mockResolvedValue({ rows: [] }) }
+      const poolExec = { query: vi.fn().mockResolvedValue({ rows: [] }) }
+      const adapter = new BankTransactionFinderAdapter(poolExec as any, baseRepo as any)
+
+      const bound = adapter.withTx(tx as any)
+      expect(baseRepo.withTx).toHaveBeenCalledWith(tx)
+
+      // Candidate query now runs on the transaction's connection, not the pool.
+      await bound.findCandidatesForAccount('acc-1')
+      expect(tx.query).toHaveBeenCalledTimes(1)
+      expect(poolExec.query).not.toHaveBeenCalled()
+
+      // Delegated writes go through the transaction-bound repo.
+      await bound.markExcluded('tx-1')
+      expect(txRepo.markExcluded).toHaveBeenCalledWith('tx-1')
+    })
+  })
 })

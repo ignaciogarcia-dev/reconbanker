@@ -1,5 +1,6 @@
-import type pg from 'pg'
 import type { IBankTransactionRepository } from '../../../banking/domain/IBankTransactionRepository.js'
+import type { Tx } from '../../../../shared/persistence/index.js'
+import { Executor } from '../../infrastructure/Executor.js'
 import {
   IBankTransactionFinder,
   BankTransactionCandidate,
@@ -8,12 +9,19 @@ import {
 
 export class BankTransactionFinderAdapter implements IBankTransactionFinder {
   constructor(
-    private readonly pool: pg.Pool,
+    private readonly executor: Executor,
     private readonly bankTxRepo: IBankTransactionRepository
   ) {}
 
+  // All four methods share the same connection. Inside a unit of work the
+  // caller passes the transaction so FOR UPDATE / markExcluded are serialized
+  // against concurrent conciliation; outside one, the pool is fine.
+  withTx(tx: Tx): IBankTransactionFinder {
+    return new BankTransactionFinderAdapter(tx, this.bankTxRepo.withTx(tx))
+  }
+
   async findCandidatesForAccount(accountId: string): Promise<BankTransactionCandidate[]> {
-    const { rows } = await this.pool.query(
+    const { rows } = await this.executor.query(
       `SELECT id, amount, currency, sender_name, received_at
          FROM bank_transactions
         WHERE account_id = $1 AND excluded_at IS NULL`,

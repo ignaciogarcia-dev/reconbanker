@@ -12,6 +12,7 @@ describe('OnTransactionIngestedUseCase', () => {
     const useCase = new OnTransactionIngestedUseCase({
       requestRepo: repo,
       bankTransactionFinder: {
+        withTx() { return this },
         findCandidatesForAccount: async () => [],
         findById: async () => null,
         isExcluded: async () => false,
@@ -35,6 +36,7 @@ describe('OnTransactionIngestedUseCase', () => {
     const useCase = new OnTransactionIngestedUseCase({
       requestRepo: repo,
       bankTransactionFinder: {
+        withTx() { return this },
         findCandidatesForAccount: async () => [],
         findById: async () => null,
         isExcluded: async () => false,
