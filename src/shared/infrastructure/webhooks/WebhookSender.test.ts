@@ -10,6 +10,13 @@ vi.mock('../logger/index.js', () => ({
   logger: { child: vi.fn(() => childLog) },
 }))
 
+// assertSafeUrl has its own SSRF tests and does real DNS; mock it here so these
+// tests stay offline and we can drive the "blocked at send time" path.
+const { assertSafeUrlMock } = vi.hoisted(() => ({ assertSafeUrlMock: vi.fn() }))
+vi.mock('../../net/assertSafeUrl.js', () => ({ assertSafeUrl: assertSafeUrlMock }))
+
+import crypto from 'node:crypto'
+
 const { sendWebhook } = await import('./WebhookSender.js')
 
 function makeResponse(status: number, body = '', statusText = 'OK') {
@@ -29,10 +36,53 @@ describe('sendWebhook', () => {
     vi.stubGlobal('fetch', fetchMock)
     childLog.debug.mockClear()
     childLog.info.mockClear()
+    assertSafeUrlMock.mockReset()
+    assertSafeUrlMock.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
+  })
+
+  it('disallows following redirects (SSRF: a 3xx to an internal IP must not be followed)', async () => {
+    fetchMock.mockResolvedValue(makeResponse(200))
+    await sendWebhook({ url: 'https://example.com/x', payload: {}, authType: null, authToken: null })
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ redirect: 'error' })
+  })
+
+  it('re-validates the URL right before sending (closes the config→send TOCTOU window)', async () => {
+    fetchMock.mockResolvedValue(makeResponse(200))
+    await sendWebhook({ url: 'https://example.com/x', payload: {}, authType: null, authToken: null })
+    expect(assertSafeUrlMock).toHaveBeenCalledWith('https://example.com/x', expect.any(String))
+  })
+
+  it('does not send when the URL now resolves to a blocked address', async () => {
+    assertSafeUrlMock.mockRejectedValueOnce(new Error('blocked: private address'))
+    await expect(
+      sendWebhook({ url: 'https://rebound.example.com/x', payload: {}, authType: null, authToken: null }),
+    ).rejects.toThrow(/blocked/)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('signs the body with HMAC-SHA256 when WEBHOOK_SIGNING_SECRET is set', async () => {
+    vi.stubEnv('WEBHOOK_SIGNING_SECRET', 'top-secret')
+    fetchMock.mockResolvedValue(makeResponse(200))
+    await sendWebhook({ url: 'https://example.com/x', payload: { a: 1 }, authType: null, authToken: null })
+
+    const headers = fetchMock.mock.calls[0][1].headers
+    const body = fetchMock.mock.calls[0][1].body as string
+    const ts = headers['X-Webhook-Timestamp']
+    expect(ts).toBeTruthy()
+    const expected = 'sha256=' + crypto.createHmac('sha256', 'top-secret').update(`${ts}.${body}`).digest('hex')
+    expect(headers['X-Signature-256']).toBe(expected)
+  })
+
+  it('omits the signature header when no signing secret is configured', async () => {
+    fetchMock.mockResolvedValue(makeResponse(200))
+    await sendWebhook({ url: 'https://example.com/x', payload: {}, authType: null, authToken: null })
+    const headers = fetchMock.mock.calls[0][1].headers
+    expect(headers['X-Signature-256']).toBeUndefined()
   })
 
   it('sends without Authorization header when authToken is null', async () => {

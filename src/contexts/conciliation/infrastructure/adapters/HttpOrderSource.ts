@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { IOrderSource, PendingOrder } from '../../domain/ports/IOrderSource.js'
 import { PollingConfig } from '../../domain/ports/IAccountConfigReader.js'
 import { ValidationError } from '../../../../shared/errors/index.js'
+import { assertSafeUrl } from '../../../../shared/net/assertSafeUrl.js'
 import type { ILogger } from '../../../../shared/logger/ILogger.js'
 
 // Validates a single order from the ERP polling response. external_id may arrive
@@ -27,6 +28,11 @@ export class HttpOrderSource implements IOrderSource {
   async fetch(config: PollingConfig): Promise<PendingOrder[]> {
     if (!config.pendingOrdersEndpoint) return []
 
+    // Re-validate at poll time, not just at config write: the host may now
+    // resolve to an internal address (DNS change / TOCTOU) even if it was safe
+    // when the operator configured it.
+    await assertSafeUrl(config.pendingOrdersEndpoint, 'pending_orders_endpoint')
+
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (config.authToken) {
       headers['Authorization'] =
@@ -40,6 +46,9 @@ export class HttpOrderSource implements IOrderSource {
       method: config.pollingMethod,
       headers,
       body: isPost ? JSON.stringify(config.pollingBody ?? {}) : undefined,
+      // redirect: 'error' prevents a polling endpoint from 3xx-redirecting us to
+      // an internal address after assertSafeUrl validated the configured host.
+      redirect: 'error',
       signal: AbortSignal.timeout(Number(process.env.POLLING_TIMEOUT_MS ?? 15_000)),
     })
 
