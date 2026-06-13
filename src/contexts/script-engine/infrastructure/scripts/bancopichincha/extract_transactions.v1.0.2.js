@@ -318,7 +318,12 @@ return {
     if (credError) throw new Error("login_failed: usuario o contraseña incorrectos");
     const here = page.getByText(txt_continue_here).first();
     if (await here.isVisible().catch(() => false)) await here.click().catch(() => {});
-    return url.includes(host_app) && !url.includes(host_login);
+    try {
+      const { hostname } = new URL(url);
+      return hostname === host_app && hostname !== host_login;
+    } catch (_) {
+      return false;
+    }
   },
 
   async poll(page, context) {
