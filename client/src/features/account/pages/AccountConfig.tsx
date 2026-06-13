@@ -1,8 +1,10 @@
+import { QueryError } from '@/shared/ui/QueryError'
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
+import { FormField } from '@/shared/ui/FormField'
 import { Label } from '@/shared/ui/label'
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
@@ -10,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/ui/tooltip'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
 import { cn } from '@/shared/lib/utils'
+import { localizedApiError } from '@/shared/http/client'
 import { Radio } from '@base-ui/react/radio'
 import { RadioGroup } from '@base-ui/react/radio-group'
 import { ArrowLeft, Save, Info, Trash2, AlertTriangle, ShieldAlert, Check, Bell, BellOff, TrendingDown, Lock, FileCheck, Settings as SettingsIcon, Terminal, KeyRound, Webhook, ListChecks, AlertCircle } from 'lucide-react'
@@ -48,6 +51,10 @@ export function AccountConfig() {
     silentIngestion: false,
     sessionType: 'one-shot',
     loginMode: 'simple',
+    notificationEndpointUrl: '',
+    notificationAuthType: 'bearer',
+    notificationAuthToken: '',
+    notificationEventAssistance: false,
   })
   const [errors, setErrors] = useState<FormErrors>({})
   const [serverError, setServerError] = useState<string | null>(null)
@@ -57,7 +64,7 @@ export function AccountConfig() {
   const [activeTab, setActiveTab] = useState<string>('credentials-session')
 
   const { data: account } = useAccount(accountId)
-  const { data, isLoading } = useAccountConfig(accountId)
+  const { data, isLoading, isError, refetch } = useAccountConfig(accountId)
 
   const hasSavedCredential = !!(data?.bankUsername && data.bankUsername.trim() !== '')
 
@@ -74,7 +81,7 @@ export function AccountConfig() {
         return ['pendingOrdersEndpoint', 'authToken']
       case 'webhook':
         return ['webhookUrl']
-      /* v8 ignore start -- exhaustive switch over fixed tab IDs; default is unreachable. */
+      /* v8 ignore start -- exhaustive switch over fixed tab IDs makes default unreachable */
       default:
         return []
       /* v8 ignore stop */
@@ -85,7 +92,7 @@ export function AccountConfig() {
     const required = requiredFieldsFor(tab)
     const done = required.filter(k => {
       const value = form[k]
-      /* v8 ignore next -- all required fields are strings; the String(value) coercion is defensive. */
+      /* v8 ignore next -- all required fields are strings so the `String(value)` coercion is defensive */
       const stringValue = typeof value === 'string' ? value : String(value)
       return stringValue.trim() !== '' && !liveErrors[k]
     }).length
@@ -93,13 +100,14 @@ export function AccountConfig() {
   }
 
   const visibleTabs: string[] = mode === 'reconcile'
-    ? ['credentials-session', 'orders', 'webhook']
-    : ['credentials-session', 'webhook']
+    ? ['credentials-session', 'orders', 'webhook', 'notifications']
+    : ['credentials-session', 'webhook', 'notifications']
 
   const tabLabelKey: Record<string, string> = {
     'credentials-session': 'accountConfig.tabs.credentialsSession',
     'orders': 'accountConfig.tabs.orders',
     'webhook': 'accountConfig.tabs.webhook',
+    'notifications': 'accountConfig.tabs.notifications',
   }
 
   function tabErrorCount(tab: string): number {
@@ -117,7 +125,7 @@ export function AccountConfig() {
 
   useEffect(() => {
     if (!data) return
-    // Hydrate the editable form from the loaded config snapshot.
+    // Hydrate the editable form from the loaded config snapshot
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setForm(f => ({
       ...f,
@@ -135,6 +143,10 @@ export function AccountConfig() {
       silentIngestion: data.silentIngestion,
       sessionType: data.sessionType,
       loginMode: data.loginMode,
+      notificationEndpointUrl: data.notificationEndpointUrl ?? '',
+      notificationAuthType: data.notificationAuthType ?? 'bearer',
+      notificationAuthToken: data.notificationAuthToken ?? '',
+      notificationEventAssistance: (data.notificationEvents ?? []).includes('assistance_required'),
     }))
   }, [data])
 
@@ -157,13 +169,13 @@ export function AccountConfig() {
     if (!trimmed) return null
     try {
       const parsed = JSON.parse(trimmed)
-      /* v8 ignore else -- validation rejects arrays for extra-fields and non-object pollingBody never round-trips through here in practice. */
+      /* v8 ignore else -- validation rejects arrays and non-object payloads before this point */
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
         return parsed as Record<string, unknown>
       }
-    /* v8 ignore start -- validation already gates malformed JSON and non-object payloads before reaching the catch + fallback return. */
+    /* v8 ignore start -- validation already gates malformed JSON before the catch and fallback return */
     } catch {
-      // Ignored — validation already gates this path.
+      // Ignored because validation already gates this path
     }
     return null
     /* v8 ignore stop */
@@ -185,7 +197,7 @@ export function AccountConfig() {
     if (Object.keys(next).length > 0) {
       setErrors(next)
       const firstField = FIELD_ORDER.find(k => next[k] !== undefined)
-      /* v8 ignore else -- validation always sets errors keyed by FIELD_ORDER, so `find` always matches. */
+      /* v8 ignore else -- validation always sets errors keyed by `FIELD_ORDER` so `find` always matches */
       if (firstField) {
         const targetTab = resolveTabForField(firstField, mode)
         if (targetTab && targetTab !== activeTab) setActiveTab(targetTab)
@@ -213,7 +225,11 @@ export function AccountConfig() {
         silentIngestion: form.silentIngestion,
         sessionType: form.sessionType,
         loginMode: form.loginMode,
-        /* v8 ignore start -- validation requires bankUsername; the empty branch is unreachable from a valid save. */
+        notificationEndpointUrl: form.notificationEndpointUrl.trim() === '' ? null : form.notificationEndpointUrl.trim(),
+        notificationAuthType: form.notificationEndpointUrl.trim() === '' ? null : form.notificationAuthType,
+        notificationAuthToken: form.notificationAuthToken.trim() === '' ? null : form.notificationAuthToken.trim(),
+        notificationEvents: form.notificationEventAssistance ? ['assistance_required'] : [],
+        /* v8 ignore start -- validation requires bankUsername so the empty branch is unreachable */
         bankUsername: trimmedBankUsername === '' ? null : trimmedBankUsername,
         /* v8 ignore stop */
         bankPassword: form.bankPassword === '' ? null : form.bankPassword,
@@ -225,9 +241,9 @@ export function AccountConfig() {
         },
         onError: (err: unknown) => {
           const message =
-            (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+            localizedApiError(err) ??
             (err as { message?: string })?.message ??
-            /* v8 ignore start -- axios always populates err.message, so the generic fallback is unreachable. */
+            /* v8 ignore start -- axios always populates err.message so the generic fallback is unreachable */
             t('accountConfig.errors.generic')
             /* v8 ignore stop */
           const field = mapServerErrorToField(message)
@@ -244,15 +260,14 @@ export function AccountConfig() {
   }
 
   function handleDelete() {
-    /* v8 ignore next -- delete button is disabled when accountId is missing; guard is defensive. */
+    /* v8 ignore next -- delete button is disabled when accountId is missing so the guard is defensive */
     if (!accountId) return
     remove.mutate(
       { accountId, confirmationName: deleteConfirmName.trim() },
       {
         onSuccess: () => navigate('/accounts'),
         onError: (err: unknown) => {
-          const message = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-          setDeleteError(message ?? t('accountConfig.danger.genericError'))
+          setDeleteError(localizedApiError(err) ?? t('accountConfig.danger.genericError'))
         },
       }
     )
@@ -270,6 +285,7 @@ export function AccountConfig() {
   }
 
   if (isLoading) return <div className="p-8 text-muted-foreground text-sm">{t('accountConfig.loading')}</div>
+  if (isError) return <QueryError onRetry={() => refetch()} />
 
   return (
     <div className="flex min-h-full flex-col">
@@ -335,6 +351,13 @@ export function AccountConfig() {
             icon={Webhook}
             labelKey="accountConfig.tabs.webhook"
             status={tabStatus('webhook')}
+            t={t}
+          />
+          <StatusTab
+            value="notifications"
+            icon={Bell}
+            labelKey="accountConfig.tabs.notifications"
+            status={tabStatus('notifications')}
             t={t}
           />
         </TabsList>
@@ -507,6 +530,67 @@ export function AccountConfig() {
                   }}
                 />
               </FormField>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Central notification endpoint (status/assistance events) */}
+        <TabsContent value="notifications" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('accountConfig.notifications.title')}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-md border border-border bg-muted/40 p-3 flex gap-2 text-sm text-foreground">
+                <Info className="size-4 mt-0.5 shrink-0" />
+                <div>{t('accountConfig.notifications.desc')}</div>
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="notif-url">{t('accountConfig.notifications.endpoint')}</Label>
+                <Input
+                  id="notif-url"
+                  placeholder="https://example.com/hooks/recon"
+                  value={form.notificationEndpointUrl}
+                  onChange={e => setForm(f => ({ ...f, notificationEndpointUrl: e.target.value }))}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="notif-auth-type">{t('accountConfig.notifications.authType')}</Label>
+                <Select
+                  value={form.notificationAuthType}
+                  onValueChange={v => setForm(f => ({ ...f, notificationAuthType: v as AuthType }))}
+                >
+                  <SelectTrigger id="notif-auth-type" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="bearer">Bearer</SelectItem>
+                    <SelectItem value="api_key">Api-Key</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="notif-token">{t('accountConfig.notifications.authToken')}</Label>
+                <Input
+                  id="notif-token"
+                  type="password"
+                  placeholder="••••••••"
+                  value={form.notificationAuthToken}
+                  onChange={e => setForm(f => ({ ...f, notificationAuthToken: e.target.value }))}
+                />
+              </div>
+              <label className="flex items-center justify-between gap-3 rounded-md border border-border p-3 text-sm">
+                <span className="flex items-center gap-2">
+                  <ShieldAlert className="size-4" />
+                  {t('accountConfig.notifications.eventAssistance')}
+                </span>
+                <input
+                  type="checkbox"
+                  className="size-4"
+                  checked={form.notificationEventAssistance}
+                  onChange={e => setForm(f => ({ ...f, notificationEventAssistance: e.target.checked }))}
+                />
+              </label>
             </CardContent>
           </Card>
         </TabsContent>
@@ -837,45 +921,6 @@ interface AuthCardProps {
   }
   setForm: React.Dispatch<React.SetStateAction<AccountConfigForm>>
   hintKey: string
-}
-
-interface FormFieldProps {
-  label: React.ReactNode
-  required?: boolean
-  hint?: string
-  error?: string
-  children: React.ReactNode
-}
-
-function FormField({ label, required, hint, error, children }: FormFieldProps) {
-  const hasError = Boolean(error)
-  return (
-    <div className="grid gap-1.5">
-      <Label className={cn('text-[13px] transition-colors flex items-center gap-1', hasError && 'text-destructive')}>
-        <span>{label}</span>
-        {required && (
-          <span className="text-destructive" aria-hidden>*</span>
-        )}
-      </Label>
-      {children}
-      {(hasError || hint) && (
-        <p
-          aria-live="polite"
-          className={cn(
-            'flex items-center gap-1 text-[11px] leading-4 min-h-4 transition-colors',
-            hasError ? 'text-destructive' : 'text-muted-foreground',
-          )}
-        >
-          {hasError ? (
-            <AlertCircle className="size-3 shrink-0" aria-hidden />
-          ) : (
-            <Info className="size-3 shrink-0 opacity-60" aria-hidden />
-          )}
-          <span>{hasError ? error : hint}</span>
-        </p>
-      )}
-    </div>
-  )
 }
 
 function AuthCard({ form, errors, t, field, setForm, hintKey }: AuthCardProps) {

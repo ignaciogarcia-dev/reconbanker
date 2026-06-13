@@ -84,7 +84,7 @@ describe('user.routes', () => {
       const res = await request(makeApp(user)).get('/users/me')
 
       expect(res.status).toBe(401)
-      expect(res.body).toEqual({ error: 'Unauthorized' })
+      expect(res.body).toEqual({ error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } })
       expect(user.getCurrentUser.execute).not.toHaveBeenCalled()
     })
 
@@ -94,7 +94,7 @@ describe('user.routes', () => {
         .set('Authorization', AUTH_HEADER)
 
       expect(res.status).toBe(401)
-      expect(res.body).toEqual({ error: 'Invalid token' })
+      expect(res.body).toEqual({ error: { code: 'INVALID_TOKEN', message: 'Invalid token' } })
     })
 
     it('returns 401 from requireUserId when req.userId is missing', async () => {
@@ -166,7 +166,7 @@ describe('user.routes', () => {
         .send({ mode: 'reconcile' })
 
       expect(res.status).toBe(401)
-      expect(res.body).toEqual({ error: 'Unauthorized' })
+      expect(res.body).toEqual({ error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } })
     })
 
     it('returns 401 from requireUserId when req.userId is missing', async () => {

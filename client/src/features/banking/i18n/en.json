@@ -18,6 +18,7 @@
     "renotifyTitle": "Are you sure you want to re-notify?",
     "renotifyDesc": "This will re-send the webhook for this movement to the external system.",
     "renotifyConfirm": "Notify",
-    "renotifyCancel": "Cancel"
+    "renotifyCancel": "Cancel",
+    "renotifyError": "Could not resend the notification"
   }
 }

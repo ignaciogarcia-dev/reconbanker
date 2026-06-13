@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Routes, Route } from 'react-router-dom'
+import { http, HttpResponse } from 'msw'
 import { server } from '../../../../tests/msw/server'
 import { userHandlers } from '../../../../tests/msw/handlers/user'
 import { renderWithProviders } from '../../../../tests/utils/render'
@@ -30,7 +31,7 @@ describe('Login page', () => {
   it('navigates to "/" on successful login', async () => {
     const user = userEvent.setup()
     renderLogin()
-    await user.type(screen.getByLabelText(/Email/i), 'ok@x')
+    await user.type(screen.getByLabelText(/Email/i), 'ok@x.com')
     await user.type(screen.getByLabelText(/Contraseña/i), 'good')
     await user.click(screen.getByRole('button', { name: /Ingresar/i }))
     await waitFor(() => {
@@ -41,7 +42,7 @@ describe('Login page', () => {
   it('shows an error message when credentials are rejected', async () => {
     const user = userEvent.setup()
     renderLogin()
-    await user.type(screen.getByLabelText(/Email/i), 'fail@x')
+    await user.type(screen.getByLabelText(/Email/i), 'fail@x.com')
     await user.type(screen.getByLabelText(/Contraseña/i), 'wrong')
     await user.click(screen.getByRole('button', { name: /Ingresar/i }))
     await waitFor(() => {
@@ -51,10 +52,34 @@ describe('Login page', () => {
     })
   })
 
+  it('shows per-field required errors when submitting empty', async () => {
+    const user = userEvent.setup()
+    renderLogin()
+    await user.click(screen.getByRole('button', { name: /Ingresar/i }))
+    const messages = await screen.findAllByText(/Completá este campo/i)
+    expect(messages).toHaveLength(2)
+    expect(screen.getByLabelText(/Email/i)).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByLabelText(/Contraseña/i)).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('shows an email format error and clears it live once fixed', async () => {
+    const user = userEvent.setup()
+    renderLogin()
+    await user.type(screen.getByLabelText(/Email/i), 'not-an-email')
+    await user.type(screen.getByLabelText(/Contraseña/i), 'good')
+    await user.click(screen.getByRole('button', { name: /Ingresar/i }))
+    expect(await screen.findByText(/Ingresá un email válido/i)).toBeInTheDocument()
+    await user.clear(screen.getByLabelText(/Email/i))
+    await user.type(screen.getByLabelText(/Email/i), 'ok@x.com')
+    await waitFor(() => {
+      expect(screen.queryByText(/Ingresá un email válido/i)).not.toBeInTheDocument()
+    })
+  })
+
   it('shows the TOTP step for a 2FA user and logs in with a valid code', async () => {
     const user = userEvent.setup()
     renderLogin()
-    await user.type(screen.getByLabelText(/Email/i), '2fa@x')
+    await user.type(screen.getByLabelText(/Email/i), '2fa@x.com')
     await user.type(screen.getByLabelText(/Contraseña/i), 'good')
     await user.click(screen.getByRole('button', { name: /Ingresar/i }))
 
@@ -68,7 +93,7 @@ describe('Login page', () => {
   it('shows an error on an invalid TOTP code and lets the user go back', async () => {
     const user = userEvent.setup()
     renderLogin()
-    await user.type(screen.getByLabelText(/Email/i), '2fa@x')
+    await user.type(screen.getByLabelText(/Email/i), '2fa@x.com')
     await user.type(screen.getByLabelText(/Contraseña/i), 'good')
     await user.click(screen.getByRole('button', { name: /Ingresar/i }))
 
@@ -81,38 +106,105 @@ describe('Login page', () => {
     await waitFor(() => expect(screen.getByLabelText(/Email/i)).toBeInTheDocument())
   })
 
+  it('maps a server validation error on email to the email field', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.post('/api/auth/login', () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: 'VALIDATION_ERROR',
+              details: { issues: [{ path: ['email'], message: 'bad email' }] },
+            },
+          },
+          { status: 400 }
+        )
+      )
+    )
+    renderLogin()
+    await user.type(screen.getByLabelText(/Email/i), 'ok@x.com')
+    await user.type(screen.getByLabelText(/Contraseña/i), 'good')
+    await user.click(screen.getByRole('button', { name: /Ingresar/i }))
+    expect(await screen.findByText(/Ingresá un email válido/i)).toBeInTheDocument()
+  })
+
+  it('maps a server validation error on password to the password field', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.post('/api/auth/login', () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: 'VALIDATION_ERROR',
+              details: { issues: [{ path: ['password'], message: 'bad password' }] },
+            },
+          },
+          { status: 400 }
+        )
+      )
+    )
+    renderLogin()
+    await user.type(screen.getByLabelText(/Email/i), 'ok@x.com')
+    await user.type(screen.getByLabelText(/Contraseña/i), 'good')
+    await user.click(screen.getByRole('button', { name: /Ingresar/i }))
+    expect(await screen.findByText(/Completá este campo/i)).toBeInTheDocument()
+  })
+
+  it('shows the server-provided message for unexpected non-auth failures', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.post('/api/auth/login', () =>
+        HttpResponse.json({ error: 'el servidor explotó' }, { status: 500 })
+      )
+    )
+    renderLogin()
+    await user.type(screen.getByLabelText(/Email/i), 'ok@x.com')
+    await user.type(screen.getByLabelText(/Contraseña/i), 'good')
+    await user.click(screen.getByRole('button', { name: /Ingresar/i }))
+    expect(await screen.findByText(/el servidor explotó/i)).toBeInTheDocument()
+  })
+
+  it('falls back to the generic login error when a failure has no message', async () => {
+    const user = userEvent.setup()
+    server.use(http.post('/api/auth/login', () => HttpResponse.json({}, { status: 500 })))
+    renderLogin()
+    await user.type(screen.getByLabelText(/Email/i), 'ok@x.com')
+    await user.type(screen.getByLabelText(/Contraseña/i), 'good')
+    await user.click(screen.getByRole('button', { name: /Ingresar/i }))
+    expect(await screen.findByText(/Email o contraseña incorrectos/i)).toBeInTheDocument()
+  })
+
+  it('shows the server message when TOTP verification fails with a non-auth error', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.post('/api/auth/login/totp', () =>
+        HttpResponse.json({ error: 'totp roto en el servidor' }, { status: 500 })
+      )
+    )
+    renderLogin()
+    await user.type(screen.getByLabelText(/Email/i), '2fa@x.com')
+    await user.type(screen.getByLabelText(/Contraseña/i), 'good')
+    await user.click(screen.getByRole('button', { name: /Ingresar/i }))
+    await user.type(await screen.findByLabelText(/Código de autenticación/i), '123456')
+    await user.click(screen.getByRole('button', { name: /Verificar/i }))
+    expect(await screen.findByText(/totp roto en el servidor/i)).toBeInTheDocument()
+  })
+
+  it('falls back to the TOTP error copy when a non-auth failure has no message', async () => {
+    const user = userEvent.setup()
+    server.use(http.post('/api/auth/login/totp', () => HttpResponse.json({}, { status: 500 })))
+    renderLogin()
+    await user.type(screen.getByLabelText(/Email/i), '2fa@x.com')
+    await user.type(screen.getByLabelText(/Contraseña/i), 'good')
+    await user.click(screen.getByRole('button', { name: /Ingresar/i }))
+    await user.type(await screen.findByLabelText(/Código de autenticación/i), '123456')
+    await user.click(screen.getByRole('button', { name: /Verificar/i }))
+    expect(await screen.findByText(/Código inválido/i)).toBeInTheDocument()
+  })
+
   it('has a link to the register page', async () => {
     renderLogin()
     const link = screen.getByRole('link', { name: /Registrarse/i })
     expect(link).toHaveAttribute('href', '/register')
-  })
-
-  it('wires onInvalid + onInput custom-validity handlers on both fields', () => {
-    renderLogin()
-    const email = screen.getByLabelText(/Email/i) as HTMLInputElement
-    const password = screen.getByLabelText(/Contraseña/i) as HTMLInputElement
-    // Empty + required → fires onInvalid which sets a custom message via t().
-    fireEvent.invalid(email)
-    expect(email.validationMessage).not.toBe('')
-    fireEvent.input(email, { target: { value: 'a@b' } })
-    fireEvent.invalid(password)
-    expect(password.validationMessage).not.toBe('')
-    fireEvent.input(password, { target: { value: 'abc' } })
-  })
-
-  it('does not set a custom message when the invalid reason is not valueMissing', () => {
-    renderLogin()
-    const email = screen.getByLabelText(/Email/i) as HTMLInputElement
-    const password = screen.getByLabelText(/Contraseña/i) as HTMLInputElement
-    // Type a value so valueMissing is false but typeMismatch could still
-    // fire onInvalid via fireEvent (jsdom does not actually validate, but the
-    // handler still checks `valueMissing` which is false here).
-    fireEvent.input(email, { target: { value: 'not-an-email' } })
-    fireEvent.invalid(email)
-    fireEvent.input(password, { target: { value: 'pw' } })
-    fireEvent.invalid(password)
-    // No assertion needed — the goal is to exercise the false branch of the
-    // `if (valueMissing)` guard inside the onInvalid handlers.
-    expect(true).toBe(true)
   })
 })

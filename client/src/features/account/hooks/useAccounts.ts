@@ -28,6 +28,7 @@ export function useDeleteAccount() {
   return useMutation({
     mutationFn: ({ accountId, confirmationName }: { accountId: string; confirmationName: string }) =>
       deleteAccount(accountId, confirmationName),
+    meta: { errorHandled: true },
     onSuccess: () => qc.invalidateQueries({ queryKey: accountsQueryKey }),
   })
 }

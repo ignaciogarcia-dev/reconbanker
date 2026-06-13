@@ -29,6 +29,16 @@
     "hasAccount": "¿Ya tenés cuenta?",
     "login": "Ingresar"
   },
+  "passwordRules": {
+    "minLength": "La contraseña debe tener al menos 12 caracteres",
+    "maxLength": "La contraseña debe tener como máximo 32 caracteres",
+    "lowercase": "La contraseña debe incluir una letra minúscula",
+    "uppercase": "La contraseña debe incluir una letra mayúscula",
+    "number": "La contraseña debe incluir un número"
+  },
+  "errors": {
+    "emailInvalid": "Ingresá un email válido"
+  },
   "settings": {
     "title": "Configuración",
     "subtitle": "Gestioná tu perfil y el modo de operación",
@@ -36,7 +46,8 @@
     "tabs": {
       "general": "General",
       "security": "Seguridad",
-      "operation": "Operación"
+      "operation": "Operación",
+      "apiKeys": "API Keys"
     },
     "profile": {
       "title": "Perfil",
@@ -78,6 +89,21 @@
       "confirmBody": "Al cambiar de modo se eliminarán de forma permanente todos los movimientos y conciliaciones registrados hasta ahora. Por motivos de seguridad y cumplimiento, los datos procesados bajo un modo no pueden conservarse al pasar al otro. Esta acción es irreversible.",
       "confirmCancel": "Cancelar",
       "confirmConfirm": "Sí, cambiar y borrar datos"
+    },
+    "apiKeys": {
+      "subtitle": "Llaves para integraciones externas (servidor SMS, etc.)",
+      "name": "Nombre",
+      "namePlaceholder": "Servidor SMS",
+      "scopes": "Permisos (scopes)",
+      "create": "Crear llave",
+      "creating": "Creando…",
+      "created": "Llave creada",
+      "createError": "No se pudo crear la llave",
+      "secretOnce": "Copia esta llave ahora. No se volverá a mostrar.",
+      "dismiss": "Listo",
+      "empty": "No hay llaves activas.",
+      "revoke": "Revocar",
+      "revoked": "Llave revocada"
     }
   },
   "modeSelect": {

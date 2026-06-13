@@ -1,7 +1,8 @@
+import { localizedApiError } from '@/shared/http/client'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { GitMerge, ArrowDownUp, AlertTriangle, UserRound, Settings2, ShieldCheck } from 'lucide-react'
+import { GitMerge, ArrowDownUp, AlertTriangle, UserRound, Settings2, ShieldCheck, KeyRound } from 'lucide-react'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
 import { Button } from '@/shared/ui/button'
@@ -11,6 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/shared/ui/tabs'
 import { useUser } from '../hooks/useUser'
 import { useSetOperationMode } from '../hooks/useSetOperationMode'
 import { TwoFactorSection } from './TwoFactorSection'
+import { ApiKeysSection } from './ApiKeysSection'
 import type { OperationMode } from '../types'
 import { cn } from '@/shared/lib/utils'
 
@@ -23,6 +25,7 @@ const SECTIONS = [
   { key: 'general', icon: UserRound },
   { key: 'security', icon: ShieldCheck },
   { key: 'operation', icon: Settings2 },
+  { key: 'apiKeys', icon: KeyRound },
 ] as const
 
 export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
@@ -35,7 +38,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const [confirmOpen, setConfirmOpen] = useState(false)
 
   function handleOpenChange(o: boolean) {
-    /* v8 ignore next 4 -- dialog has no internal trigger so it only emits onOpenChange(false); the truthy branch is defensive. */
+    /* v8 ignore next 4 -- dialog has no internal trigger so the truthy branch is defensive */
     if (!o) {
       setExpanded(false)
       setSelected(null)
@@ -58,7 +61,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   }
 
   function confirmChange() {
-    /* v8 ignore next 1 -- confirmChange only fires from the Save button which requires canSave (selected != null). */
+    /* v8 ignore next 1 -- only fires from the Save button which requires `selected != null` */
     if (!selected) return
     setMode.mutate(selected, {
       onSuccess: () => {
@@ -67,8 +70,8 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
         setSelected(null)
         toast.success(t('settings.mode.saved'))
       },
-      onError: () => {
-        toast.error(t('settings.mode.saveError'))
+      onError: (err) => {
+        toast.error(localizedApiError(err) ?? t('settings.mode.saveError'))
       },
     })
   }
@@ -92,7 +95,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     MODE_OPTIONS.find(o => o.mode === currentMode) ?? MODE_OPTIONS[0]
   const backOption = MODE_OPTIONS.find(o => o.mode !== activeOption.mode)!
 
-  /* v8 ignore next -- isPending guard blocks dismiss during the in-flight save; the truthy branch is defensive. */
+  /* v8 ignore next -- isPending guard blocks dismiss during the in-flight save */
   const onConfirmOpenChange = (o: boolean) => { if (!setMode.isPending) setConfirmOpen(o) }
 
   return (
@@ -274,7 +277,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                         </Button>
                       </div>
 
-                      {/* Stacked cards: SWAP — active (front) slides DOWN while back rises to take its exact spot */}
+                      {/* Stacked card swap where the active card slides down while the back card takes its exact spot */}
                       <div
                         className="relative transition-[height] duration-[500ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
                         style={{
@@ -283,7 +286,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                             : `${cardHeight + 8}px`,
                         }}
                       >
-                        {/* Back card: peek (top:0, scaled) → slides DOWN to active's old slot (top:8) */}
+                        {/* Back card peeks scaled at the top then slides down into the active card's old slot */}
                         <div
                           className="absolute inset-x-0 z-10 origin-top transition-[top,transform,opacity] duration-[500ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
                           style={{
@@ -305,7 +308,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                           />
                         </div>
 
-                        {/* Active card: visible slot (top:8) → slides DOWN below the back */}
+                        {/* Active card slides down below the back card */}
                         <div
                           ref={activeCardRef}
                           className="absolute inset-x-0 z-20 transition-[top] duration-[500ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
@@ -327,7 +330,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                         </div>
                       </div>
 
-                      {/* Inline destructive warning + Save — fade in together when an alternate mode is selected */}
+                      {/* Destructive warning and Save fade in together when an alternate mode is selected */}
                       <div
                         className={cn(
                           'space-y-3 pt-1 transition-opacity duration-300 ease-out',
@@ -358,6 +361,16 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                         </div>
                       </div>
 
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent
+                    value="apiKeys"
+                    className="flex-1 overflow-y-auto px-8 py-7 outline-none data-[active]:flex data-[active]:flex-col"
+                  >
+                    <PaneHeader title={t('settings.tabs.apiKeys')} subtitle={t('settings.apiKeys.subtitle')} />
+                    <div className="mt-6">
+                      <ApiKeysSection />
                     </div>
                   </TabsContent>
                 </div>

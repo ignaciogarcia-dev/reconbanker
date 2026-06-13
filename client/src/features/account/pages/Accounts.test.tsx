@@ -6,7 +6,15 @@ import { http, HttpResponse } from 'msw'
 import { server } from '../../../../tests/msw/server'
 import { accountHandlers } from '../../../../tests/msw/handlers/account'
 import { renderWithProviders } from '../../../../tests/utils/render'
+import type { PendingAssistance } from '@/shared/realtime/useRealtime'
 import { Accounts } from './Accounts'
+
+// Drive the realtime assistance state directly so the OTP branch is deterministic.
+const realtimeState: { assistance: Map<string, PendingAssistance> } = { assistance: new Map() }
+const clearAccount = vi.fn()
+vi.mock('@/shared/realtime/useRealtime', () => ({
+  useRealtime: () => ({ assistance: realtimeState.assistance, clearAccount }),
+}))
 
 function LocationProbe() {
   const loc = useLocation()
@@ -16,6 +24,36 @@ function LocationProbe() {
 describe('Accounts page', () => {
   beforeEach(() => {
     server.use(...accountHandlers)
+    realtimeState.assistance = new Map()
+    clearAccount.mockClear()
+  })
+
+  it('surfaces the OTP assistance prompt and closes the modal on cancel', async () => {
+    const user = userEvent.setup()
+    realtimeState.assistance = new Map([['a-1', { descriptor: { length: 6, type: 'numeric' } }]])
+    renderWithProviders(<Accounts />)
+
+    await waitFor(() => expect(screen.getByText('Cuenta 1')).toBeInTheDocument())
+    await user.click(screen.getByRole('button', { name: /Asistencia requerida/i }))
+    expect(await screen.findByText('Ingresar código SMS')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Cancelar' }))
+    await waitFor(() => expect(screen.queryByText('Ingresar código SMS')).not.toBeInTheDocument())
+  })
+
+  it('clears the account assistance after a successful OTP submission', async () => {
+    const user = userEvent.setup()
+    server.use(http.post('/api/accounts/a-1/otp', () => new HttpResponse(null, { status: 202 })))
+    realtimeState.assistance = new Map([['a-1', { descriptor: { length: 6, type: 'numeric' } }]])
+    renderWithProviders(<Accounts />)
+
+    await waitFor(() => expect(screen.getByText('Cuenta 1')).toBeInTheDocument())
+    await user.click(screen.getByRole('button', { name: /Asistencia requerida/i }))
+    await screen.findByText('Ingresar código SMS')
+
+    const boxes = screen.getAllByRole('textbox') as HTMLInputElement[]
+    await user.type(boxes[0], '123456')
+    await waitFor(() => expect(clearAccount).toHaveBeenCalledWith('a-1'))
   })
 
   it('renders the list of accounts from the API', async () => {
@@ -207,5 +245,54 @@ describe('Accounts page', () => {
     expect(screen.queryByText(/Requerido/i)).not.toBeInTheDocument()
     // Avoid unused-vi-import warning when running in isolation.
     expect(vi).toBeDefined()
+  })
+
+  it('shows the query error state with a retry button when the list fails', async () => {
+    const user = userEvent.setup()
+    server.use(http.get('/api/accounts', () => HttpResponse.json({}, { status: 500 })))
+    renderWithProviders(<Accounts />)
+    expect(await screen.findByText(/No se pudieron cargar los datos/i)).toBeInTheDocument()
+    // Fix the endpoint and retry.
+    server.use(...accountHandlers)
+    await user.click(screen.getByRole('button', { name: /Reintentar/i }))
+    await waitFor(() => {
+      expect(screen.getByText('Cuenta 1')).toBeInTheDocument()
+    })
+  })
+
+  it('toasts the server message when creating an account fails', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.post('/api/accounts', () =>
+        HttpResponse.json({ error: 'banco rechazado' }, { status: 500 })
+      )
+    )
+    renderWithProviders(<Accounts />)
+    await waitFor(() => expect(screen.getByText('Cuenta 1')).toBeInTheDocument())
+
+    await user.click(screen.getByRole('button', { name: /Nueva cuenta/i }))
+    await screen.findByRole('dialog')
+    await user.type(screen.getByPlaceholderText(/ej: Cuenta principal/i), 'Fallida')
+    await user.click(screen.getByRole('combobox'))
+    await user.click(await screen.findByRole('option', { name: /Mi Dinero/i }))
+    await user.click(screen.getByRole('button', { name: /Crear cuenta/i }))
+
+    expect(await screen.findByText('banco rechazado')).toBeInTheDocument()
+  })
+
+  it('toasts the generic error when creating an account fails without a message', async () => {
+    const user = userEvent.setup()
+    server.use(http.post('/api/accounts', () => HttpResponse.json({}, { status: 500 })))
+    renderWithProviders(<Accounts />)
+    await waitFor(() => expect(screen.getByText('Cuenta 1')).toBeInTheDocument())
+
+    await user.click(screen.getByRole('button', { name: /Nueva cuenta/i }))
+    await screen.findByRole('dialog')
+    await user.type(screen.getByPlaceholderText(/ej: Cuenta principal/i), 'Fallida')
+    await user.click(screen.getByRole('combobox'))
+    await user.click(await screen.findByRole('option', { name: /Mi Dinero/i }))
+    await user.click(screen.getByRole('button', { name: /Crear cuenta/i }))
+
+    expect(await screen.findByText(/Algo salió mal/i)).toBeInTheDocument()
   })
 })

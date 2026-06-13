@@ -20,6 +20,12 @@ export interface AccountConfig {
   silentIngestion: boolean
   sessionType: SessionType
   loginMode: LoginMode
+  // Endpoint for status and assistance events distinct from webhookUrl which carries transactions
+  notificationEndpointUrl: string | null
+  notificationAuthType: AuthType | null
+  notificationAuthToken: string | null
+  // Subscribed event types where null or empty means none
+  notificationEvents: string[] | null
 }
 
 export interface AccountConfigInput {
@@ -38,4 +44,8 @@ export interface AccountConfigInput {
   silentIngestion: boolean
   sessionType: SessionType
   loginMode: LoginMode
+  notificationEndpointUrl: string | null
+  notificationAuthType: AuthType | null
+  notificationAuthToken: string | null
+  notificationEvents: string[] | null
 }

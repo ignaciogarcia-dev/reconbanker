@@ -9,6 +9,9 @@ import { Scheduler } from './shared/infrastructure/queues/Scheduler.js'
 import { TransactionIngestedEvent } from './shared/events/events/TransactionIngested.event.js'
 import { ConciliationMatchedEvent } from './shared/events/events/ConciliationMatched.event.js'
 import { Queues, redis } from './shared/infrastructure/queues/QueueRegistry.js'
+import { realtimeBus } from './shared/infrastructure/realtime/RealtimeBus.js'
+import { RealtimeGateway } from './api/realtime/RealtimeGateway.js'
+import { startNotifier } from './shared/infrastructure/realtime/Notifier.js'
 
 const container = buildContainer({ redis })
 const log = container.logger.child('[app]')
@@ -44,10 +47,16 @@ const PORT = process.env.PORT ?? 3000
 const app = createServer(container)
 const scheduler = new Scheduler(container)
 
-app.listen(PORT, async () => {
+const realtimeGateway = new RealtimeGateway(container.user.tokenIssuer, realtimeBus, container.logger.child('[realtime]'))
+
+// Consumes the notify stream and POSTs to each account's notification endpoint in-process alongside the workers
+const notifier = startNotifier(container)
+
+const httpServer = app.listen(PORT, async () => {
   log.info(`server listening`, { port: PORT })
   await scheduler.start()
 })
+realtimeGateway.attach(httpServer)
 
 log.info('workers started', {
   workers: [
@@ -63,6 +72,8 @@ log.info('workers started', {
 process.on('SIGTERM', async () => {
   scheduler.stop()
   container.banking.sessionManager.stopAll()
+  notifier.stop()
+  await realtimeGateway.close()
   await Promise.all([
     orderIngestionWorker.close(),
     bankScrapeWorker.close(),

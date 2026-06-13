@@ -31,6 +31,10 @@ describe('AccountConfigRepository (integration)', () => {
       silentIngestion: true,
       sessionType: 'one-shot',
       loginMode: 'simple',
+      notificationEndpointUrl: null,
+      notificationAuthType: null,
+      notificationAuthToken: null,
+      notificationEvents: null,
       ...overrides,
     }
   }

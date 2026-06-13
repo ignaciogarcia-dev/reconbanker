@@ -40,7 +40,7 @@ describe('buildAuthMiddleware', () => {
     await middleware(makeReq(), res, next)
 
     expect(res.status).toHaveBeenCalledWith(401)
-    expect(res.json).toHaveBeenCalledWith({ error: 'Unauthorized' })
+    expect(res.json).toHaveBeenCalledWith({ error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } })
     expect(next).not.toHaveBeenCalled()
     expect(tokenIssuer.verify).not.toHaveBeenCalled()
   })
@@ -51,7 +51,7 @@ describe('buildAuthMiddleware', () => {
     await middleware(makeReq({ authorization: 'Basic xyz' }), res, next)
 
     expect(res.status).toHaveBeenCalledWith(401)
-    expect(res.json).toHaveBeenCalledWith({ error: 'Unauthorized' })
+    expect(res.json).toHaveBeenCalledWith({ error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } })
     expect(next).not.toHaveBeenCalled()
   })
 
@@ -63,7 +63,7 @@ describe('buildAuthMiddleware', () => {
 
     expect(tokenIssuer.verify).toHaveBeenCalledWith('bad-token')
     expect(res.status).toHaveBeenCalledWith(401)
-    expect(res.json).toHaveBeenCalledWith({ error: 'Invalid token' })
+    expect(res.json).toHaveBeenCalledWith({ error: { code: 'INVALID_TOKEN', message: 'Invalid token' } })
     expect(next).not.toHaveBeenCalled()
   })
 
@@ -99,7 +99,7 @@ describe('buildAuthMiddleware', () => {
     await middleware(req, res, next)
 
     expect(res.status).toHaveBeenCalledWith(401)
-    expect(res.json).toHaveBeenCalledWith({ error: 'Invalid token' })
+    expect(res.json).toHaveBeenCalledWith({ error: { code: 'INVALID_TOKEN', message: 'Invalid token' } })
     expect(req.userId).toBeUndefined()
     expect(next).not.toHaveBeenCalled()
   })
@@ -113,7 +113,7 @@ describe('buildAuthMiddleware', () => {
     await middleware(makeReq({ authorization: 'Bearer weird' }), res, next)
 
     expect(res.status).toHaveBeenCalledWith(401)
-    expect(res.json).toHaveBeenCalledWith({ error: 'Invalid token' })
+    expect(res.json).toHaveBeenCalledWith({ error: { code: 'INVALID_TOKEN', message: 'Invalid token' } })
     expect(next).not.toHaveBeenCalled()
   })
 
@@ -148,7 +148,7 @@ describe('buildAuthMiddleware', () => {
       await middleware(makeReq({ authorization: 'Bearer good-token' }), res, next)
 
       expect(res.status).toHaveBeenCalledWith(401)
-      expect(res.json).toHaveBeenCalledWith({ error: 'Invalid token' })
+      expect(res.json).toHaveBeenCalledWith({ error: { code: 'INVALID_TOKEN', message: 'Invalid token' } })
       expect(next).not.toHaveBeenCalled()
     })
 

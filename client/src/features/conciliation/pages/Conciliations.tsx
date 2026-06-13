@@ -1,3 +1,4 @@
+import { QueryError } from '@/shared/ui/QueryError'
 import { useState, useMemo } from 'react'
 import { useUser } from '@/features/user/hooks/useUser'
 import { useAccounts } from '@/features/account/hooks/useAccounts'
@@ -14,6 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+import { localizedApiError } from '@/shared/http/client'
 import { X, SlidersHorizontal, Bell, CheckCircle2, Clock, Loader2, SearchX, HelpCircle, XCircle, History, Ban, Inbox, type LucideIcon } from 'lucide-react'
 
 const STATUS_KEYS = ['matched', 'pending', 'processing', 'not_found', 'ambiguous', 'failed', 'expired', 'cancelled'] as const
@@ -106,7 +109,9 @@ function OrdersTable({ requests, accounts, showAccount }: { requests: Conciliati
                         </Button>
                       } />
                       <DialogClose render={
-                        <Button onClick={() => renotify.mutate(r.id)}>
+                        <Button onClick={() => renotify.mutate(r.id, {
+                          onError: err => toast.error(localizedApiError(err) ?? t('common:errors.generic')),
+                        })}>
                           {t('conciliations.renotifyConfirm')}
                         </Button>
                       } />
@@ -143,13 +148,19 @@ export function Conciliations() {
   const [filters, setFilters] = useState<Filters>(emptyFilters)
   const [draft, setDraft] = useState<Filters>(emptyFilters)
 
-  const { data: requests = [], isLoading: loadingReqs } = useConciliations()
-  const { data: allAccounts = [], isLoading: loadingAccounts } = useAccounts()
-  const { data: me, isLoading: loadingMe } = useUser()
+  const { data: requests = [], isLoading: loadingReqs, isError: errorReqs, refetch: refetchReqs } = useConciliations()
+  const { data: allAccounts = [], isLoading: loadingAccounts, isError: errorAccounts, refetch: refetchAccounts } = useAccounts()
+  const { data: me, isLoading: loadingMe, isError: errorMe, refetch: refetchMe } = useUser()
 
   const accounts = allAccounts
 
   const isLoading = loadingReqs || loadingAccounts || loadingMe
+  const isError = errorReqs || errorAccounts || errorMe
+  const retryFailed = () => {
+    if (errorReqs) void refetchReqs()
+    if (errorAccounts) void refetchAccounts()
+    if (errorMe) void refetchMe()
+  }
   const wrongMode = !isLoading && me?.operationMode !== 'reconcile'
 
   /* v8 ignore next -- base-ui Select always passes a string; `?? ''` is a defensive fallback for null. */
@@ -195,6 +206,8 @@ export function Conciliations() {
 
       {isLoading ? (
         <p className="text-muted-foreground text-sm">{t('conciliations.loading')}</p>
+      ) : isError ? (
+        <QueryError onRetry={retryFailed} />
       ) : wrongMode ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
