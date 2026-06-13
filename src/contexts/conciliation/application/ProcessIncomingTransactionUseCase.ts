@@ -1,5 +1,7 @@
 import crypto from 'crypto'
 import { IUnitOfWork } from '../../../shared/persistence/IUnitOfWork.js'
+import { isUniqueViolation } from '../../../shared/persistence/pgErrors.js'
+import { logger } from '../../../shared/logger/index.js'
 import { IEventBus } from '../../../shared/events/IEventBus.js'
 import {
   ConciliationEngine,
@@ -29,14 +31,17 @@ export class ProcessIncomingTransactionUseCase {
   async execute({ transactionId }: JobData): Promise<void> {
     const { unitOfWork, eventBus, engine, requestRepo, attemptRepo, matchRepo, bankTransactionFinder } = this.deps
 
-    const matchedRequest = await unitOfWork.run(async (tx) => {
+    let matchedRequest
+    try {
+      matchedRequest = await unitOfWork.run(async (tx) => {
       const txRequestRepo = requestRepo.withTx(tx)
       const txAttemptRepo = attemptRepo.withTx(tx)
       const txMatchRepo = matchRepo.withTx(tx)
+      const txFinder = bankTransactionFinder.withTx(tx)
 
-      const view = await bankTransactionFinder.findById(transactionId, { forUpdate: true })
+      const view = await txFinder.findById(transactionId, { forUpdate: true })
       if (!view) return null
-      if (await bankTransactionFinder.isExcluded(transactionId)) return null
+      if (await txFinder.isExcluded(transactionId)) return null
 
       const candidate: CandidateTransaction = {
         id: view.id,
@@ -64,7 +69,7 @@ export class ProcessIncomingTransactionUseCase {
       }
 
       if (!winner) {
-        await bankTransactionFinder.markExcluded(transactionId)
+        await txFinder.markExcluded(transactionId)
         return null
       }
 
@@ -89,9 +94,19 @@ export class ProcessIncomingTransactionUseCase {
       })
 
       await txRequestRepo.save(winner)
-      await bankTransactionFinder.markExcluded(transactionId)
+      await txFinder.markExcluded(transactionId)
       return winner
-    })
+      })
+    } catch (err) {
+      // The 043 partial unique index means a concurrent execution already
+      // conciliated this transaction as primary. Abort cleanly: the unit of work
+      // rolled back, leaving the winning match intact.
+      if (isUniqueViolation(err, 'uq_conciliated_bank_tx_primary')) {
+        logger.info('[conciliation] lost double-match race; transaction already conciliated', { transactionId })
+        return
+      }
+      throw err
+    }
 
     if (!matchedRequest) return
 

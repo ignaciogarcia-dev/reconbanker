@@ -89,8 +89,8 @@ export class BankTransactionRepository implements IBankTransactionRepository {
     )
   }
 
-  async save(tx: BankTransaction): Promise<void> {
-    await this.executor.query(
+  async save(tx: BankTransaction): Promise<boolean> {
+    const result = await this.executor.query(
       `INSERT INTO bank_transactions
          (id, account_id, external_id, reference_hash, amount, currency, sender_name, received_at, script_id, ingested_at, raw_payload)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,now(),$10)
@@ -108,5 +108,6 @@ export class BankTransactionRepository implements IBankTransactionRepository {
         JSON.stringify(tx.rawPayload),
       ]
     )
+    return (result.rowCount ?? 0) > 0
   }
 }

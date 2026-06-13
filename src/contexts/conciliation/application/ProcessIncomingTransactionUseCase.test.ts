@@ -41,12 +41,15 @@ function makeDeps(overrides: {
     publish: vi.fn().mockResolvedValue(undefined),
     publishAll: vi.fn().mockResolvedValue(undefined),
   }
-  const bankTransactionFinder = {
+  const bankTransactionFinder: any = {
     findCandidatesForAccount: vi.fn(),
     findById: vi.fn().mockResolvedValue(overrides.view === undefined ? null : overrides.view),
     isExcluded: vi.fn().mockResolvedValue(overrides.excluded ?? false),
     markExcluded: vi.fn().mockResolvedValue(undefined),
   }
+  // The finder must be rebound to the unit-of-work transaction so its
+  // FOR UPDATE lock and markExcluded run on the transaction's connection.
+  bankTransactionFinder.withTx = vi.fn(() => bankTransactionFinder)
   const engine = {
     evaluate: vi.fn().mockReturnValue(overrides.engineResult ?? MatchResult.notFound()),
   }
@@ -135,6 +138,60 @@ describe('ProcessIncomingTransactionUseCase', () => {
     expect(winning.status).toBe('matched')
     expect(winning.domainEvents).toHaveLength(0)
     expect(deps.engine.evaluate).toHaveBeenCalledTimes(1)
+  })
+
+  it('aborts cleanly (no throw, no events) when another request already claimed the transaction', async () => {
+    const winning = ConciliationRequest.create('req-win', {
+      accountId: 'acc-1', externalId: 'ext-win',
+      expectedAmount: 100, currency: 'USD', senderName: 'Alice',
+    })
+    const deps = makeDeps({
+      view: { id: 'tx-1', accountId: 'acc-1', amount: 100, currency: 'USD', senderName: 'Alice', receivedAt: new Date() },
+      pending: [winning],
+    })
+    deps.engine.evaluate.mockReturnValueOnce(MatchResult.matched('tx-1', ['tx-1']))
+    // The 043 unique index fires because a concurrent execution won the race.
+    deps.matchRepo.save.mockImplementation(async () => {
+      const e: any = new Error('duplicate key value violates unique constraint')
+      e.code = '23505'
+      e.constraint = 'uq_conciliated_bank_tx_primary'
+      throw e
+    })
+
+    const useCase = new ProcessIncomingTransactionUseCase(deps as any)
+    await expect(useCase.execute({ transactionId: 'tx-1' })).resolves.toBeUndefined()
+    expect(deps.eventBus.publishAll).not.toHaveBeenCalled()
+  })
+
+  it('rethrows a non-unique-violation persistence error', async () => {
+    const winning = ConciliationRequest.create('req-win', {
+      accountId: 'acc-1', externalId: 'ext-win',
+      expectedAmount: 100, currency: 'USD', senderName: 'Alice',
+    })
+    const deps = makeDeps({
+      view: { id: 'tx-1', accountId: 'acc-1', amount: 100, currency: 'USD', senderName: 'Alice', receivedAt: new Date() },
+      pending: [winning],
+    })
+    deps.engine.evaluate.mockReturnValueOnce(MatchResult.matched('tx-1', ['tx-1']))
+    deps.matchRepo.save.mockRejectedValue(new Error('connection terminated'))
+
+    const useCase = new ProcessIncomingTransactionUseCase(deps as any)
+    await expect(useCase.execute({ transactionId: 'tx-1' })).rejects.toThrow(/connection terminated/)
+  })
+
+  it('binds the bank-transaction finder to the unit-of-work transaction', async () => {
+    const req = ConciliationRequest.create('req-1', {
+      accountId: 'acc-1', externalId: 'ext-1',
+      expectedAmount: 100, currency: 'USD', senderName: 'Alice',
+    })
+    const deps = makeDeps({
+      view: { id: 'tx-1', accountId: 'acc-1', amount: 100, currency: 'USD', senderName: 'Alice', receivedAt: new Date() },
+      pending: [req],
+      engineResult: MatchResult.matched('tx-1', ['tx-1']),
+    })
+    const useCase = new ProcessIncomingTransactionUseCase(deps as any)
+    await useCase.execute({ transactionId: 'tx-1' })
+    expect(deps.bankTransactionFinder.withTx).toHaveBeenCalledTimes(1)
   })
 
   it('breaks early on first matching candidate without evaluating remaining', async () => {

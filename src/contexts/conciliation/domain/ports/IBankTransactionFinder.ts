@@ -15,7 +15,13 @@ export interface BankTransactionView {
   receivedAt: Date
 }
 
+import type { Tx } from '../../../../shared/persistence/index.js'
+
 export interface IBankTransactionFinder {
+  // Rebinds every query to the given transaction so FOR UPDATE locks and
+  // markExcluded run on the unit-of-work connection (not an autocommit pooled
+  // one, where the lock would release immediately).
+  withTx(tx: Tx): IBankTransactionFinder
   findCandidatesForAccount(accountId: string): Promise<BankTransactionCandidate[]>
   findById(id: string, opts?: { forUpdate?: boolean }): Promise<BankTransactionView | null>
   isExcluded(id: string): Promise<boolean>

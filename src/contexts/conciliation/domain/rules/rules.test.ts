@@ -37,6 +37,16 @@ describe('applyDateWindowRule', () => {
     const tooOld = tx({ receivedAt: new Date('2023-12-01T00:00:00Z') })
     expect(applyDateWindowRule(request(), [tooOld])).toEqual([])
   })
+
+  it('rejects transactions received far after createdAt (window is bounded forward too)', () => {
+    const future = tx({ id: 'future', receivedAt: new Date('2024-02-01T00:00:00Z') })
+    expect(applyDateWindowRule(request(), [future])).toEqual([])
+  })
+
+  it('keeps a transaction received shortly after createdAt within the forward window', () => {
+    const justAfter = tx({ id: 'after', receivedAt: new Date('2024-01-18T00:00:00Z') })
+    expect(applyDateWindowRule(request(), [justAfter]).map((t) => t.id)).toEqual(['after'])
+  })
 })
 
 describe('applyExactAmountRule', () => {

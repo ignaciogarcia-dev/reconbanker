@@ -19,11 +19,12 @@ export class InMemoryBankTransactionRepository implements IBankTransactionReposi
     txs.sort((a, b) => b.receivedAt.getTime() - a.receivedAt.getTime())
     return txs[0].externalId
   }
-  async save(tx: BankTransaction) {
+  async save(tx: BankTransaction): Promise<boolean> {
     const key = `${tx.accountId}::${tx.externalId}`
     const existing = [...this.store.values()].find((t) => `${t.accountId}::${t.externalId}` === key)
-    if (existing) return
+    if (existing) return false
     this.store.set(tx.id, tx)
+    return true
   }
   async markExcluded(id: string) { this.excluded.add(id) }
   async isExcluded(id: string) { return this.excluded.has(id) }

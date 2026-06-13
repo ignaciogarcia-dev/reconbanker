@@ -35,4 +35,23 @@ describe('IngestTransactionsUseCase', () => {
     expect(saved).toBe(1)
     expect(txRepo.store.size).toBe(2)
   })
+
+  it('does not publish an event when the insert was a no-op (lost the concurrent dedup race)', async () => {
+    const eventBus = new InMemoryEventBus()
+    const handler = vi.fn().mockResolvedValue(undefined)
+    eventBus.subscribe('TransactionIngested', handler)
+    // The row looks absent at check time, but ON CONFLICT DO NOTHING means the
+    // INSERT did not actually persist (a concurrent process won the race).
+    const txRepo: any = {
+      withTx: () => txRepo,
+      findByExternalId: vi.fn().mockResolvedValue(null),
+      save: vi.fn().mockResolvedValue(false),
+    }
+    const useCase = new IngestTransactionsUseCase({ txRepo, eventBus })
+
+    const saved = await useCase.execute('acc-1', 'script-1', [sample('ext-1')])
+
+    expect(saved).toBe(0)
+    expect(handler).not.toHaveBeenCalled()
+  })
 })

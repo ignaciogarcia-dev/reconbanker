@@ -65,7 +65,7 @@ export function buildConciliationModule(container: ContainerBase): ConciliationM
   const accountRepo = container.account.accountRepository
   const userRepo = container.user.userRepository
 
-  const bankTransactionFinder = new BankTransactionFinderAdapter(container.pool, bankTxRepo)
+  const bankTransactionFinder = new BankTransactionFinderAdapter(exec, bankTxRepo)
   const configReader = new AccountConfigReaderAdapter(container.pool)
   const accountReader = new AccountReaderAdapter(accountRepo)
   const userModeReader = new UserOperationModeReaderAdapter(userRepo)

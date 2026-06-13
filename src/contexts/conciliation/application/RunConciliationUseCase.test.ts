@@ -17,22 +17,25 @@ function buildSut(candidates: any[]) {
   const attemptRepo = new InMemoryConciliationAttemptRepository()
   const eventBus = new InMemoryEventBus()
   const excluded = new Set<string>()
-  const finder: IBankTransactionFinder = {
+  const finder: any = {
     findCandidatesForAccount: async () => candidates,
     findById: async () => null,
-    isExcluded: async (id) => excluded.has(id),
-    markExcluded: async (id) => { excluded.add(id) },
+    isExcluded: async (id: string) => excluded.has(id),
+    markExcluded: async (id: string) => { excluded.add(id) },
   }
+  // Rebound to the transaction so candidate reads and markExcluded share the
+  // unit-of-work connection. The fake returns itself.
+  finder.withTx = vi.fn(() => finder)
   const uow = new InMemoryUnitOfWork()
   const useCase = new RunConciliationUseCase({
     unitOfWork: uow, eventBus,
     requestRepo: requestRepo as any,
     attemptRepo: attemptRepo as any,
     matchRepo: matchRepo as any,
-    bankTransactionFinder: finder,
+    bankTransactionFinder: finder as IBankTransactionFinder,
     engine: new ConciliationEngine(),
   })
-  return { useCase, requestRepo, matchRepo, attemptRepo, eventBus, excluded }
+  return { useCase, requestRepo, matchRepo, attemptRepo, eventBus, excluded, finder }
 }
 
 describe('RunConciliationUseCase', () => {
@@ -105,6 +108,56 @@ describe('RunConciliationUseCase', () => {
     expect(requestRepo.store.get('req-1')!.status).toBe('ambiguous')
     expect(attemptRepo.attempts[0].status).toBe('ambiguous')
     expect(attemptRepo.attempts[0].failureType).toBe('multiple_candidates')
+  })
+
+  it('binds the bank-transaction finder to the unit-of-work transaction', async () => {
+    const req = ConciliationRequest.create('req-1', {
+      accountId: 'acc-1', externalId: 'ext-1',
+      expectedAmount: 100, currency: 'USD', senderName: 'Alice',
+    })
+    const { useCase, requestRepo, finder } = buildSut([
+      { id: 'tx-1', amount: 100, currency: 'USD', senderName: 'Alice', receivedAt: new Date() },
+    ])
+    requestRepo.store.set(req.id, req)
+    await useCase.execute({ requestId: 'req-1' })
+    expect(finder.withTx).toHaveBeenCalledTimes(1)
+  })
+
+  it('aborts cleanly (no throw, no events) when another request already claimed the transaction', async () => {
+    const req = ConciliationRequest.create('req-1', {
+      accountId: 'acc-1', externalId: 'ext-1',
+      expectedAmount: 100, currency: 'USD', senderName: 'Alice',
+    })
+    const { useCase, requestRepo, matchRepo, eventBus } = buildSut([
+      { id: 'tx-1', amount: 100, currency: 'USD', senderName: 'Alice', receivedAt: new Date() },
+    ])
+    requestRepo.store.set(req.id, req)
+    const handler = vi.fn().mockResolvedValue(undefined)
+    eventBus.subscribe('ConciliationMatched', handler)
+    // The DB backstop fires because a concurrent execution won the race.
+    matchRepo.save = async () => {
+      const e: any = new Error('duplicate key value violates unique constraint')
+      e.code = '23505'
+      e.constraint = 'uq_conciliated_bank_tx_primary'
+      throw e
+    }
+
+    await expect(useCase.execute({ requestId: 'req-1' })).resolves.toBeUndefined()
+    expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('rethrows a non-unique-violation persistence error', async () => {
+    const req = ConciliationRequest.create('req-1', {
+      accountId: 'acc-1', externalId: 'ext-1',
+      expectedAmount: 100, currency: 'USD', senderName: 'Alice',
+    })
+    const { useCase, requestRepo, matchRepo } = buildSut([
+      { id: 'tx-1', amount: 100, currency: 'USD', senderName: 'Alice', receivedAt: new Date() },
+    ])
+    requestRepo.store.set(req.id, req)
+    matchRepo.save = async () => { throw new Error('connection terminated') }
+
+    await expect(useCase.execute({ requestId: 'req-1' })).rejects.toThrow(/connection terminated/)
   })
 
   it('publishes domain events when match occurs', async () => {
