@@ -14,7 +14,7 @@ const clientDist = path.resolve(__dirname, "../../client/dist")
 
 const DEV_CORS_ORIGINS = ["http://localhost:5173", "http://localhost:5174"]
 
-function resolveCorsOrigins(): string[] {
+export function resolveCorsOrigins(): string[] {
   const fromEnv = process.env.CORS_ORIGINS?.split(",").map((o) => o.trim()).filter(Boolean)
   if (fromEnv && fromEnv.length > 0) return fromEnv
   // No origins configured: only fall back to localhost outside production.
