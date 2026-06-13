@@ -21,6 +21,31 @@ export class ConciliationRequestRepository implements IConciliationRequestReposi
     return rows[0] ? ConciliationRequestRowMapper.toAggregate(rows[0]) : null
   }
 
+  async createIfAbsent(request: ConciliationRequest): Promise<boolean> {
+    // ON CONFLICT on the natural key (not id) so two concurrent polls inserting
+    // the same order do not raise a unique violation — the loser is a no-op.
+    const result = await this.executor.query(
+      `INSERT INTO conciliation_requests
+         (id, account_id, external_id, expected_amount, currency, sender_name, status, idempotency_key, retry_count, last_checked_at, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       ON CONFLICT (account_id, external_id) DO NOTHING`,
+      [
+        request.id,
+        request.accountId,
+        request.externalId,
+        request.expectedAmount,
+        request.currency,
+        request.senderName ?? null,
+        request.status,
+        request.idempotencyKey ?? null,
+        request.retryCount,
+        request.lastCheckedAt ?? null,
+        request.createdAt,
+      ]
+    )
+    return (result.rowCount ?? 0) > 0
+  }
+
   async findByIdForUpdate(id: string): Promise<ConciliationRequest | null> {
     const { rows } = await this.executor.query<ConciliationRequestRow>(
       `SELECT * FROM conciliation_requests WHERE id = $1 FOR UPDATE SKIP LOCKED`,

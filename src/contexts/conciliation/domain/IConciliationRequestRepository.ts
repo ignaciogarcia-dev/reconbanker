@@ -13,5 +13,9 @@ export interface IConciliationRequestRepository {
   findStale(olderThan: Date, limit?: number): Promise<StaleRequestRef[]>
   hasActiveRequests(accountId: string): Promise<boolean>
   save(request: ConciliationRequest): Promise<void>
+  // Inserts a brand-new request, tolerating a concurrent insert of the same
+  // (account_id, external_id). Returns true only if this call inserted the row,
+  // so the caller enqueues processing exactly once.
+  createIfAbsent(request: ConciliationRequest): Promise<boolean>
   cancelMissing(accountId: string, presentExternalIds: string[]): Promise<number>
 }

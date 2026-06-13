@@ -43,6 +43,14 @@ export class InMemoryConciliationRequestRepository implements IConciliationReque
     )
   }
   async save(request: ConciliationRequest) { this.store.set(request.id, request) }
+  async createIfAbsent(request: ConciliationRequest): Promise<boolean> {
+    const exists = [...this.store.values()].some(
+      (r) => r.accountId === request.accountId && r.externalId === request.externalId
+    )
+    if (exists) return false
+    this.store.set(request.id, request)
+    return true
+  }
   async cancelMissing(accountId: string, presentExternalIds: string[]) {
     let count = 0
     for (const r of this.store.values()) {
