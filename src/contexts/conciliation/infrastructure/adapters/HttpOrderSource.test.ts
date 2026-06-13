@@ -1,4 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+
+// assertSafeUrl has its own SSRF tests and does real DNS; mock it here so these
+// tests stay offline and we can drive the "blocked at send time" path.
+const { assertSafeUrlMock } = vi.hoisted(() => ({ assertSafeUrlMock: vi.fn() }))
+vi.mock('../../../../shared/net/assertSafeUrl.js', () => ({ assertSafeUrl: assertSafeUrlMock }))
+
 import { HttpOrderSource } from './HttpOrderSource.js'
 import { ValidationError } from '../../../../shared/errors/index.js'
 
@@ -28,10 +34,56 @@ describe('HttpOrderSource', () => {
   beforeEach(() => {
     fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
+    assertSafeUrlMock.mockReset()
+    assertSafeUrlMock.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
+  })
+
+  it('re-validates the endpoint right before polling (closes the config→poll TOCTOU window)', async () => {
+    fetchMock.mockResolvedValue(makeResponse({ contentType: 'application/json', json: async () => [] }))
+    const src = new HttpOrderSource()
+    await src.fetch({
+      accountId: 'acc-1',
+      pendingOrdersEndpoint: 'https://example.com/pending',
+      pollingMethod: 'GET',
+      pollingBody: null,
+      authType: null,
+      authToken: null,
+    } as any)
+    expect(assertSafeUrlMock).toHaveBeenCalledWith('https://example.com/pending', expect.any(String))
+  })
+
+  it('does not poll when the endpoint now resolves to a blocked address', async () => {
+    assertSafeUrlMock.mockRejectedValueOnce(new Error('blocked: private address'))
+    const src = new HttpOrderSource()
+    await expect(
+      src.fetch({
+        accountId: 'acc-1',
+        pendingOrdersEndpoint: 'https://rebound.example.com/pending',
+        pollingMethod: 'GET',
+        pollingBody: null,
+        authType: null,
+        authToken: null,
+      } as any),
+    ).rejects.toThrow(/blocked/)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('disallows following redirects (SSRF: a polling endpoint must not 3xx us to an internal IP)', async () => {
+    fetchMock.mockResolvedValue(makeResponse({ contentType: 'application/json', json: async () => [] }))
+    const src = new HttpOrderSource()
+    await src.fetch({
+      accountId: 'acc-1',
+      pendingOrdersEndpoint: 'https://example.com/pending',
+      pollingMethod: 'GET',
+      pollingBody: null,
+      authType: null,
+      authToken: null,
+    })
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ redirect: 'error' })
   })
 
   it('returns [] without calling fetch when no endpoint is configured', async () => {
