@@ -174,6 +174,19 @@ describe('SessionManager', () => {
     expect(log.warn).toHaveBeenCalledWith('session stopped', { accountId: 'acc-1', reason: 'auth_timeout' })
   })
 
+  it('catches a failure while recording the stop so it is not an unhandled rejection', async () => {
+    const repo = { markRunning: vi.fn().mockResolvedValue(undefined), markStopped: vi.fn().mockRejectedValue(new Error('db down')) }
+    const log = fakeLogger()
+    const startFn = vi.fn().mockResolvedValue({ stop: vi.fn(), done: Promise.reject(new Error('boom')) } as SessionHandle)
+    const mgr = new SessionManager(startFn, repo as any, log)
+
+    await mgr.ensureRunning('acc-1')
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(repo.markStopped).toHaveBeenCalled()
+    expect(log.error).toHaveBeenCalledWith('failed to record session stop', expect.objectContaining({ accountId: 'acc-1' }))
+  })
+
   it('coerces non-Error rejections from startFn to a string for markStopped', async () => {
     const repo = sessionRepo()
     const startFn = vi.fn().mockRejectedValue('login_failed: raw string')

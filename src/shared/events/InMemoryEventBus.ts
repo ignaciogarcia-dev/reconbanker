@@ -14,7 +14,11 @@ export class InMemoryEventBus implements IEventBus {
 
   async publish(event: DomainEvent): Promise<void> {
     const handlers = this.handlers.get(event.eventType) ?? []
+    // allSettled so one failing handler never starves the others, but the
+    // failures are then re-thrown — callers (queue workers) must see them and
+    // fail the job loudly instead of silently dropping the side-effect.
     const results = await Promise.allSettled(handlers.map((h) => h(event)))
+    const failures: unknown[] = []
     for (const r of results) {
       if (r.status === 'rejected') {
         this.logger?.error('event handler failed', {
@@ -22,7 +26,14 @@ export class InMemoryEventBus implements IEventBus {
           aggregateId: event.aggregateId,
           error: r.reason instanceof Error ? r.reason.message : String(r.reason),
         })
+        failures.push(r.reason)
       }
+    }
+    if (failures.length > 0) {
+      throw new AggregateError(
+        failures,
+        `${failures.length} handler(s) failed for event ${event.eventType}`,
+      )
     }
   }
 

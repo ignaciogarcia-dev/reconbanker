@@ -20,7 +20,7 @@ describe('InMemoryEventBus', () => {
     expect(b).toHaveBeenCalledTimes(1)
   })
 
-  it('does not throw when a handler rejects and still calls others', async () => {
+  it('runs every handler even if one rejects, logs, then surfaces the failure', async () => {
     const log = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn() }
     log.child.mockReturnValue(log as any)
     const bus = new InMemoryEventBus(log as any)
@@ -28,7 +28,9 @@ describe('InMemoryEventBus', () => {
     const b = vi.fn().mockResolvedValue(undefined)
     bus.subscribe('Foo', a)
     bus.subscribe('Foo', b)
-    await expect(bus.publish(evt('Foo'))).resolves.toBeUndefined()
+    // The failure must not be swallowed: callers (workers) need it to fail the
+    // job loudly rather than silently lose the side-effect.
+    await expect(bus.publish(evt('Foo'))).rejects.toThrow()
     expect(b).toHaveBeenCalled()
     expect(log.error).toHaveBeenCalled()
   })
@@ -51,7 +53,7 @@ describe('InMemoryEventBus', () => {
     log.child.mockReturnValue(log as any)
     const bus = new InMemoryEventBus(log as any)
     bus.subscribe('Foo', () => Promise.reject('plain string failure'))
-    await bus.publish(evt('Foo'))
+    await expect(bus.publish(evt('Foo'))).rejects.toThrow()
     expect(log.error).toHaveBeenCalledWith('event handler failed', expect.objectContaining({
       error: 'plain string failure',
     }))
