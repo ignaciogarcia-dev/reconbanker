@@ -1,3 +1,4 @@
+import { QueryError } from '@/shared/ui/QueryError'
 import { useQueries } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import { Building2, GitMerge, CheckCircle, AlertCircle, Bell, LineChart as LineChartIcon } from 'lucide-react'
@@ -131,6 +132,12 @@ export function Dashboard() {
 
   const allMovements = movementResults.flatMap(r => r.data ?? [])
 
+  const isError = accountsQuery.isError || conciliationsQuery.isError
+  const retryFailed = () => {
+    if (accountsQuery.isError) void accountsQuery.refetch()
+    if (conciliationsQuery.isError) void conciliationsQuery.refetch()
+  }
+
   // Reconcile stats
   const reconciledToday = conciliations.filter(
     r => r.status === 'matched' && new Date(r.createdAt).toLocaleDateString('sv') === today
@@ -146,6 +153,18 @@ export function Dashboard() {
   const { data: movementChart, groupedByMonth: movementGrouped } = buildTimeSeriesData(
     allMovements.map(m => m.receivedAt)
   )
+
+  if (isError) {
+    return (
+      <div className="p-8 space-y-8">
+        <div>
+          <h2 className="text-2xl font-semibold">{t('dashboard.title')}</h2>
+          <p className="text-muted-foreground">{t('dashboard.subtitle')}</p>
+        </div>
+        <QueryError onRetry={retryFailed} />
+      </div>
+    )
+  }
 
   return (
     <div className="p-8 space-y-8">

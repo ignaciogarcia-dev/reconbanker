@@ -1,3 +1,4 @@
+import { QueryError } from '@/shared/ui/QueryError'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAccounts } from '@/features/account/hooks/useAccounts'
 import { useBankMovements, useReNotifyMovement, bankMovementsQueryKey } from '../hooks/useBankMovements'
@@ -8,13 +9,15 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+import { localizedApiError } from '@/shared/http/client'
 import { Bell, CheckCircle2, Clock, Inbox } from 'lucide-react'
 
 function MovementsTable({ accountId }: { accountId: string }) {
-  const { t } = useTranslation('banking')
+  const { t } = useTranslation(['banking', 'common'])
   const qc = useQueryClient()
 
-  const { data: movements = [], isLoading } = useBankMovements(accountId)
+  const { data: movements = [], isLoading, isError, refetch } = useBankMovements(accountId)
 
   const renotify = useReNotifyMovement(accountId)
 
@@ -23,11 +26,16 @@ function MovementsTable({ accountId }: { accountId: string }) {
       onSuccess: () => {
         qc.invalidateQueries({ queryKey: bankMovementsQueryKey(accountId) })
       },
+      onError: err => toast.error(localizedApiError(err) ?? t('common:errors.generic')),
     })
   }
 
   if (isLoading) {
     return <p className="text-muted-foreground text-sm">{t('movements.loading')}</p>
+  }
+
+  if (isError) {
+    return <QueryError onRetry={() => refetch()} />
   }
 
   return (
@@ -113,7 +121,7 @@ function MovementsTable({ accountId }: { accountId: string }) {
 
 export function BankMovements() {
   const { t } = useTranslation('banking')
-  const { data: accounts = [], isLoading } = useAccounts()
+  const { data: accounts = [], isLoading, isError, refetch } = useAccounts()
 
   return (
     <div className="p-8 space-y-6">
@@ -124,6 +132,8 @@ export function BankMovements() {
 
       {isLoading ? (
         <p className="text-muted-foreground text-sm">{t('movements.loading')}</p>
+      ) : isError ? (
+        <QueryError onRetry={() => refetch()} />
       ) : accounts.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">

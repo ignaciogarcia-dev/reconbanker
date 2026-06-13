@@ -155,4 +155,73 @@ describe('Scripts page', () => {
       expect(screen.getByText('unknown-code')).toBeInTheDocument()
     })
   })
+
+  it('shows the query error state with a retry button when the list fails', async () => {
+    const user = userEvent.setup()
+    server.use(http.get('/api/scripts', () => HttpResponse.json({}, { status: 500 })))
+    renderWithProviders(<Scripts />)
+    expect(await screen.findByText(/No se pudieron cargar los datos/i)).toBeInTheDocument()
+    // Fix the endpoint and retry.
+    server.use(...scriptEngineHandlers)
+    await user.click(screen.getByRole('button', { name: /Reintentar/i }))
+    await waitFor(() => expect(screen.getByText('2.0.1')).toBeInTheDocument())
+  })
+
+  it('toasts the server message when promoting fails', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.get('/api/scripts', () =>
+        HttpResponse.json([
+          {
+            id: 's-9',
+            bank: 'mi-dinero',
+            flowType: 'extract_transactions',
+            version: '3.0.0',
+            status: 'review',
+            origin: 'system',
+            createdAt: '2026-05-17T10:00:00Z',
+          },
+        ])
+      ),
+      http.post('/api/scripts/s-9/promote', () =>
+        HttpResponse.json({ error: 'sandbox caído' }, { status: 500 })
+      )
+    )
+    renderWithProviders(<Scripts />)
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Todos' })).toBeInTheDocument())
+    await user.click(screen.getByRole('tab', { name: 'Todos' }))
+    await waitFor(() => expect(screen.getByText('3.0.0')).toBeInTheDocument())
+
+    await user.click(screen.getByRole('button', { name: /Promover/i }))
+    expect(await screen.findAllByText('sandbox caído')).not.toHaveLength(0)
+  })
+
+  it('toasts the fallback messages when promoting fails without a message', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.get('/api/scripts', () =>
+        HttpResponse.json([
+          {
+            id: 's-9',
+            bank: 'mi-dinero',
+            flowType: 'extract_transactions',
+            version: '3.0.0',
+            status: 'review',
+            origin: 'system',
+            createdAt: '2026-05-17T10:00:00Z',
+          },
+        ])
+      ),
+      http.post('/api/scripts/s-9/promote', () => HttpResponse.json({}, { status: 500 }))
+    )
+    renderWithProviders(<Scripts />)
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Todos' })).toBeInTheDocument())
+    await user.click(screen.getByRole('tab', { name: 'Todos' }))
+    await waitFor(() => expect(screen.getByText('3.0.0')).toBeInTheDocument())
+
+    await user.click(screen.getByRole('button', { name: /Promover/i }))
+    // Hook-level and button-level handlers each toast their own fallback copy.
+    expect(await screen.findByText(/No se pudo promover el script/i)).toBeInTheDocument()
+    expect(await screen.findByText(/Algo salió mal/i)).toBeInTheDocument()
+  })
 })

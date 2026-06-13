@@ -266,6 +266,21 @@ describe('AccountConfig page', () => {
     })
   })
 
+  it('shows the query error state with a retry button when loading the config fails', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.get('/api/accounts/:accountId/config', () => HttpResponse.json({}, { status: 500 }))
+    )
+    renderAccountConfig()
+    expect(await screen.findByText(/No se pudieron cargar los datos/i)).toBeInTheDocument()
+    // Fix the endpoint and retry.
+    server.use(...accountHandlers)
+    await user.click(screen.getByRole('button', { name: /Reintentar/i }))
+    await waitFor(() => {
+      expect(screen.getByText('Configuración de cuenta')).toBeInTheDocument()
+    })
+  })
+
   it('shows the credentials tab by default', async () => {
     renderAccountConfig()
     await waitFor(() => {

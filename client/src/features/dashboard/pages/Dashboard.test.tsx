@@ -42,6 +42,7 @@ vi.mock('recharts', async () => {
 })
 import { http, HttpResponse } from 'msw'
 import { screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { server } from '../../../../tests/msw/server'
 import { accountHandlers } from '../../../../tests/msw/handlers/account'
 import { conciliationHandlers } from '../../../../tests/msw/handlers/conciliation'
@@ -274,5 +275,45 @@ describe('Dashboard (passthrough mode)', () => {
     expect(monthFmt.tick!('2026-05')).toBe('05/26')
     // Month-grouped label: 2026-05 → 05/2026
     expect(monthFmt.label!('2026-05')).toBe('05/2026')
+  })
+
+  it('shows the query error state and retries all failing queries', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.get('/api/accounts', () => HttpResponse.json({}, { status: 500 })),
+      http.get('/api/conciliation', () => HttpResponse.json({}, { status: 500 }))
+    )
+    renderWithProviders(<Dashboard />)
+    expect(await screen.findByText(/No se pudieron cargar los datos/i)).toBeInTheDocument()
+    // Fix the endpoints and retry.
+    server.use(...accountHandlers, ...conciliationHandlers)
+    await user.click(screen.getByRole('button', { name: /Reintentar/i }))
+    await waitFor(() => {
+      expect(screen.queryByText(/No se pudieron cargar los datos/i)).not.toBeInTheDocument()
+    })
+  })
+
+  it('retries only the accounts query when it is the only failing one', async () => {
+    const user = userEvent.setup()
+    server.use(http.get('/api/accounts', () => HttpResponse.json({}, { status: 500 })))
+    renderWithProviders(<Dashboard />)
+    expect(await screen.findByText(/No se pudieron cargar los datos/i)).toBeInTheDocument()
+    server.use(...accountHandlers)
+    await user.click(screen.getByRole('button', { name: /Reintentar/i }))
+    await waitFor(() => {
+      expect(screen.queryByText(/No se pudieron cargar los datos/i)).not.toBeInTheDocument()
+    })
+  })
+
+  it('retries only the conciliations query when it is the only failing one', async () => {
+    const user = userEvent.setup()
+    server.use(http.get('/api/conciliation', () => HttpResponse.json({}, { status: 500 })))
+    renderWithProviders(<Dashboard />)
+    expect(await screen.findByText(/No se pudieron cargar los datos/i)).toBeInTheDocument()
+    server.use(...conciliationHandlers)
+    await user.click(screen.getByRole('button', { name: /Reintentar/i }))
+    await waitFor(() => {
+      expect(screen.queryByText(/No se pudieron cargar los datos/i)).not.toBeInTheDocument()
+    })
   })
 })

@@ -1,8 +1,10 @@
+import { QueryError } from '@/shared/ui/QueryError'
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
+import { FormField } from '@/shared/ui/FormField'
 import { Label } from '@/shared/ui/label'
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
@@ -10,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/ui/tooltip'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
 import { cn } from '@/shared/lib/utils'
+import { localizedApiError } from '@/shared/http/client'
 import { Radio } from '@base-ui/react/radio'
 import { RadioGroup } from '@base-ui/react/radio-group'
 import { ArrowLeft, Save, Info, Trash2, AlertTriangle, ShieldAlert, Check, Bell, BellOff, TrendingDown, Lock, FileCheck, Settings as SettingsIcon, Terminal, KeyRound, Webhook, ListChecks, AlertCircle } from 'lucide-react'
@@ -61,7 +64,7 @@ export function AccountConfig() {
   const [activeTab, setActiveTab] = useState<string>('credentials-session')
 
   const { data: account } = useAccount(accountId)
-  const { data, isLoading } = useAccountConfig(accountId)
+  const { data, isLoading, isError, refetch } = useAccountConfig(accountId)
 
   const hasSavedCredential = !!(data?.bankUsername && data.bankUsername.trim() !== '')
 
@@ -78,7 +81,7 @@ export function AccountConfig() {
         return ['pendingOrdersEndpoint', 'authToken']
       case 'webhook':
         return ['webhookUrl']
-      /* v8 ignore start -- exhaustive switch over fixed tab IDs; default is unreachable. */
+      /* v8 ignore start -- exhaustive switch over fixed tab IDs makes default unreachable */
       default:
         return []
       /* v8 ignore stop */
@@ -89,7 +92,7 @@ export function AccountConfig() {
     const required = requiredFieldsFor(tab)
     const done = required.filter(k => {
       const value = form[k]
-      /* v8 ignore next -- all required fields are strings; the String(value) coercion is defensive. */
+      /* v8 ignore next -- all required fields are strings so the `String(value)` coercion is defensive */
       const stringValue = typeof value === 'string' ? value : String(value)
       return stringValue.trim() !== '' && !liveErrors[k]
     }).length
@@ -122,7 +125,7 @@ export function AccountConfig() {
 
   useEffect(() => {
     if (!data) return
-    // Hydrate the editable form from the loaded config snapshot.
+    // Hydrate the editable form from the loaded config snapshot
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setForm(f => ({
       ...f,
@@ -166,13 +169,13 @@ export function AccountConfig() {
     if (!trimmed) return null
     try {
       const parsed = JSON.parse(trimmed)
-      /* v8 ignore else -- validation rejects arrays for extra-fields and non-object pollingBody never round-trips through here in practice. */
+      /* v8 ignore else -- validation rejects arrays and non-object payloads before this point */
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
         return parsed as Record<string, unknown>
       }
-    /* v8 ignore start -- validation already gates malformed JSON and non-object payloads before reaching the catch + fallback return. */
+    /* v8 ignore start -- validation already gates malformed JSON before the catch and fallback return */
     } catch {
-      // Ignored — validation already gates this path.
+      // Ignored because validation already gates this path
     }
     return null
     /* v8 ignore stop */
@@ -194,7 +197,7 @@ export function AccountConfig() {
     if (Object.keys(next).length > 0) {
       setErrors(next)
       const firstField = FIELD_ORDER.find(k => next[k] !== undefined)
-      /* v8 ignore else -- validation always sets errors keyed by FIELD_ORDER, so `find` always matches. */
+      /* v8 ignore else -- validation always sets errors keyed by `FIELD_ORDER` so `find` always matches */
       if (firstField) {
         const targetTab = resolveTabForField(firstField, mode)
         if (targetTab && targetTab !== activeTab) setActiveTab(targetTab)
@@ -238,9 +241,9 @@ export function AccountConfig() {
         },
         onError: (err: unknown) => {
           const message =
-            (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+            localizedApiError(err) ??
             (err as { message?: string })?.message ??
-            /* v8 ignore start -- axios always populates err.message, so the generic fallback is unreachable. */
+            /* v8 ignore start -- axios always populates err.message so the generic fallback is unreachable */
             t('accountConfig.errors.generic')
             /* v8 ignore stop */
           const field = mapServerErrorToField(message)
@@ -257,15 +260,14 @@ export function AccountConfig() {
   }
 
   function handleDelete() {
-    /* v8 ignore next -- delete button is disabled when accountId is missing; guard is defensive. */
+    /* v8 ignore next -- delete button is disabled when accountId is missing so the guard is defensive */
     if (!accountId) return
     remove.mutate(
       { accountId, confirmationName: deleteConfirmName.trim() },
       {
         onSuccess: () => navigate('/accounts'),
         onError: (err: unknown) => {
-          const message = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-          setDeleteError(message ?? t('accountConfig.danger.genericError'))
+          setDeleteError(localizedApiError(err) ?? t('accountConfig.danger.genericError'))
         },
       }
     )
@@ -283,6 +285,7 @@ export function AccountConfig() {
   }
 
   if (isLoading) return <div className="p-8 text-muted-foreground text-sm">{t('accountConfig.loading')}</div>
+  if (isError) return <QueryError onRetry={() => refetch()} />
 
   return (
     <div className="flex min-h-full flex-col">
@@ -918,45 +921,6 @@ interface AuthCardProps {
   }
   setForm: React.Dispatch<React.SetStateAction<AccountConfigForm>>
   hintKey: string
-}
-
-interface FormFieldProps {
-  label: React.ReactNode
-  required?: boolean
-  hint?: string
-  error?: string
-  children: React.ReactNode
-}
-
-function FormField({ label, required, hint, error, children }: FormFieldProps) {
-  const hasError = Boolean(error)
-  return (
-    <div className="grid gap-1.5">
-      <Label className={cn('text-[13px] transition-colors flex items-center gap-1', hasError && 'text-destructive')}>
-        <span>{label}</span>
-        {required && (
-          <span className="text-destructive" aria-hidden>*</span>
-        )}
-      </Label>
-      {children}
-      {(hasError || hint) && (
-        <p
-          aria-live="polite"
-          className={cn(
-            'flex items-center gap-1 text-[11px] leading-4 min-h-4 transition-colors',
-            hasError ? 'text-destructive' : 'text-muted-foreground',
-          )}
-        >
-          {hasError ? (
-            <AlertCircle className="size-3 shrink-0" aria-hidden />
-          ) : (
-            <Info className="size-3 shrink-0 opacity-60" aria-hidden />
-          )}
-          <span>{hasError ? error : hint}</span>
-        </p>
-      )}
-    </div>
-  )
 }
 
 function AuthCard({ form, errors, t, field, setForm, hintKey }: AuthCardProps) {

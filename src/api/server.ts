@@ -79,7 +79,7 @@ export function createServer(container: Container = buildContainer()) {
 
   bindRoutes(app, container);
 
-  app.use("/api", (_req, res) => res.status(404).json({ error: "Not found" }));
+  app.use("/api", (_req, res) => res.status(404).json({ error: { code: "NOT_FOUND", message: "Not found" } }));
 
   app.use(errorMiddleware);
 

@@ -1,3 +1,4 @@
+import { localizedApiError } from '@/shared/http/client'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -36,7 +37,7 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
       setOtpauthUri(otpauthUri)
       setStage('enrolling')
     },
-    onError: () => toast.error(t('settings.security.enrollError')),
+    onError: (err) => toast.error(localizedApiError(err) ?? t('settings.security.enrollError')),
   })
 
   const confirm = useMutation({
@@ -47,7 +48,7 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
       setStage('backup')
       qc.invalidateQueries({ queryKey: meQueryKey })
     },
-    onError: () => toast.error(t('settings.security.codeError')),
+    onError: (err) => toast.error(localizedApiError(err) ?? t('settings.security.codeError')),
   })
 
   const disable = useMutation({
@@ -57,7 +58,7 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
       reset()
       qc.invalidateQueries({ queryKey: meQueryKey })
     },
-    onError: () => toast.error(t('settings.security.codeError')),
+    onError: (err) => toast.error(localizedApiError(err) ?? t('settings.security.codeError')),
   })
 
   // Already enabled: show status + disable flow.

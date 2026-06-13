@@ -18,7 +18,7 @@ export class RegisterUserUseCase {
 
   async execute(input: Input): Promise<{ id: string; email: string }> {
     const existing = await this.userRepo.findByEmail(input.email)
-    if (existing) throw new ConflictError('Email already exists', { email: input.email })
+    if (existing) throw new ConflictError('Email already exists')
 
     const passwordHash = await this.passwordHasher.hash(input.password)
     const user = User.create(crypto.randomUUID(), input.email, passwordHash, input.name)

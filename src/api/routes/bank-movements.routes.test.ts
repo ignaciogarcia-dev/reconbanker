@@ -117,15 +117,15 @@ describe('bank-movements.routes', () => {
       expect(res.status).toBe(400)
     })
 
-    it('returns 403 when account is not owned by the user', async () => {
+    it('returns 404 when account is not owned by the user', async () => {
       accountRepo.findByIdForUser.mockResolvedValue(null)
 
       const res = await request(makeApp(banking, accountRepo))
         .get(`/accounts/${ACCOUNT_ID}/movements`)
         .set('Authorization', AUTH_HEADER)
 
-      expect(res.status).toBe(403)
-      expect(res.body.error.code).toBe('FORBIDDEN')
+      expect(res.status).toBe(404)
+      expect(res.body.error.code).toBe('NOT_FOUND')
       expect(banking.listBankMovements.execute).not.toHaveBeenCalled()
     })
 
@@ -201,18 +201,18 @@ describe('bank-movements.routes', () => {
       expect(res.status).toBe(400)
     })
 
-    it('returns 403 when account is not owned', async () => {
+    it('returns 404 when account is not owned', async () => {
       accountRepo.findByIdForUser.mockResolvedValue(null)
 
       const res = await request(makeApp(banking, accountRepo))
         .post(`/accounts/${ACCOUNT_ID}/movements/${MOVEMENT_ID}/notify`)
         .set('Authorization', AUTH_HEADER)
 
-      expect(res.status).toBe(403)
+      expect(res.status).toBe(404)
       expect(banking.bankTransactionRepository.findById).not.toHaveBeenCalled()
     })
 
-    it('returns 403 when movement does not exist', async () => {
+    it('returns 404 when movement does not exist', async () => {
       accountRepo.findByIdForUser.mockResolvedValue({ id: ACCOUNT_ID })
       banking.bankTransactionRepository.findById.mockResolvedValue(null)
 
@@ -220,13 +220,13 @@ describe('bank-movements.routes', () => {
         .post(`/accounts/${ACCOUNT_ID}/movements/${MOVEMENT_ID}/notify`)
         .set('Authorization', AUTH_HEADER)
 
-      expect(res.status).toBe(403)
-      expect(res.body.error.code).toBe('FORBIDDEN')
+      expect(res.status).toBe(404)
+      expect(res.body.error.code).toBe('NOT_FOUND')
       expect(res.body.error.message).toMatch(/Movement not found/)
       expect(banking.reNotifyBankMovement.execute).not.toHaveBeenCalled()
     })
 
-    it('returns 403 when movement belongs to a different account', async () => {
+    it('returns 404 when movement belongs to a different account', async () => {
       accountRepo.findByIdForUser.mockResolvedValue({ id: ACCOUNT_ID })
       banking.bankTransactionRepository.findById.mockResolvedValue({
         id: MOVEMENT_ID,
@@ -237,7 +237,7 @@ describe('bank-movements.routes', () => {
         .post(`/accounts/${ACCOUNT_ID}/movements/${MOVEMENT_ID}/notify`)
         .set('Authorization', AUTH_HEADER)
 
-      expect(res.status).toBe(403)
+      expect(res.status).toBe(404)
       expect(banking.reNotifyBankMovement.execute).not.toHaveBeenCalled()
     })
 

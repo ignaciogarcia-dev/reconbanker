@@ -12,13 +12,13 @@ export interface RoleReader {
 export function buildRequireAdmin(roleReader: RoleReader): RequestHandler {
   return async (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.userId) {
-      res.status(401).json({ error: 'Unauthorized' })
+      res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } })
       return
     }
     try {
       const role = await roleReader.getRole(req.userId)
       if (role !== 'admin') {
-        res.status(403).json({ error: 'Forbidden' })
+        res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Forbidden' } })
         return
       }
       next()

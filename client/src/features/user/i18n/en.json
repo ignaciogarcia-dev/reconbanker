@@ -29,6 +29,16 @@
     "hasAccount": "Already have an account?",
     "login": "Sign in"
   },
+  "passwordRules": {
+    "minLength": "Password must be at least 12 characters",
+    "maxLength": "Password must be at most 32 characters",
+    "lowercase": "Password must contain a lowercase letter",
+    "uppercase": "Password must contain an uppercase letter",
+    "number": "Password must contain a number"
+  },
+  "errors": {
+    "emailInvalid": "Enter a valid email address"
+  },
   "settings": {
     "title": "Settings",
     "subtitle": "Manage your profile and operation mode",

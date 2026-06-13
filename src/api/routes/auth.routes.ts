@@ -10,7 +10,7 @@ import type { ITokenDenylist } from '../../contexts/user/domain/ports/ITokenDeny
 const passwordPolicy = z
   .string()
   .min(12, 'Password must be at least 12 characters')
-  .max(128, 'Password must be at most 128 characters')
+  .max(32, 'Password must be at most 32 characters')
   .regex(/[a-z]/, 'Password must contain a lowercase letter')
   .regex(/[A-Z]/, 'Password must contain an uppercase letter')
   .regex(/[0-9]/, 'Password must contain a number')
