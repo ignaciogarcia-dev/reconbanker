@@ -10,6 +10,7 @@ import { buildUserRouter } from '../api/routes/user.routes.js'
 import { buildScriptsRouter } from '../api/routes/scripts.routes.js'
 import { buildApiKeysRouter } from '../api/routes/apiKeys.routes.js'
 import { buildRealtimeRouter } from '../api/routes/realtime.routes.js'
+import { buildV1Router } from '../api/routes/v1.routes.js'
 import { buildAuthMiddleware } from '../api/middlewares/auth.middleware.js'
 import { buildRequireAdmin } from '../api/middlewares/requireAdmin.middleware.js'
 
@@ -23,6 +24,13 @@ export function bindRoutes(app: Express, container: Container): void {
   app.use('/api/me', protectedApi, buildUserRouter(container.user))
   app.use('/api/me/api-keys', protectedApi, buildApiKeysRouter(container.user))
   app.use('/api/realtime', protectedApi, buildRealtimeRouter(container.user.tokenIssuer))
+
+  // External API-key-authenticated surface with no JWT middleware
+  app.use('/v1', buildV1Router({
+    user: container.user,
+    banking: container.banking,
+    accountRepo: container.account.accountRepository,
+  }))
   app.use(
     '/api/accounts/:accountId/movements',
     protectedApi,

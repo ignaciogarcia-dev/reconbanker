@@ -41,6 +41,7 @@ describe('bindRoutes', () => {
       '/api/me',
       '/api/me/api-keys',
       '/api/realtime',
+      '/v1',
       '/api/accounts/:accountId/movements',
       '/api/accounts/:accountId/otp',
       '/api/accounts',
@@ -48,10 +49,14 @@ describe('bindRoutes', () => {
       '/api/conciliation',
       '/api/scripts',
     ])
-    // Public /api/auth mounts without the JWT middleware; everything else is protected
-    expect(calls[0].handlers).toHaveLength(1)
-    for (let i = 1; i < calls.length; i++) {
-      expect(calls[i].handlers.length).toBeGreaterThanOrEqual(2)
+    // Only public /api/auth and the API-key-authenticated /v1 mount without the JWT middleware
+    const singleHandlerPaths = new Set(['/api/auth', '/v1'])
+    for (const c of calls) {
+      if (singleHandlerPaths.has(c.path)) {
+        expect(c.handlers).toHaveLength(1)
+      } else {
+        expect(c.handlers.length).toBeGreaterThanOrEqual(2)
+      }
     }
   })
 })
