@@ -116,6 +116,16 @@ describe('PersistentPlaywrightRunner', () => {
     expect(close).toHaveBeenCalled()
   })
 
+  it('closes the context when the script body throws before the monitor starts', async () => {
+    const { close } = buildContext()
+    const runner = new PersistentPlaywrightRunner()
+
+    await expect(
+      runner.start({ ...baseInput(), scriptCode: 'throw new Error("script boom")' }),
+    ).rejects.toThrow('script boom')
+    expect(close).toHaveBeenCalled()
+  })
+
   it('stop() flips the shouldStop predicate forwarded to runMonitor', async () => {
     buildContext()
     let captured: any

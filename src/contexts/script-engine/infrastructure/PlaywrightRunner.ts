@@ -39,33 +39,37 @@ export class PlaywrightRunner {
       args: CHROMIUM_ARGS,
     })
 
-    const ctx = await browser.newContext({
-      userAgent: USER_AGENT,
-      viewport: VIEWPORT,
-      locale: 'es-UY',
-    })
-
-    const page = await ctx.newPage()
-
-    await applyAntiWebdriver(page)
-
-    const scriptContext = {
-      accountId: context.accountId,
-      username: creds.username,
-      password: credentialsCipher().decrypt(creds.encrypted_password),
-      lastExternalId: context.lastExternalId,
-      debugLog: this.logger
-        ? makeDebugLogSink(this.logger.child('[bank-scrape-script]'), { accountId: context.accountId })
-        : undefined,
-    }
-
     const TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
 
-    const timeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`Script execution timed out after ${TIMEOUT_MS / 1000}s`)), TIMEOUT_MS)
-    )
-
+    // Everything after launch is wrapped so the browser is always closed — even
+    // if newContext/newPage/applyAntiWebdriver throws — and the timeout timer is
+    // always cleared (a finished scrape must not leave a 10-min timer running).
     try {
+      const ctx = await browser.newContext({
+        userAgent: USER_AGENT,
+        viewport: VIEWPORT,
+        locale: 'es-UY',
+      })
+
+      const page = await ctx.newPage()
+
+      await applyAntiWebdriver(page)
+
+      const scriptContext = {
+        accountId: context.accountId,
+        username: creds.username,
+        password: credentialsCipher().decrypt(creds.encrypted_password),
+        lastExternalId: context.lastExternalId,
+        debugLog: this.logger
+          ? makeDebugLogSink(this.logger.child('[bank-scrape-script]'), { accountId: context.accountId })
+          : undefined,
+      }
+
+      const timeout = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(`Script execution timed out after ${TIMEOUT_MS / 1000}s`)), TIMEOUT_MS)
+      })
+
       const wrappedCode = `
         return (async function(page, context) {
           ${script.codeSnapshot}
@@ -75,6 +79,7 @@ export class PlaywrightRunner {
       const transactions: ScrapedTransaction[] = await Promise.race([fn(page, scriptContext), timeout])
       return transactions ?? []
     } finally {
+      if (timeoutId) clearTimeout(timeoutId)
       await browser.close()
     }
   }

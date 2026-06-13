@@ -8,8 +8,15 @@ const scriptsDir = path.resolve(fileURLToPath(new URL('.', import.meta.url)), 's
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+const BANK_SLUG_RE = /^[a-z0-9-]+$/
+
 function loadScriptCode(bank: string, flowType: string, version: string): string {
   const bankSlug = bank.toLowerCase().replace(/\s+/g, '')
+  // The slug is interpolated into a filesystem path; reject anything that could
+  // traverse out of scriptsDir (e.g. "../") before touching disk.
+  if (!BANK_SLUG_RE.test(bankSlug)) {
+    throw new Error(`invalid bank slug: ${bank}`)
+  }
   const filePath = path.join(scriptsDir, bankSlug, `${flowType}.v${version}.js`)
   if (!existsSync(filePath)) {
     throw new Error(`Script file not found: ${filePath}`)
