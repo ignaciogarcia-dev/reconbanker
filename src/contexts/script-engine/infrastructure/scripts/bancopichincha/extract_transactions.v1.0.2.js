@@ -219,7 +219,12 @@ const handleOtp = async (page, context) => {
   const deadline = Date.now() + 20000;
   let otpInput = null;
   while (Date.now() < deadline) {
-    if (page.url().includes(host_app) && !page.url().includes(host_login)) return false;
+    const currentUrl = page.url();
+    let currentHost = "";
+    try {
+      currentHost = new URL(currentUrl).hostname.toLowerCase();
+    } catch (_) {}
+    if (currentHost === host_app && currentHost !== host_login) return false;
     otpInput = await findOtpInput(page);
     if (otpInput) break;
     await page.waitForTimeout(500);
