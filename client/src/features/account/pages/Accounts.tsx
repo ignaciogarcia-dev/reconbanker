@@ -37,6 +37,7 @@ export function Accounts() {
   // Live OTP assistance state pushed over the realtime WebSocket
   const { assistance, clearAccount } = useRealtime()
   const [otpAccountId, setOtpAccountId] = useState<string | null>(null)
+  const otpAssistance = otpAccountId ? assistance.get(otpAccountId) : undefined
 
   const bankNameByCode = Object.fromEntries(banks.map(b => [b.code, b.name]))
 
@@ -186,7 +187,7 @@ export function Accounts() {
                         <Badge variant={a.status === 'active' ? 'default' : 'secondary'}>
                           {t(`common:enums.accountStatus.${a.status}`)}
                         </Badge>
-                        {assistance[a.id] && (
+                        {assistance.has(a.id) && (
                           <Button
                             size="sm"
                             variant="destructive"
@@ -221,11 +222,11 @@ export function Accounts() {
         </CardContent>
       </Card>
 
-      {otpAccountId && assistance[otpAccountId] && (
+      {otpAccountId && otpAssistance && (
         <OtpAssistanceModal
           accountId={otpAccountId}
           accountName={accounts.find(a => a.id === otpAccountId)?.name ?? otpAccountId}
-          assistance={assistance[otpAccountId]}
+          assistance={otpAssistance}
           open={!!otpAccountId}
           onOpenChange={(o) => { if (!o) setOtpAccountId(null) }}
           onSubmitted={() => clearAccount(otpAccountId)}

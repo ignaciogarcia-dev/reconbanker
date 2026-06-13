@@ -28,16 +28,18 @@ const DEFAULT_DESCRIPTOR: PendingAssistance['descriptor'] = { length: 6, type: '
 // Single app WebSocket that surfaces per-account OTP assistance state and reconnects with capped backoff
 export function useRealtime() {
   const qc = useQueryClient()
-  const [assistance, setAssistance] = useState<Record<string, PendingAssistance>>({})
+  // A Map keeps server-provided account ids as plain entries, never object property
+  // keys, so hostile ids like '__proto__' cannot pollute prototypes (CodeQL js/remote-property-injection)
+  const [assistance, setAssistance] = useState<ReadonlyMap<string, PendingAssistance>>(new Map())
   const wsRef = useRef<WebSocket | null>(null)
   const closedRef = useRef(false)
   const attemptRef = useRef(0)
 
   const clearAccount = useCallback((accountId: string) => {
     setAssistance((prev) => {
-      if (!prev[accountId]) return prev
-      const next = { ...prev }
-      delete next[accountId]
+      if (!prev.has(accountId)) return prev
+      const next = new Map(prev)
+      next.delete(accountId)
       return next
     })
   }, [])
@@ -63,13 +65,14 @@ export function useRealtime() {
           try { event = JSON.parse(ev.data) } catch { return }
           if (event.type === 'assistance.requested') {
             qc.invalidateQueries({ queryKey: accountsQueryKey })
-            setAssistance((prev) => ({
-              ...prev,
-              [event.accountId]: {
+            setAssistance((prev) => {
+              const next = new Map(prev)
+              next.set(event.accountId, {
                 requestId: event.data?.requestId,
                 descriptor: event.data?.descriptor ?? DEFAULT_DESCRIPTOR,
-              },
-            }))
+              })
+              return next
+            })
           } else if (event.type === 'assistance.fulfilled' || event.type === 'assistance.cancelled') {
             qc.invalidateQueries({ queryKey: accountsQueryKey })
             clearAccount(event.accountId)
