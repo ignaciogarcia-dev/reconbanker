@@ -35,6 +35,10 @@ export class VerifyTotpLoginUseCase {
     const ok = await verifyTwoFactorCode(user, input.code, this.twoFactor)
     if (!ok) throw new UnauthorizedError('Invalid code')
 
+    // Persist the consumed TOTP time step (recorded on the user during verify)
+    // so the same code cannot be replayed on a subsequent challenge.
+    await this.userRepo.save(user)
+
     const token = this.tokenIssuer.issue({ sub: user.id, email: user.email })
     return { token, user: { id: user.id, email: user.email, name: user.name } }
   }

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { verifyTwoFactorCode, type TwoFactorDeps } from './verifyTwoFactorCode.js'
 import { User } from '../domain/User.js'
 import { InMemoryBackupCodeRepository } from '../../../../tests/helpers/inMemoryBackupCodeRepo.js'
@@ -12,7 +12,10 @@ const hasher = {
 const totp = {
   generateSecret: () => 'SECRET',
   keyUri: () => 'otpauth://totp/x',
-  verify: async (secret: string, token: string) => secret === 'SECRET' && token === '123456',
+  verify: async (secret: string, token: string) => ({
+    valid: secret === 'SECRET' && token === '123456',
+    timeStep: 100,
+  }),
 }
 
 function enabledUser(): User {
@@ -37,6 +40,28 @@ describe('verifyTwoFactorCode', () => {
   it('trims surrounding whitespace before matching the TOTP code', async () => {
     const { deps } = setup()
     expect(await verifyTwoFactorCode(enabledUser(), '  123456  ', deps)).toBe(true)
+  })
+
+  it('records the matched TOTP time step on the user and forwards the last step as afterTimeStep', async () => {
+    const { backupCodes } = setup()
+    const verify = vi.fn().mockResolvedValue({ valid: true, timeStep: 55 })
+    const deps: TwoFactorDeps = { totp: { ...totp, verify } as any, backupCodes, hasher }
+    const user = enabledUser()
+    user.recordTotpStep(40)
+
+    expect(await verifyTwoFactorCode(user, '123456', deps)).toBe(true)
+    expect(verify).toHaveBeenCalledWith('SECRET', '123456', { afterTimeStep: 40 })
+    expect(user.totpLastStep).toBe(55)
+  })
+
+  it('checks every backup code without early-returning (constant-time)', async () => {
+    const { backupCodes } = setup()
+    await backupCodes.replaceForUser('id-1', ['hashed:AAAAAAAAAA', 'hashed:BBBBBBBBBB', 'hashed:CCCCCCCCCC'])
+    const verifySpy = vi.fn(async (plain: string, hash: string) => hash === `hashed:${plain}`)
+    const deps: TwoFactorDeps = { totp, backupCodes, hasher: { ...hasher, verify: verifySpy } }
+    // The first code matches, but every code must still be checked.
+    expect(await verifyTwoFactorCode(enabledUser(), 'AAAAA-AAAAA', deps)).toBe(true)
+    expect(verifySpy).toHaveBeenCalledTimes(3)
   })
 
   it('accepts a backup code and consumes it (single-use)', async () => {

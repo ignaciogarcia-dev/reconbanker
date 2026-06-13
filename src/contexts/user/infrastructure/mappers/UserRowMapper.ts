@@ -11,6 +11,8 @@ export interface UserRow {
   totp_secret?: string | null
   totp_enabled?: boolean | null
   totp_confirmed_at?: Date | null
+  // pg returns BIGINT as a string; the mapper coerces it to a number.
+  totp_last_step?: number | string | null
 }
 
 export const UserRowMapper = {
@@ -29,6 +31,7 @@ export const UserRowMapper = {
       totpSecret: row.totp_secret ?? null,
       totpEnabled: row.totp_enabled ?? false,
       totpConfirmedAt: row.totp_confirmed_at ?? null,
+      totpLastStep: row.totp_last_step != null ? Number(row.totp_last_step) : null,
     })
   },
 }

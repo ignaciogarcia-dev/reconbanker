@@ -5,6 +5,7 @@ import { DisableTotpUseCase } from './DisableTotpUseCase.js'
 import { User } from '../domain/User.js'
 import { InMemoryUserRepository } from '../../../../tests/helpers/inMemoryUserRepo.js'
 import { InMemoryBackupCodeRepository } from '../../../../tests/helpers/inMemoryBackupCodeRepo.js'
+import { InMemoryUnitOfWork } from '../../../../tests/helpers/inMemoryUnitOfWork.js'
 import { ConflictError, NotFoundError, UnauthorizedError, ValidationError } from '../../../shared/errors/index.js'
 import type { TwoFactorDeps } from './verifyTwoFactorCode.js'
 
@@ -16,7 +17,10 @@ const hasher = {
 const totp = {
   generateSecret: () => 'SECRET',
   keyUri: (secret: string, label: string) => `otpauth://totp/ReconBanker:${label}?secret=${secret}`,
-  verify: async (secret: string, token: string) => secret === 'SECRET' && token === '123456',
+  verify: async (secret: string, token: string) => ({
+    valid: secret === 'SECRET' && token === '123456',
+    timeStep: 100,
+  }),
 }
 
 function makeRepos() {
@@ -73,12 +77,42 @@ describe('ConfirmTotpEnrollmentUseCase', () => {
     user.beginTotpEnrollment('SECRET')
     repo.store.set(user.id, user)
 
-    const result = await new ConfirmTotpEnrollmentUseCase(repo, totp, backupCodes, hasher)
+    const result = await new ConfirmTotpEnrollmentUseCase(repo, totp, backupCodes, hasher, new InMemoryUnitOfWork())
       .execute({ userId: 'id-1', code: '123456' })
 
     expect(result.backupCodes).toHaveLength(10)
     expect((await repo.findById('id-1'))?.isTotpEnabled()).toBe(true)
     expect(await backupCodes.listActive('id-1')).toHaveLength(10)
+  })
+
+  it('records the consumed time step so the enrollment code cannot be replayed at login', async () => {
+    const { repo, backupCodes } = makeRepos()
+    const user = User.create('id-1', 'a@b.com', 'hashed:pw')
+    user.beginTotpEnrollment('SECRET')
+    repo.store.set(user.id, user)
+
+    await new ConfirmTotpEnrollmentUseCase(repo, totp, backupCodes, hasher, new InMemoryUnitOfWork())
+      .execute({ userId: 'id-1', code: '123456' })
+
+    // The provider matched time step 100; persisting it lets verifyTwoFactorCode
+    // reject a replay of the same code at the user's first login.
+    expect((await repo.findById('id-1'))?.totpLastStep).toBe(100)
+  })
+
+  it('still enables 2FA when the provider reports no time step', async () => {
+    const { repo, backupCodes } = makeRepos()
+    const user = User.create('id-1', 'a@b.com', 'hashed:pw')
+    user.beginTotpEnrollment('SECRET')
+    repo.store.set(user.id, user)
+    // A provider variant that validates but does not return a time step.
+    const totpNoStep = { ...totp, verify: async () => ({ valid: true }) }
+
+    await new ConfirmTotpEnrollmentUseCase(repo, totpNoStep, backupCodes, hasher, new InMemoryUnitOfWork())
+      .execute({ userId: 'id-1', code: '123456' })
+
+    const stored = await repo.findById('id-1')
+    expect(stored?.isTotpEnabled()).toBe(true)
+    expect(stored?.totpLastStep).toBeNull()
   })
 
   it('rejects an invalid code and keeps 2FA disabled', async () => {
@@ -88,7 +122,7 @@ describe('ConfirmTotpEnrollmentUseCase', () => {
     repo.store.set(user.id, user)
 
     await expect(
-      new ConfirmTotpEnrollmentUseCase(repo, totp, backupCodes, hasher).execute({ userId: 'id-1', code: '000000' }),
+      new ConfirmTotpEnrollmentUseCase(repo, totp, backupCodes, hasher, new InMemoryUnitOfWork()).execute({ userId: 'id-1', code: '000000' }),
     ).rejects.toBeInstanceOf(UnauthorizedError)
     expect((await repo.findById('id-1'))?.isTotpEnabled()).toBe(false)
   })
@@ -98,7 +132,7 @@ describe('ConfirmTotpEnrollmentUseCase', () => {
     const user = User.create('id-1', 'a@b.com', 'hashed:pw')
     repo.store.set(user.id, user)
     await expect(
-      new ConfirmTotpEnrollmentUseCase(repo, totp, backupCodes, hasher).execute({ userId: 'id-1', code: '123456' }),
+      new ConfirmTotpEnrollmentUseCase(repo, totp, backupCodes, hasher, new InMemoryUnitOfWork()).execute({ userId: 'id-1', code: '123456' }),
     ).rejects.toBeInstanceOf(ValidationError)
   })
 })
@@ -117,7 +151,7 @@ describe('DisableTotpUseCase', () => {
     enabledUser(repo)
     await backupCodes.replaceForUser('id-1', ['hashed:ABCDEFGHJK'])
 
-    await new DisableTotpUseCase(repo, hasher, backupCodes, deps)
+    await new DisableTotpUseCase(repo, hasher, backupCodes, deps, new InMemoryUnitOfWork())
       .execute({ userId: 'id-1', password: 'pw', code: '123456' })
 
     expect((await repo.findById('id-1'))?.isTotpEnabled()).toBe(false)
@@ -128,7 +162,7 @@ describe('DisableTotpUseCase', () => {
     const { repo, backupCodes, deps } = makeRepos()
     enabledUser(repo)
     await expect(
-      new DisableTotpUseCase(repo, hasher, backupCodes, deps).execute({ userId: 'id-1', password: 'wrong', code: '123456' }),
+      new DisableTotpUseCase(repo, hasher, backupCodes, deps, new InMemoryUnitOfWork()).execute({ userId: 'id-1', password: 'wrong', code: '123456' }),
     ).rejects.toBeInstanceOf(UnauthorizedError)
     expect((await repo.findById('id-1'))?.isTotpEnabled()).toBe(true)
   })
@@ -137,7 +171,7 @@ describe('DisableTotpUseCase', () => {
     const { repo, backupCodes, deps } = makeRepos()
     enabledUser(repo)
     await expect(
-      new DisableTotpUseCase(repo, hasher, backupCodes, deps).execute({ userId: 'id-1', password: 'pw', code: '000000' }),
+      new DisableTotpUseCase(repo, hasher, backupCodes, deps, new InMemoryUnitOfWork()).execute({ userId: 'id-1', password: 'pw', code: '000000' }),
     ).rejects.toBeInstanceOf(UnauthorizedError)
   })
 
@@ -146,7 +180,7 @@ describe('DisableTotpUseCase', () => {
     const user = User.create('id-1', 'a@b.com', 'hashed:pw')
     repo.store.set(user.id, user)
     await expect(
-      new DisableTotpUseCase(repo, hasher, backupCodes, deps).execute({ userId: 'id-1', password: 'pw', code: '123456' }),
+      new DisableTotpUseCase(repo, hasher, backupCodes, deps, new InMemoryUnitOfWork()).execute({ userId: 'id-1', password: 'pw', code: '123456' }),
     ).rejects.toBeInstanceOf(ValidationError)
   })
 })

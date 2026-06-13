@@ -16,6 +16,8 @@ interface UserProps {
   totpSecret?: string | null
   totpEnabled?: boolean
   totpConfirmedAt?: Date | null
+  /** Last successfully verified TOTP time step; blocks replay of the same code. */
+  totpLastStep?: number | null
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -44,6 +46,7 @@ export class User extends AggregateRoot<string> {
       totpSecret: null,
       totpEnabled: false,
       totpConfirmedAt: null,
+      totpLastStep: null,
     })
   }
 
@@ -59,6 +62,12 @@ export class User extends AggregateRoot<string> {
   get createdAt()     { return this.props.createdAt }
   get totpSecret()      { return this.props.totpSecret ?? null }
   get totpConfirmedAt() { return this.props.totpConfirmedAt ?? null }
+  get totpLastStep()    { return this.props.totpLastStep ?? null }
+
+  /** Records the time step of a successful TOTP verification (replay guard). */
+  recordTotpStep(step: number): void {
+    this.props.totpLastStep = step
+  }
 
   isActive(): boolean { return this.props.status === 'active' }
 
@@ -86,6 +95,7 @@ export class User extends AggregateRoot<string> {
     this.props.totpSecret = null
     this.props.totpEnabled = false
     this.props.totpConfirmedAt = null
+    this.props.totpLastStep = null
   }
 
   changeOperationMode(mode: OperationMode): void {

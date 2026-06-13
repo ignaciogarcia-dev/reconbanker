@@ -4,6 +4,7 @@ import { AuthRequest } from '../middlewares/auth.middleware.js'
 import { controller } from '../http/controller.js'
 import { validateBody } from '../http/validate.js'
 import { UnauthorizedError } from '../../shared/errors/index.js'
+import { totpRateLimiter } from '../middlewares/rateLimit.middleware.js'
 import type { UserModule } from '../../composition/userModule.js'
 
 const operationModeSchema = z.object({
@@ -54,7 +55,7 @@ export function buildUserRouter(user: UserModule): Router {
   }))
 
   // Confirm enrollment with a code; returns one-time backup codes (shown once).
-  router.post('/2fa/confirm', controller(async (req: AuthRequest, res) => {
+  router.post('/2fa/confirm', totpRateLimiter, controller(async (req: AuthRequest, res) => {
     const userId = requireUserId(req)
     const { code } = validateBody(req, totpCodeSchema)
     const { backupCodes } = await user.confirmTotpEnrollment.execute({ userId, code })
@@ -62,7 +63,7 @@ export function buildUserRouter(user: UserModule): Router {
   }))
 
   // Disable 2FA: requires current password + a valid TOTP/backup code.
-  router.delete('/2fa', controller(async (req: AuthRequest, res) => {
+  router.delete('/2fa', totpRateLimiter, controller(async (req: AuthRequest, res) => {
     const userId = requireUserId(req)
     const { password, code } = validateBody(req, disableTotpSchema)
     await user.disableTotp.execute({ userId, password, code })

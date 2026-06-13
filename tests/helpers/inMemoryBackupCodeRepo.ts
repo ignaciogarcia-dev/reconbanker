@@ -6,6 +6,8 @@ interface Row { id: string; userId: string; codeHash: string; used: boolean }
 export class InMemoryBackupCodeRepository implements IBackupCodeRepository {
   rows: Row[] = []
 
+  withTx() { return this }
+
   async replaceForUser(userId: string, codeHashes: string[]) {
     this.rows = this.rows.filter((r) => r.userId !== userId)
     for (const codeHash of codeHashes) {

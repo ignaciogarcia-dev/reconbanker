@@ -1,3 +1,5 @@
+import type { Tx } from '../../../shared/persistence/index.js'
+
 export interface BackupCode {
   id: string
   codeHash: string
@@ -8,6 +10,8 @@ export interface BackupCode {
  * hashes; consumption is single-use via markUsed.
  */
 export interface IBackupCodeRepository {
+  /** Rebinds to a unit-of-work transaction so writes are atomic with the user save. */
+  withTx(tx: Tx): IBackupCodeRepository
   /** Replaces all of a user's codes with a fresh batch (used on enrollment confirm). */
   replaceForUser(userId: string, codeHashes: string[]): Promise<void>
   /** Returns the user's unused codes. */

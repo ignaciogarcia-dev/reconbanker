@@ -77,10 +77,10 @@ export function buildUserModule(container: ContainerBase): UserModule {
     verifyTotpLogin: new VerifyTotpLoginUseCase(userRepository, tokenIssuer, twoFactor),
     startTotpEnrollment: new StartTotpEnrollmentUseCase(userRepository, totp),
     confirmTotpEnrollment: new ConfirmTotpEnrollmentUseCase(
-      userRepository, totp, backupCodeRepository, passwordHasher
+      userRepository, totp, backupCodeRepository, passwordHasher, container.unitOfWork
     ),
     disableTotp: new DisableTotpUseCase(
-      userRepository, passwordHasher, backupCodeRepository, twoFactor
+      userRepository, passwordHasher, backupCodeRepository, twoFactor, container.unitOfWork
     ),
     getCurrentUser: new GetCurrentUserUseCase(userRepository),
     changeOperationMode: new ChangeOperationModeUseCase(
