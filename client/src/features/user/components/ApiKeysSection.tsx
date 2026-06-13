@@ -28,6 +28,7 @@ export function ApiKeysSection() {
     setScopes(prev => (prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]))
 
   const handleCreate = () => {
+    /* v8 ignore next 1 -- the create button is disabled while name/scopes are invalid; guard is defensive. */
     if (!name.trim() || scopes.length === 0) return
     create.mutate(
       { name: name.trim(), scopes, account_ids: null },
@@ -44,6 +45,7 @@ export function ApiKeysSection() {
   }
 
   const copySecret = async () => {
+    /* v8 ignore next 1 -- the copy button only renders when a secret exists; guard is defensive. */
     if (!createdSecret) return
     await navigator.clipboard.writeText(createdSecret).catch(() => {})
     setCopied(true)
