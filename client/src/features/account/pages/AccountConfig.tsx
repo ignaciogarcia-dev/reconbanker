@@ -350,6 +350,13 @@ export function AccountConfig() {
             status={tabStatus('webhook')}
             t={t}
           />
+          <StatusTab
+            value="notifications"
+            icon={Bell}
+            labelKey="accountConfig.tabs.notifications"
+            status={tabStatus('notifications')}
+            t={t}
+          />
         </TabsList>
 
         {/* Bank credentials + session behaviour */}
@@ -548,7 +555,7 @@ export function AccountConfig() {
                 <Label htmlFor="notif-auth-type">{t('accountConfig.notifications.authType')}</Label>
                 <Select
                   value={form.notificationAuthType}
-                  onValueChange={v => setForm(f => ({ ...f, notificationAuthType: (v ?? 'bearer') as AuthType }))}
+                  onValueChange={v => setForm(f => ({ ...f, notificationAuthType: v as AuthType }))}
                 >
                   <SelectTrigger id="notif-auth-type" className="w-full">
                     <SelectValue />
