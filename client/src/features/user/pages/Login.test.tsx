@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Routes, Route } from 'react-router-dom'
+import { http, HttpResponse } from 'msw'
 import { server } from '../../../../tests/msw/server'
 import { userHandlers } from '../../../../tests/msw/handlers/user'
 import { renderWithProviders } from '../../../../tests/utils/render'
@@ -103,6 +104,102 @@ describe('Login page', () => {
     // back returns to the credentials step
     await user.click(screen.getByRole('button', { name: /Volver/i }))
     await waitFor(() => expect(screen.getByLabelText(/Email/i)).toBeInTheDocument())
+  })
+
+  it('maps a server validation error on email to the email field', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.post('/api/auth/login', () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: 'VALIDATION_ERROR',
+              details: { issues: [{ path: ['email'], message: 'bad email' }] },
+            },
+          },
+          { status: 400 }
+        )
+      )
+    )
+    renderLogin()
+    await user.type(screen.getByLabelText(/Email/i), 'ok@x.com')
+    await user.type(screen.getByLabelText(/Contraseña/i), 'good')
+    await user.click(screen.getByRole('button', { name: /Ingresar/i }))
+    expect(await screen.findByText(/Ingresá un email válido/i)).toBeInTheDocument()
+  })
+
+  it('maps a server validation error on password to the password field', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.post('/api/auth/login', () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: 'VALIDATION_ERROR',
+              details: { issues: [{ path: ['password'], message: 'bad password' }] },
+            },
+          },
+          { status: 400 }
+        )
+      )
+    )
+    renderLogin()
+    await user.type(screen.getByLabelText(/Email/i), 'ok@x.com')
+    await user.type(screen.getByLabelText(/Contraseña/i), 'good')
+    await user.click(screen.getByRole('button', { name: /Ingresar/i }))
+    expect(await screen.findByText(/Completá este campo/i)).toBeInTheDocument()
+  })
+
+  it('shows the server-provided message for unexpected non-auth failures', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.post('/api/auth/login', () =>
+        HttpResponse.json({ error: 'el servidor explotó' }, { status: 500 })
+      )
+    )
+    renderLogin()
+    await user.type(screen.getByLabelText(/Email/i), 'ok@x.com')
+    await user.type(screen.getByLabelText(/Contraseña/i), 'good')
+    await user.click(screen.getByRole('button', { name: /Ingresar/i }))
+    expect(await screen.findByText(/el servidor explotó/i)).toBeInTheDocument()
+  })
+
+  it('falls back to the generic login error when a failure has no message', async () => {
+    const user = userEvent.setup()
+    server.use(http.post('/api/auth/login', () => HttpResponse.json({}, { status: 500 })))
+    renderLogin()
+    await user.type(screen.getByLabelText(/Email/i), 'ok@x.com')
+    await user.type(screen.getByLabelText(/Contraseña/i), 'good')
+    await user.click(screen.getByRole('button', { name: /Ingresar/i }))
+    expect(await screen.findByText(/Email o contraseña incorrectos/i)).toBeInTheDocument()
+  })
+
+  it('shows the server message when TOTP verification fails with a non-auth error', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.post('/api/auth/login/totp', () =>
+        HttpResponse.json({ error: 'totp roto en el servidor' }, { status: 500 })
+      )
+    )
+    renderLogin()
+    await user.type(screen.getByLabelText(/Email/i), '2fa@x.com')
+    await user.type(screen.getByLabelText(/Contraseña/i), 'good')
+    await user.click(screen.getByRole('button', { name: /Ingresar/i }))
+    await user.type(await screen.findByLabelText(/Código de autenticación/i), '123456')
+    await user.click(screen.getByRole('button', { name: /Verificar/i }))
+    expect(await screen.findByText(/totp roto en el servidor/i)).toBeInTheDocument()
+  })
+
+  it('falls back to the TOTP error copy when a non-auth failure has no message', async () => {
+    const user = userEvent.setup()
+    server.use(http.post('/api/auth/login/totp', () => HttpResponse.json({}, { status: 500 })))
+    renderLogin()
+    await user.type(screen.getByLabelText(/Email/i), '2fa@x.com')
+    await user.type(screen.getByLabelText(/Contraseña/i), 'good')
+    await user.click(screen.getByRole('button', { name: /Ingresar/i }))
+    await user.type(await screen.findByLabelText(/Código de autenticación/i), '123456')
+    await user.click(screen.getByRole('button', { name: /Verificar/i }))
+    expect(await screen.findByText(/Código inválido/i)).toBeInTheDocument()
   })
 
   it('has a link to the register page', async () => {
