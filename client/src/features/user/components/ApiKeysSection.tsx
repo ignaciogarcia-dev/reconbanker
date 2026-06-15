@@ -3,10 +3,12 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Copy, KeyRound, Trash2, Check } from 'lucide-react'
+import { cn } from '@/shared/lib/utils'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
 import { Button } from '@/shared/ui/button'
 import { Badge } from '@/shared/ui/badge'
+import { Checkbox } from '@/shared/ui/checkbox'
 import { useApiKeys, useCreateApiKey, useRevokeApiKey } from '../hooks/useApiKeys'
 import type { ApiScope } from '../api/apiKeys'
 
@@ -24,8 +26,13 @@ export function ApiKeysSection() {
   const [createdSecret, setCreatedSecret] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
-  const toggleScope = (s: ApiScope) =>
-    setScopes(prev => (prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]))
+  const setScope = (scope: ApiScope, checked: boolean) =>
+    setScopes(prev => {
+      const has = prev.includes(scope)
+      if (checked && !has) return [...prev, scope]
+      if (!checked && has) return prev.filter(x => x !== scope)
+      return prev
+    })
 
   const handleCreate = () => {
     /* v8 ignore next 1 -- the create button is disabled while name/scopes are invalid; guard is defensive. */
@@ -85,13 +92,24 @@ export function ApiKeysSection() {
         </div>
         <div className="grid gap-1.5">
           <Label>{t('settings.apiKeys.scopes')}</Label>
-          <div className="flex flex-wrap gap-3">
-            {ALL_SCOPES.map(s => (
-              <label key={s} className="flex items-center gap-2 text-sm">
-                <input type="checkbox" className="size-4" checked={scopes.includes(s)} onChange={() => toggleScope(s)} />
-                <code className="text-xs">{s}</code>
-              </label>
-            ))}
+          <div className="grid gap-2 sm:grid-cols-2">
+            {ALL_SCOPES.map(s => {
+              const selected = scopes.includes(s)
+              return (
+                <label
+                  key={s}
+                  className={cn(
+                    'flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors',
+                    selected
+                      ? 'border-primary/40 bg-primary/5 ring-1 ring-primary/15'
+                      : 'border-border bg-background hover:border-muted-foreground/25 hover:bg-muted/30',
+                  )}
+                >
+                  <Checkbox checked={selected} onCheckedChange={checked => setScope(s, checked)} />
+                  <code className="text-xs font-mono text-foreground">{s}</code>
+                </label>
+              )
+            })}
           </div>
         </div>
         <div>
