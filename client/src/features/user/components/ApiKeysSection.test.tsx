@@ -233,4 +233,104 @@ describe('ApiKeysSection', () => {
     await user.click(screen.getByText('Revocar'))
     expect(await screen.findByText('Llave revocada')).toBeInTheDocument()
   })
+
+  it('toasts the localized backend error when a revoke fails with a known code', async () => {
+    const user = userEvent.setup()
+    server.use(
+      listHandler([key()]),
+      http.delete('/api/me/api-keys/:id', () =>
+        HttpResponse.json({ error: { code: 'CONFLICT', message: 'nope' } }, { status: 400 })
+      )
+    )
+    renderWithProviders(<ApiKeysSection />)
+
+    await screen.findByText('SMS server')
+    await user.click(screen.getByRole('button', { name: 'Revocar' }))
+    await user.click(screen.getByText('Revocar'))
+
+    expect(await screen.findByText('Ya existe un registro con esos datos')).toBeInTheDocument()
+  })
+
+  it('falls back to the generic revoke error when a 2FA revoke fails without a message', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.get('/api/me', () =>
+        HttpResponse.json({ id: 'u-1', email: 'test@x', name: 'T', operation_mode: 'passthrough', totp_enabled: true })
+      ),
+      listHandler([key()]),
+      http.delete('/api/me/api-keys/:id', () => new HttpResponse(null, { status: 500 }))
+    )
+    renderWithProviders(<ApiKeysSection />)
+
+    await screen.findByText('SMS server')
+    await user.click(screen.getByRole('button', { name: 'Revocar' }))
+    const input = await screen.findByPlaceholderText('123456')
+    await user.type(input, '123456')
+    await user.click(screen.getByText('Revocar'))
+
+    expect(await screen.findByText('No se pudo revocar la llave')).toBeInTheDocument()
+  })
+
+  it('dismisses the one-time secret dialog when closed via escape', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.post('/api/me/api-keys', () =>
+        HttpResponse.json({ ...key(), key: 'rbk_abcd1234_secret' }, { status: 201 })
+      )
+    )
+    renderWithProviders(<ApiKeysSection />)
+
+    await screen.findByText('No hay llaves activas.')
+    await user.type(screen.getByLabelText('Nombre'), 'My key')
+    await user.click(screen.getByRole('button', { name: /Crear llave/ }))
+    expect(await screen.findByText('rbk_abcd1234_secret')).toBeInTheDocument()
+
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByText('rbk_abcd1234_secret')).not.toBeInTheDocument())
+  })
+
+  it('ignores Enter in the code field until a 2FA code is entered', async () => {
+    const user = userEvent.setup()
+    let deleteCalled = false
+    server.use(
+      http.get('/api/me', () =>
+        HttpResponse.json({ id: 'u-1', email: 'test@x', name: 'T', operation_mode: 'passthrough', totp_enabled: true })
+      ),
+      listHandler([key()]),
+      http.delete('/api/me/api-keys/:id', () => {
+        deleteCalled = true
+        return new HttpResponse(null, { status: 204 })
+      })
+    )
+    renderWithProviders(<ApiKeysSection />)
+
+    await screen.findByText('SMS server')
+    await user.click(screen.getByRole('button', { name: 'Revocar' }))
+    const input = await screen.findByPlaceholderText('123456')
+
+    // Enter with an empty code is a no-op: nothing is sent and the dialog stays open.
+    await user.click(input)
+    await user.keyboard('{Enter}')
+    expect(deleteCalled).toBe(false)
+    expect(screen.getByPlaceholderText('123456')).toBeInTheDocument()
+
+    // Enter once a code is present submits the revoke.
+    await user.type(input, '123456')
+    await user.keyboard('{Enter}')
+    expect(await screen.findByText('Llave revocada')).toBeInTheDocument()
+    expect(deleteCalled).toBe(true)
+  })
+
+  it('closes the revoke dialog when dismissed via escape', async () => {
+    const user = userEvent.setup()
+    server.use(listHandler([key()]))
+    renderWithProviders(<ApiKeysSection />)
+
+    await screen.findByText('SMS server')
+    await user.click(screen.getByRole('button', { name: 'Revocar' }))
+    expect(await screen.findByText('Revocar llave')).toBeInTheDocument()
+
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByText('Revocar llave')).not.toBeInTheDocument())
+  })
 })
