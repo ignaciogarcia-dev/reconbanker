@@ -95,11 +95,17 @@
       "name": "Name",
       "namePlaceholder": "SMS server",
       "scopes": "Scopes",
+      "scopesHint": "Each scope enables one API endpoint. Turn on only the ones your integration needs.",
+      "scopeInfo": {
+        "otpWrite": { "title": "Submit OTP code", "desc": "Sends a bank account the (OTP/SMS) code the bank requested." },
+        "statusRead": { "title": "Read account status", "desc": "Checks whether a session is active and whether the bank is requesting a code." }
+      },
       "create": "Create key",
       "creating": "Creating…",
       "created": "Key created",
       "createError": "Could not create the key",
-      "secretOnce": "Copy this key now. It will not be shown again.",
+      "secretTitle": "Copy and save this key now",
+      "secretHelp": "This is the only time the full key is shown. Store it somewhere safe (for example, your integration's environment variable). If you lose it, you'll have to create a new one.",
       "dismiss": "Done",
       "empty": "No active keys.",
       "revoke": "Revoke",

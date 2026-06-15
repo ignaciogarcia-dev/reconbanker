@@ -136,7 +136,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
           <Tabs
             defaultValue="general"
             orientation="vertical"
-            className="relative grid h-full grid-cols-[220px_1fr] gap-0"
+            className="relative grid h-full min-h-0 grid-cols-[220px_1fr] gap-0"
           >
             {/* Mini sidebar */}
             <aside
@@ -213,16 +213,16 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
             </aside>
 
             {/* Content */}
-            <div className="relative h-full overflow-hidden">
+            <div className="relative h-full min-h-0 overflow-hidden">
               {!me ? (
                 <div className="p-8 text-sm" style={{ color: 'oklch(0.6 0 0)' }}>
                   {t('settings.loading')}
                 </div>
               ) : (
-                <div className="flex h-full flex-col">
+                <div className="flex h-full min-h-0 flex-col">
                   <TabsContent
                     value="general"
-                    className="flex-1 overflow-y-auto px-8 py-7 outline-none data-[active]:flex data-[active]:flex-col"
+                    className="min-h-0 flex-1 overflow-y-auto px-8 py-7 outline-none data-[active]:flex data-[active]:flex-col"
                   >
                     <PaneHeader title={t('settings.tabs.general')} subtitle={t('settings.subtitle')} />
 
@@ -238,7 +238,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
 
                   <TabsContent
                     value="security"
-                    className="flex-1 overflow-y-auto px-8 py-7 outline-none data-[active]:flex data-[active]:flex-col"
+                    className="min-h-0 flex-1 overflow-y-auto px-8 py-7 outline-none data-[active]:flex data-[active]:flex-col"
                   >
                     <PaneHeader title={t('settings.tabs.security')} subtitle={t('settings.security.subtitle')} />
                     <TwoFactorSection enabled={me.totpEnabled} />
@@ -246,7 +246,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
 
                   <TabsContent
                     value="operation"
-                    className="flex-1 overflow-y-auto px-8 py-7 outline-none data-[active]:flex data-[active]:flex-col"
+                    className="min-h-0 flex-1 overflow-y-auto px-8 py-7 outline-none data-[active]:flex data-[active]:flex-col"
                   >
                     <PaneHeader
                       title={t('settings.tabs.operation')}
@@ -366,7 +366,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
 
                   <TabsContent
                     value="apiKeys"
-                    className="flex-1 overflow-y-auto px-8 py-7 outline-none data-[active]:flex data-[active]:flex-col"
+                    className="min-h-0 flex-1 overflow-y-auto px-8 py-7 outline-none data-[active]:flex data-[active]:flex-col"
                   >
                     <PaneHeader title={t('settings.tabs.apiKeys')} subtitle={t('settings.apiKeys.subtitle')} />
                     <div className="mt-6">
