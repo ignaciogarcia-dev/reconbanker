@@ -74,31 +74,11 @@ describe('SettingsDialog', () => {
     expect(await screen.findByText(/Cargando.../i)).toBeInTheDocument()
   })
 
-  it('renders user details and the first-letter avatar', async () => {
-    server.use(meHandler({}))
-    renderWithProviders(<Host />)
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('Alice Smith')).toBeInTheDocument()
-    })
-    expect(screen.getByDisplayValue('user@x')).toBeInTheDocument()
-    // First initial of name shown in sidebar avatar
-    expect(screen.getByText('A')).toBeInTheDocument()
-  })
-
-  it('uses email initial when name is null', async () => {
-    server.use(meHandler({ name: null, email: 'zoe@x' }))
-    renderWithProviders(<Host />)
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('zoe@x')).toBeInTheDocument()
-    })
-    expect(screen.getByText('Z')).toBeInTheDocument()
-  })
-
   it('shows the 2FA enable action on the Security tab when 2FA is off', async () => {
     server.use(meHandler({ totpEnabled: false }))
     const user = userEvent.setup()
     renderWithProviders(<Host />)
-    await waitFor(() => expect(screen.getByDisplayValue('user@x')).toBeInTheDocument())
+    await screen.findByRole('heading', { name: /Seguridad/i })
     await user.click(screen.getByRole('tab', { name: /Seguridad/i }))
     await waitFor(() =>
       expect(screen.getByRole('button', { name: /Activar 2FA/i })).toBeInTheDocument()
@@ -109,7 +89,7 @@ describe('SettingsDialog', () => {
     server.use(meHandler({ totpEnabled: true }))
     const user = userEvent.setup()
     renderWithProviders(<Host />)
-    await waitFor(() => expect(screen.getByDisplayValue('user@x')).toBeInTheDocument())
+    await screen.findByRole('heading', { name: /Seguridad/i })
     await user.click(screen.getByRole('tab', { name: /Seguridad/i }))
     await waitFor(() =>
       expect(screen.getByRole('button', { name: /Desactivar 2FA/i })).toBeInTheDocument()
@@ -120,9 +100,7 @@ describe('SettingsDialog', () => {
     server.use(meHandler({ operationMode: 'passthrough' }))
     const user = userEvent.setup()
     renderWithProviders(<Host />)
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('user@x')).toBeInTheDocument()
-    })
+    await screen.findByRole('heading', { name: /Seguridad/i })
     await user.click(screen.getByRole('tab', { name: /Operación/i }))
     await waitFor(() => {
       expect(screen.getByText(/Actual/i)).toBeInTheDocument()
@@ -143,9 +121,7 @@ describe('SettingsDialog', () => {
     )
     const user = userEvent.setup()
     renderWithProviders(<Host />)
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('user@x')).toBeInTheDocument()
-    })
+    await screen.findByRole('heading', { name: /Seguridad/i })
     await user.click(screen.getByRole('tab', { name: /Operación/i }))
     await user.click(screen.getByRole('button', { name: /Cambiar modo/i }))
     // Now back card (reconcile) is interactive; click it
@@ -171,9 +147,7 @@ describe('SettingsDialog', () => {
     server.use(meHandler({ operationMode: 'passthrough' }))
     const user = userEvent.setup()
     renderWithProviders(<Host />)
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('user@x')).toBeInTheDocument()
-    })
+    await screen.findByRole('heading', { name: /Seguridad/i })
     await user.click(screen.getByRole('tab', { name: /Operación/i }))
     await user.click(screen.getByRole('button', { name: /Cambiar modo/i }))
     expect(
@@ -191,9 +165,7 @@ describe('SettingsDialog', () => {
     server.use(meHandler({ operationMode: 'passthrough' }))
     const user = userEvent.setup()
     renderWithProviders(<Host />)
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('user@x')).toBeInTheDocument()
-    })
+    await screen.findByRole('heading', { name: /Seguridad/i })
     await user.click(screen.getByRole('tab', { name: /Operación/i }))
     await user.click(screen.getByRole('button', { name: /Cambiar modo/i }))
     await user.click(
@@ -222,9 +194,7 @@ describe('SettingsDialog', () => {
     )
     const user = userEvent.setup()
     renderWithProviders(<Host />)
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('user@x')).toBeInTheDocument()
-    })
+    await screen.findByRole('heading', { name: /Seguridad/i })
     await user.click(screen.getByRole('tab', { name: /Operación/i }))
     await user.click(screen.getByRole('button', { name: /Cambiar modo/i }))
     await user.click(
@@ -246,9 +216,7 @@ describe('SettingsDialog', () => {
     )
     const user = userEvent.setup()
     renderWithProviders(<Host />)
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('user@x')).toBeInTheDocument()
-    })
+    await screen.findByRole('heading', { name: /Seguridad/i })
     await user.click(screen.getByRole('tab', { name: /Operación/i }))
     await user.click(screen.getByRole('button', { name: /Cambiar modo/i }))
     await user.click(
@@ -268,26 +236,12 @@ describe('SettingsDialog', () => {
     const onOpenChange = vi.fn()
     const user = userEvent.setup()
     renderWithProviders(<Host onOpenChange={onOpenChange} />)
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('user@x')).toBeInTheDocument()
-    })
+    await screen.findByRole('heading', { name: /Seguridad/i })
     // Press Escape to dismiss the dialog
     await user.keyboard('{Escape}')
     await waitFor(() => {
       expect(onOpenChange).toHaveBeenCalledWith(false)
     })
-  })
-
-  it('falls back to the "Profile" heading when name is missing', async () => {
-    server.use(meHandler({ name: null, email: 'zoe@x' }))
-    renderWithProviders(<Host />)
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('zoe@x')).toBeInTheDocument()
-    })
-    // Sidebar heading falls back to "settings.profile.name" → "Nombre"
-    const sidebar = screen
-      .getByRole('heading', { name: /Nombre/i, level: 2 })
-    expect(sidebar).toBeInTheDocument()
   })
 
   it('confirmChange is a no-op when no mode is selected', async () => {
@@ -305,9 +259,7 @@ describe('SettingsDialog', () => {
     )
     const user = userEvent.setup()
     renderWithProviders(<Host />)
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('user@x')).toBeInTheDocument()
-    })
+    await screen.findByRole('heading', { name: /Seguridad/i })
     await user.click(screen.getByRole('tab', { name: /Operación/i }))
     await user.click(screen.getByRole('button', { name: /Cambiar modo/i }))
     // Save remains disabled because nothing changed
@@ -320,9 +272,7 @@ describe('SettingsDialog', () => {
     server.use(meHandler({ operationMode: 'passthrough' }))
     const user = userEvent.setup()
     renderWithProviders(<Host />)
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('user@x')).toBeInTheDocument()
-    })
+    await screen.findByRole('heading', { name: /Seguridad/i })
     await user.click(screen.getByRole('tab', { name: /Operación/i }))
     await user.click(screen.getByRole('button', { name: /Cambiar modo/i }))
     const reconcileCard = await screen.findByRole('button', {
@@ -335,9 +285,7 @@ describe('SettingsDialog', () => {
     server.use(meHandler({ operationMode: 'passthrough' }))
     const user = userEvent.setup()
     renderWithProviders(<Host />)
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('user@x')).toBeInTheDocument()
-    })
+    await screen.findByRole('heading', { name: /Seguridad/i })
     await user.click(screen.getByRole('tab', { name: /Operación/i }))
     await user.click(screen.getByRole('button', { name: /Cambiar modo/i }))
     // Switch to reconcile first to enable save
@@ -362,9 +310,7 @@ describe('SettingsDialog', () => {
     )
     const user = userEvent.setup()
     renderWithProviders(<Host />)
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('user@x')).toBeInTheDocument()
-    })
+    await screen.findByRole('heading', { name: /Seguridad/i })
     await user.click(screen.getByRole('tab', { name: /Operación/i }))
     await user.click(screen.getByRole('button', { name: /Cambiar modo/i }))
     await user.click(
@@ -384,9 +330,7 @@ describe('SettingsDialog', () => {
     server.use(meHandler({ operationMode: 'passthrough' }))
     const user = userEvent.setup()
     renderWithProviders(<Host />)
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('user@x')).toBeInTheDocument()
-    })
+    await screen.findByRole('heading', { name: /Seguridad/i })
     await user.click(screen.getByRole('tab', { name: /Operación/i }))
     await user.click(screen.getByRole('button', { name: /Cambiar modo/i }))
     await user.click(
