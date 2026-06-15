@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import request from 'supertest'
 import { buildApiKeysRouter } from './apiKeys.routes.js'
 import { buildTestApp, AUTH_HEADER } from '../../../tests/helpers/buildTestApp.js'
+import { UnauthorizedError } from '../../shared/errors/index.js'
 import type { UserModule } from '../../composition/userModule.js'
 
 type MockedUserModule = {
@@ -160,7 +161,30 @@ describe('apiKeys.routes', () => {
         .set('Authorization', AUTH_HEADER)
 
       expect(res.status).toBe(204)
-      expect(user.revokeApiKey.execute).toHaveBeenCalledWith(id, 'user-1')
+      expect(user.revokeApiKey.execute).toHaveBeenCalledWith(id, 'user-1', undefined)
+    })
+
+    it('forwards a 2FA code from the body to the use case', async () => {
+      user.revokeApiKey.execute.mockResolvedValue(true)
+
+      const res = await request(makeApp(user))
+        .delete(`/me/api-keys/${id}`)
+        .set('Authorization', AUTH_HEADER)
+        .send({ code: '123456' })
+
+      expect(res.status).toBe(204)
+      expect(user.revokeApiKey.execute).toHaveBeenCalledWith(id, 'user-1', '123456')
+    })
+
+    it('propagates a 401 when the use case rejects the code', async () => {
+      user.revokeApiKey.execute.mockRejectedValue(new UnauthorizedError('Invalid code'))
+
+      const res = await request(makeApp(user))
+        .delete(`/me/api-keys/${id}`)
+        .set('Authorization', AUTH_HEADER)
+        .send({ code: '000000' })
+
+      expect(res.status).toBe(401)
     })
 
     it('returns 404 when the key does not exist for the user', async () => {

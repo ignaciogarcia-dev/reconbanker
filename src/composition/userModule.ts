@@ -88,7 +88,7 @@ export function buildUserModule(container: ContainerBase): UserModule {
     ),
     createApiKey: new CreateApiKeyUseCase(apiKeyRepository),
     listApiKeys: new ListApiKeysUseCase(apiKeyRepository),
-    revokeApiKey: new RevokeApiKeyUseCase(apiKeyRepository),
+    revokeApiKey: new RevokeApiKeyUseCase(apiKeyRepository, userRepository, totp),
     authenticateApiKey: new AuthenticateApiKeyUseCase(apiKeyRepository),
   }
 }
