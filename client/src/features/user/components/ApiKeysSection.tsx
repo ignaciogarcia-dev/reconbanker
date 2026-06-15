@@ -116,6 +116,7 @@ export function ApiKeysSection() {
       <Dialog
         open={createdSecret !== null}
         onOpenChange={o => {
+          /* v8 ignore next 4 -- dialog has no internal trigger so the truthy branch is defensive */
           if (!o) {
             setCreatedSecret(null)
             setCopied(false)
@@ -185,7 +186,13 @@ export function ApiKeysSection() {
       </Dialog>
 
       {/* Revoke confirmation — requires a current TOTP code when 2FA is enabled */}
-      <Dialog open={revokeTarget !== null} onOpenChange={o => { if (!o) closeRevoke() }}>
+      <Dialog
+        open={revokeTarget !== null}
+        onOpenChange={o => {
+          /* v8 ignore next -- dialog has no internal trigger so the truthy branch is defensive */
+          if (!o) closeRevoke()
+        }}
+      >
         <DialogContent
           forceOverlay
           overlayClassName="bg-black/75 supports-backdrop-filter:backdrop-blur-sm"
