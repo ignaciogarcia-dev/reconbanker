@@ -70,6 +70,8 @@ export const commonEs = {
   },
   validation: {
     required: 'Completá este campo',
+    emailRequired: 'El campo correo electrónico es obligatorio.',
+    passwordRequired: 'El campo contraseña es obligatorio.',
   },
   errors: {
     generic: 'Algo salió mal',
@@ -164,6 +166,8 @@ export const commonEn = {
   },
   validation: {
     required: 'Please fill out this field',
+    emailRequired: 'The email field is required.',
+    passwordRequired: 'The password field is required.',
   },
   errors: {
     generic: 'Something went wrong',

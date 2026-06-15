@@ -56,8 +56,8 @@ describe('Login page', () => {
     const user = userEvent.setup()
     renderLogin()
     await user.click(screen.getByRole('button', { name: /Ingresar/i }))
-    const messages = await screen.findAllByText(/Completá este campo/i)
-    expect(messages).toHaveLength(2)
+    expect(await screen.findByText(/El campo correo electrónico es obligatorio\./i)).toBeInTheDocument()
+    expect(screen.getByText(/El campo contraseña es obligatorio\./i)).toBeInTheDocument()
     expect(screen.getByLabelText(/Email/i)).toHaveAttribute('aria-invalid', 'true')
     expect(screen.getByLabelText(/Contraseña/i)).toHaveAttribute('aria-invalid', 'true')
   })
@@ -147,7 +147,7 @@ describe('Login page', () => {
     await user.type(screen.getByLabelText(/Email/i), 'ok@x.com')
     await user.type(screen.getByLabelText(/Contraseña/i), 'good')
     await user.click(screen.getByRole('button', { name: /Ingresar/i }))
-    expect(await screen.findByText(/Completá este campo/i)).toBeInTheDocument()
+    expect(await screen.findByText(/El campo contraseña es obligatorio\./i)).toBeInTheDocument()
   })
 
   it('shows the server-provided message for unexpected non-auth failures', async () => {

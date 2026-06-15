@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react'
 import { Label } from '@/shared/ui/label'
 import { cn } from '@/shared/lib/utils'
-import { AlertCircle, Info } from 'lucide-react'
+import { Info } from 'lucide-react'
 
 interface FormFieldProps {
   label: ReactNode
@@ -28,7 +28,7 @@ export function FormField({ label, htmlFor, helpId, required, hint, error, child
         )}
       </Label>
       {children}
-      {(hasError || hint || helpId) && (
+      {(hasError || hint) && (
         <p
           id={helpId}
           aria-live="polite"
@@ -37,9 +37,7 @@ export function FormField({ label, htmlFor, helpId, required, hint, error, child
             hasError ? 'text-destructive' : 'text-muted-foreground',
           )}
         >
-          {hasError ? (
-            <AlertCircle className="size-3 shrink-0" aria-hidden />
-          ) : hint ? (
+          {!hasError && hint ? (
             <Info className="size-3 shrink-0 opacity-60" aria-hidden />
           ) : null}
           <span>{hasError ? error : hint}</span>
