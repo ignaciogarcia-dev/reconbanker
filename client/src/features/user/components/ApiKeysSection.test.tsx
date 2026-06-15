@@ -52,6 +52,17 @@ describe('ApiKeysSection', () => {
     expect(screen.queryByText('Old key')).not.toBeInTheDocument()
   })
 
+  it('explains each scope with a title and the endpoint it enables', async () => {
+    renderWithProviders(<ApiKeysSection />)
+
+    await screen.findByText('No hay llaves activas.')
+    expect(screen.getByText('Enviar código OTP')).toBeInTheDocument()
+    expect(screen.getByText('Leer estado de la cuenta')).toBeInTheDocument()
+    expect(screen.getAllByText('Endpoint')).toHaveLength(2)
+    expect(screen.getByText(/\/v1\/accounts\/\{accountId\}\/otp/)).toBeInTheDocument()
+    expect(screen.getByText(/\/v1\/accounts\/\{accountId\}\/status/)).toBeInTheDocument()
+  })
+
   it('creates a key, reveals the secret once, copies and dismisses it', async () => {
     const user = userEvent.setup()
     const writeText = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('denied'))
@@ -77,7 +88,7 @@ describe('ApiKeysSection', () => {
     await user.type(screen.getByLabelText('Nombre'), '  My key  ')
     await user.click(screen.getByRole('button', { name: /Crear llave/ }))
 
-    expect(await screen.findByText('Copia esta llave ahora. No se volverá a mostrar.')).toBeInTheDocument()
+    expect(await screen.findByText('Copiá y guardá esta llave ahora')).toBeInTheDocument()
     expect(screen.getByText('rbk_abcd1234_secret')).toBeInTheDocument()
     expect(created).toEqual({ name: 'My key', scopes: ['status:read', 'otp:write'], account_ids: null })
     expect(await screen.findByText('Llave creada')).toBeInTheDocument()
