@@ -44,18 +44,11 @@
     "subtitle": "Manage your profile and operation mode",
     "loading": "Loading...",
     "tabs": {
-      "general": "General",
       "security": "Security",
       "operation": "Operation",
       "apiKeys": "API Keys"
     },
-    "profile": {
-      "title": "Profile",
-      "name": "Name",
-      "email": "Email"
-    },
     "security": {
-      "subtitle": "Two-factor authentication",
       "intro": "Add a second step at sign-in using an authenticator app (Google Authenticator, Authy, 1Password).",
       "disabledLabel": "Two-factor authentication is off",
       "enabledLabel": "Two-factor authentication is on",
@@ -86,16 +79,14 @@
       "saveError": "Failed to update operation mode",
       "changeWarning": "Changing the mode will permanently delete all movements and conciliations.",
       "confirmTitle": "Confirm mode change",
-      "confirmBody": "Changing the mode will permanently delete all movements and conciliations recorded so far. For security and compliance reasons, data processed under one mode cannot be carried over to the other. This action is irreversible.",
+      "confirmBody": "Changing the mode will permanently delete all movements and conciliations recorded so far. This action is irreversible.",
       "confirmCancel": "Cancel",
       "confirmConfirm": "Yes, change and delete data"
     },
     "apiKeys": {
-      "subtitle": "Keys for external integrations (SMS server, etc.)",
       "name": "Name",
       "namePlaceholder": "SMS server",
-      "scopes": "Scopes",
-      "scopesHint": "Each scope enables one API endpoint. Turn on only the ones your integration needs.",
+      "scopesHint": "Each permission enables one API endpoint.",
       "scopeInfo": {
         "otpWrite": { "title": "Submit OTP code", "desc": "Sends a bank account the (OTP/SMS) code the bank requested." },
         "statusRead": { "title": "Read account status", "desc": "Checks whether a session is active and whether the bank is requesting a code." }
@@ -109,7 +100,13 @@
       "dismiss": "Done",
       "empty": "No active keys.",
       "revoke": "Revoke",
-      "revoked": "Key revoked"
+      "revoked": "Key revoked",
+      "revokeTitle": "Revoke key",
+      "revokeBody": "This can't be undone. Any integration using this key will stop working.",
+      "revoke2faHint": "Enter your 6-digit authenticator code to confirm.",
+      "revokeConfirm": "Revoke",
+      "cancel": "Cancel",
+      "revokeError": "Could not revoke the key"
     }
   },
   "modeSelect": {

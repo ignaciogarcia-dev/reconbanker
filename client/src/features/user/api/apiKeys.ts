@@ -37,6 +37,8 @@ export async function createApiKey(input: {
   return data
 }
 
-export async function revokeApiKey(id: string): Promise<void> {
-  await httpClient.delete(`/me/api-keys/${id}`)
+export async function revokeApiKey(id: string, code?: string): Promise<void> {
+  // Send the TOTP code in the body only when present; the backend requires it
+  // when the user has 2FA enabled and ignores it otherwise.
+  await httpClient.delete(`/me/api-keys/${id}`, code ? { data: { code } } : undefined)
 }

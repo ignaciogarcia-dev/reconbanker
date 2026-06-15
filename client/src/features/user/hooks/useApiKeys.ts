@@ -19,7 +19,8 @@ export function useCreateApiKey() {
 export function useRevokeApiKey() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: revokeApiKey,
+    mutationFn: ({ id, code }: { id: string; code?: string }) => revokeApiKey(id, code),
+    meta: { errorHandled: true },
     onSuccess: () => qc.invalidateQueries({ queryKey: apiKeysQueryKey }),
   })
 }
