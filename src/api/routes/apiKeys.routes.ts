@@ -13,6 +13,8 @@ const createSchema = z.object({
   account_ids: z.array(z.string().uuid()).nullable().optional(),
 })
 const idParams = z.object({ id: z.string().uuid() })
+// `.default({})` so a bodyless DELETE (no JSON body at all) is treated as "no code"
+const revokeSchema = z.object({ code: z.string().optional() }).default({})
 
 function requireUserId(req: AuthRequest): string {
   if (!req.userId) throw new UnauthorizedError('Unauthorized')
@@ -59,7 +61,8 @@ export function buildApiKeysRouter(user: UserModule): Router {
   router.delete('/:id', controller(async (req: AuthRequest, res) => {
     const userId = requireUserId(req)
     const { id } = validateParams(req, idParams)
-    const revoked = await user.revokeApiKey.execute(id, userId)
+    const { code } = validateBody(req, revokeSchema)
+    const revoked = await user.revokeApiKey.execute(id, userId, code)
     if (!revoked) throw new NotFoundError('API key not found')
     res.status(204).end()
   }))
