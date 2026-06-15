@@ -44,18 +44,11 @@
     "subtitle": "Gestioná tu perfil y el modo de operación",
     "loading": "Cargando...",
     "tabs": {
-      "general": "General",
       "security": "Seguridad",
       "operation": "Operación",
       "apiKeys": "API Keys"
     },
-    "profile": {
-      "title": "Perfil",
-      "name": "Nombre",
-      "email": "Email"
-    },
     "security": {
-      "subtitle": "Autenticación en dos pasos",
       "intro": "Agregá un segundo paso al iniciar sesión usando una app de autenticación (Google Authenticator, Authy, 1Password).",
       "disabledLabel": "La autenticación en dos pasos está desactivada",
       "enabledLabel": "La autenticación en dos pasos está activada",
@@ -86,16 +79,14 @@
       "saveError": "No se pudo actualizar el modo de operación",
       "changeWarning": "Cambiar de modo eliminará permanentemente todos los movimientos y conciliaciones.",
       "confirmTitle": "Confirmá el cambio de modo",
-      "confirmBody": "Al cambiar de modo se eliminarán de forma permanente todos los movimientos y conciliaciones registrados hasta ahora. Por motivos de seguridad y cumplimiento, los datos procesados bajo un modo no pueden conservarse al pasar al otro. Esta acción es irreversible.",
+      "confirmBody": "Al cambiar de modo se eliminarán de forma permanente todos los movimientos y conciliaciones registrados hasta ahora. Esta acción es irreversible.",
       "confirmCancel": "Cancelar",
       "confirmConfirm": "Sí, cambiar y borrar datos"
     },
     "apiKeys": {
-      "subtitle": "Llaves para integraciones externas (servidor SMS, etc.)",
       "name": "Nombre",
       "namePlaceholder": "Servidor SMS",
-      "scopes": "Permisos",
-      "scopesHint": "Cada permiso habilita un endpoint de la API. Activá solo los que tu integración necesita.",
+      "scopesHint": "Cada permiso habilita un endpoint de la API.",
       "scopeInfo": {
         "otpWrite": { "title": "Enviar código OTP", "desc": "Envía a una cuenta el código (OTP/SMS) que pide el banco." },
         "statusRead": { "title": "Leer estado de la cuenta", "desc": "Consulta si hay una sesión activa y si el banco está pidiendo un código." }
@@ -109,7 +100,13 @@
       "dismiss": "Listo",
       "empty": "No hay llaves activas.",
       "revoke": "Revocar",
-      "revoked": "Llave revocada"
+      "revoked": "Llave revocada",
+      "revokeTitle": "Revocar llave",
+      "revokeBody": "Esta acción no se puede deshacer. Cualquier integración que use esta llave dejará de funcionar.",
+      "revoke2faHint": "Ingresá el código de 6 dígitos de tu authenticator para confirmar.",
+      "revokeConfirm": "Revocar",
+      "cancel": "Cancelar",
+      "revokeError": "No se pudo revocar la llave"
     }
   },
   "modeSelect": {

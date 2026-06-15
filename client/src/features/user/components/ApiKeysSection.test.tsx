@@ -29,7 +29,12 @@ function listHandler(keys: ApiKey[]) {
 
 describe('ApiKeysSection', () => {
   beforeEach(() => {
-    server.use(listHandler([]))
+    server.use(
+      http.get('/api/me', () =>
+        HttpResponse.json({ id: 'u-1', email: 'test@x', name: 'T', operation_mode: 'passthrough', totp_enabled: false })
+      ),
+      listHandler([]),
+    )
   })
 
   it('shows the empty state when there are no active keys', async () => {
@@ -58,7 +63,8 @@ describe('ApiKeysSection', () => {
     await screen.findByText('No hay llaves activas.')
     expect(screen.getByText('Enviar código OTP')).toBeInTheDocument()
     expect(screen.getByText('Leer estado de la cuenta')).toBeInTheDocument()
-    expect(screen.getAllByText('Endpoint')).toHaveLength(2)
+    expect(screen.getByText('POST')).toBeInTheDocument()
+    expect(screen.getByText('GET')).toBeInTheDocument()
     expect(screen.getByText(/\/v1\/accounts\/\{accountId\}\/otp/)).toBeInTheDocument()
     expect(screen.getByText(/\/v1\/accounts\/\{accountId\}\/status/)).toBeInTheDocument()
   })
@@ -157,9 +163,10 @@ describe('ApiKeysSection', () => {
     expect(await screen.findByText('No se pudo crear la llave')).toBeInTheDocument()
   })
 
-  it('revokes a key and refreshes the list', async () => {
+  it('revokes a key via the confirm dialog when 2FA is off', async () => {
     const user = userEvent.setup()
     let revokedId: string | null = null
+    let sentBody: unknown = 'unset'
     server.use(
       http.get('/api/me/api-keys', () =>
         HttpResponse.json({
@@ -167,8 +174,44 @@ describe('ApiKeysSection', () => {
           available_scopes: ['otp:write', 'status:read'],
         })
       ),
-      http.delete('/api/me/api-keys/:id', ({ params }) => {
+      http.delete('/api/me/api-keys/:id', async ({ params, request }) => {
+        sentBody = await request.json().catch(() => null)
         revokedId = params.id as string
+        return new HttpResponse(null, { status: 204 })
+      })
+    )
+    renderWithProviders(<ApiKeysSection />)
+
+    await screen.findByText('SMS server')
+    // The trash icon opens the confirm dialog; nothing is revoked yet.
+    await user.click(screen.getByRole('button', { name: 'Revocar' }))
+    expect(revokedId).toBeNull()
+    // With 2FA off there is no code field.
+    expect(screen.queryByPlaceholderText('123456')).not.toBeInTheDocument()
+    // The only visible "Revocar" text is the dialog's confirm button.
+    await user.click(screen.getByText('Revocar'))
+
+    expect(await screen.findByText('Llave revocada')).toBeInTheDocument()
+    expect(revokedId).toBe('k-1')
+    // No code sent on the 2FA-off path.
+    expect(sentBody).toBeNull()
+    expect(await screen.findByText('No hay llaves activas.')).toBeInTheDocument()
+  })
+
+  it('requires a TOTP code to revoke when 2FA is enabled', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.get('/api/me', () =>
+        HttpResponse.json({ id: 'u-1', email: 'test@x', name: 'T', operation_mode: 'passthrough', totp_enabled: true })
+      ),
+      http.get('/api/me/api-keys', () =>
+        HttpResponse.json({ keys: [key()], available_scopes: ['otp:write', 'status:read'] })
+      ),
+      http.delete('/api/me/api-keys/:id', async ({ request }) => {
+        const body = (await request.json().catch(() => ({}))) as { code?: string }
+        if (body.code !== '123456') {
+          return HttpResponse.json({ error: { code: 'UNAUTHORIZED', message: 'Invalid code' } }, { status: 401 })
+        }
         return new HttpResponse(null, { status: 204 })
       })
     )
@@ -177,8 +220,17 @@ describe('ApiKeysSection', () => {
     await screen.findByText('SMS server')
     await user.click(screen.getByRole('button', { name: 'Revocar' }))
 
+    // A wrong code keeps the dialog open and shows an inline error.
+    const input = await screen.findByPlaceholderText('123456')
+    await user.type(input, '000000')
+    await user.click(screen.getByText('Revocar'))
+    expect(await screen.findByText('Código inválido, probá de nuevo')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('123456')).toBeInTheDocument()
+
+    // The correct code revokes the key.
+    await user.clear(input)
+    await user.type(input, '123456')
+    await user.click(screen.getByText('Revocar'))
     expect(await screen.findByText('Llave revocada')).toBeInTheDocument()
-    expect(revokedId).toBe('k-1')
-    expect(await screen.findByText('No hay llaves activas.')).toBeInTheDocument()
   })
 })
