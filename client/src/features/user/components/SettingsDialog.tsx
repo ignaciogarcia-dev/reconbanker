@@ -2,9 +2,7 @@ import { localizedApiError } from '@/shared/http/client'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { GitMerge, ArrowDownUp, AlertTriangle, UserRound, Settings2, ShieldCheck, KeyRound } from 'lucide-react'
-import { Input } from '@/shared/ui/input'
-import { Label } from '@/shared/ui/label'
+import { GitMerge, ArrowDownUp, AlertTriangle, Settings2, ShieldCheck, KeyRound } from 'lucide-react'
 import { Button } from '@/shared/ui/button'
 import { Badge } from '@/shared/ui/badge'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/shared/ui/dialog'
@@ -22,7 +20,6 @@ const MODE_OPTIONS = [
 ]
 
 const SECTIONS = [
-  { key: 'general', icon: UserRound },
   { key: 'security', icon: ShieldCheck },
   { key: 'operation', icon: Settings2 },
   { key: 'apiKeys', icon: KeyRound },
@@ -48,7 +45,6 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   }
 
   const currentMode = me?.operationMode ?? null
-  const initial = me?.name?.[0]?.toUpperCase() ?? me?.email?.[0]?.toUpperCase() ?? '?'
 
   function startEditing() {
     setSelected(currentMode)
@@ -134,7 +130,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
           />
 
           <Tabs
-            defaultValue="general"
+            defaultValue="security"
             orientation="vertical"
             className="relative grid h-full min-h-0 grid-cols-[220px_1fr] gap-0"
           >
@@ -146,21 +142,6 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                 borderRight: '1px solid oklch(1 0 0 / 0.07)',
               }}
             >
-              <div className="mb-7">
-                <p
-                  className="text-[10px] uppercase tracking-[0.28em]"
-                  style={{ color: 'oklch(0.5 0 0)' }}
-                >
-                  {t('settings.title')}
-                </p>
-                <h2
-                  className="mt-1 text-[20px] font-semibold leading-[1.1]"
-                  style={{ color: 'oklch(0.98 0 0)', letterSpacing: '-0.01em' }}
-                >
-                  {me?.name?.split(' ')[0] ?? t('settings.profile.name')}
-                </h2>
-              </div>
-
               <TabsList
                 variant="line"
                 className="h-auto w-full flex-col items-stretch gap-1 border-0 bg-transparent p-0 shadow-none"
@@ -187,29 +168,6 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                 ))}
               </TabsList>
 
-              {me && (
-                <div
-                  className="mt-auto flex items-center gap-3 rounded-lg p-2"
-                  style={{
-                    background: 'oklch(1 0 0 / 0.04)',
-                    boxShadow: 'inset 0 0 0 1px oklch(1 0 0 / 0.07)',
-                  }}
-                >
-                  <div
-                    className="flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
-                    style={{
-                      color: 'oklch(0.96 0 0)',
-                      background: 'oklch(1 0 0 / 0.07)',
-                      boxShadow: 'inset 0 0 0 1px oklch(1 0 0 / 0.1)',
-                    }}
-                  >
-                    {initial}
-                  </div>
-                  <p className="min-w-0 truncate text-[11px]" style={{ color: 'oklch(0.6 0 0)' }}>
-                    {me.email}
-                  </p>
-                </div>
-              )}
             </aside>
 
             {/* Content */}
@@ -221,26 +179,10 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
               ) : (
                 <div className="flex h-full min-h-0 flex-col">
                   <TabsContent
-                    value="general"
-                    className="min-h-0 flex-1 overflow-y-auto px-8 py-7 outline-none data-[active]:flex data-[active]:flex-col"
-                  >
-                    <PaneHeader title={t('settings.tabs.general')} subtitle={t('settings.subtitle')} />
-
-                    <div className="mt-6 grid gap-5 sm:grid-cols-2">
-                      <Field label={t('settings.profile.name')}>
-                        <Input value={me.name ?? ''} disabled className="settings-input" />
-                      </Field>
-                      <Field label={t('settings.profile.email')}>
-                        <Input value={me.email} disabled className="settings-input" />
-                      </Field>
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent
                     value="security"
                     className="min-h-0 flex-1 overflow-y-auto px-8 py-7 outline-none data-[active]:flex data-[active]:flex-col"
                   >
-                    <PaneHeader title={t('settings.tabs.security')} subtitle={t('settings.security.subtitle')} />
+                    <PaneHeader title={t('settings.tabs.security')} />
                     <TwoFactorSection enabled={me.totpEnabled} />
                   </TabsContent>
 
@@ -248,10 +190,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                     value="operation"
                     className="min-h-0 flex-1 overflow-y-auto px-8 py-7 outline-none data-[active]:flex data-[active]:flex-col"
                   >
-                    <PaneHeader
-                      title={t('settings.tabs.operation')}
-                      subtitle={t('settings.mode.title')}
-                    />
+                    <PaneHeader title={t('settings.tabs.operation')} />
 
                     <div className="mt-6 space-y-4">
                       {/* Header row */}
@@ -368,7 +307,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                     value="apiKeys"
                     className="min-h-0 flex-1 overflow-y-auto px-8 py-7 outline-none data-[active]:flex data-[active]:flex-col"
                   >
-                    <PaneHeader title={t('settings.tabs.apiKeys')} subtitle={t('settings.apiKeys.subtitle')} />
+                    <PaneHeader title={t('settings.tabs.apiKeys')} />
                     <div className="mt-6">
                       <ApiKeysSection />
                     </div>
@@ -433,22 +372,17 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   )
 }
 
-function PaneHeader({ title, subtitle }: { title: string; subtitle: string }) {
+function PaneHeader({ title }: { title: string }) {
   return (
-    <div className="space-y-1">
-      <p
-        className="text-[10px] uppercase tracking-[0.28em]"
-        style={{ color: 'oklch(0.5 0 0)' }}
-      >
-        {subtitle}
-      </p>
+    <>
       <h3
         className="text-[22px] font-semibold leading-[1.1]"
         style={{ color: 'oklch(0.98 0 0)', letterSpacing: '-0.01em' }}
       >
         {title}
       </h3>
-    </div>
+      <hr className="mt-4 border-white/[0.08]" />
+    </>
   )
 }
 
@@ -536,19 +470,5 @@ function ModeCard({
         {t(`modeSelect.${mode}.desc`)}
       </p>
     </button>
-  )
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-1.5">
-      <Label
-        className="text-[10px] uppercase tracking-[0.2em]"
-        style={{ color: 'oklch(0.5 0 0)' }}
-      >
-        {label}
-      </Label>
-      {children}
-    </div>
   )
 }
