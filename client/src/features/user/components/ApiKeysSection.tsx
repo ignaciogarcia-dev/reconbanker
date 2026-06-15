@@ -27,12 +27,9 @@ export function ApiKeysSection() {
   const [copied, setCopied] = useState(false)
 
   const setScope = (scope: ApiScope, checked: boolean) =>
-    setScopes(prev => {
-      const has = prev.includes(scope)
-      if (checked && !has) return [...prev, scope]
-      if (!checked && has) return prev.filter(x => x !== scope)
-      return prev
-    })
+    setScopes(prev =>
+      checked ? [...new Set([...prev, scope])] : prev.filter(x => x !== scope),
+    )
 
   const handleCreate = () => {
     /* v8 ignore next 1 -- the create button is disabled while name/scopes are invalid; guard is defensive. */
