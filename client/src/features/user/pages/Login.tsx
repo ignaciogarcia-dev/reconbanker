@@ -34,9 +34,9 @@ export function Login() {
 
   function validate(values: { email: string; password: string }): LoginErrors {
     const next: LoginErrors = {}
-    if (!values.email.trim()) next.email = t('common:validation.required')
+    if (!values.email.trim()) next.email = t('common:validation.emailRequired')
     else if (!emailPattern.test(values.email)) next.email = t('errors.emailInvalid')
-    if (!values.password) next.password = t('common:validation.required')
+    if (!values.password) next.password = t('common:validation.passwordRequired')
     return next
   }
 
@@ -73,7 +73,7 @@ export function Login() {
       if (fieldErrors.email || fieldErrors.password) {
         setErrors({
           email: fieldErrors.email && t('errors.emailInvalid'),
-          password: fieldErrors.password && t('common:validation.required'),
+          password: fieldErrors.password && t('common:validation.passwordRequired'),
         })
         return
       }

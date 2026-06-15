@@ -109,8 +109,8 @@ describe('Register page', () => {
     const user = userEvent.setup()
     renderRegister()
     await user.click(screen.getByRole('button', { name: /^Registrar$/i }))
-    const messages = await screen.findAllByText(/Completá este campo/i)
-    expect(messages).toHaveLength(2)
+    expect(await screen.findByText(/El campo correo electrónico es obligatorio\./i)).toBeInTheDocument()
+    expect(screen.getByText(/El campo contraseña es obligatorio\./i)).toBeInTheDocument()
   })
 
   it('shows the server-provided error message on conflict', async () => {

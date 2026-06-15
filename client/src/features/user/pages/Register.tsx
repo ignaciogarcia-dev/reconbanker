@@ -27,10 +27,10 @@ export function Register() {
 
   function validate(values: { email: string; password: string }): RegisterErrors {
     const next: RegisterErrors = {}
-    if (!values.email.trim()) next.email = t('common:validation.required')
+    if (!values.email.trim()) next.email = t('common:validation.emailRequired')
     else if (!emailPattern.test(values.email)) next.email = t('errors.emailInvalid')
     if (!values.password) {
-      next.password = t('common:validation.required')
+      next.password = t('common:validation.passwordRequired')
     } else {
       // One rule at a time: only the first failing rule is shown; fixing it reveals the next
       const rule = firstFailingPasswordRule(values.password)
