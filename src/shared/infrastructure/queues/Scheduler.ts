@@ -70,7 +70,7 @@ export class Scheduler {
       await Queues.orderIngestion.add(
         'poll',
         { accountId: account.id },
-        { jobId: `poll:${account.id}`, removeOnComplete: true, removeOnFail: 100 }
+        { jobId: `poll-${account.id}`, removeOnComplete: true, removeOnFail: 100 }
       )
     }
 

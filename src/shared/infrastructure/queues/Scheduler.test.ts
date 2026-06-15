@@ -89,7 +89,7 @@ describe('Scheduler', () => {
     expect(orderIngestionAdd.mock.calls[0][1]).toEqual({ accountId: 'a1' })
     // Idempotent jobId (no timestamp) so a slow/failed poll does not spawn a
     // second concurrent poll for the same account.
-    expect(orderIngestionAdd.mock.calls[0][2]).toMatchObject({ jobId: 'poll:a1' })
+    expect(orderIngestionAdd.mock.calls[0][2]).toMatchObject({ jobId: 'poll-a1' })
 
     // scraping called for 2 one-shot accounts
     // persistent session: a5 is running, a6 not -> only a6 enqueued
