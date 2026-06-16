@@ -135,7 +135,7 @@ describe('SettingsDialog', () => {
     await user.click(saveBtn)
     // Confirmation dialog appears
     const confirmBtn = await screen.findByRole('button', {
-      name: /Sí, cambiar y borrar datos/i,
+      name: /Confirmar/i,
     })
     await user.click(confirmBtn)
     await waitFor(() => {
@@ -202,7 +202,7 @@ describe('SettingsDialog', () => {
     )
     await user.click(screen.getByRole('button', { name: /^Guardar$/i }))
     await user.click(
-      await screen.findByRole('button', { name: /Sí, cambiar y borrar datos/i })
+      await screen.findByRole('button', { name: /Confirmar/i })
     )
     await waitFor(() => {
       expect(screen.getByText(/boom/i)).toBeInTheDocument()
@@ -224,7 +224,7 @@ describe('SettingsDialog', () => {
     )
     await user.click(screen.getByRole('button', { name: /^Guardar$/i }))
     await user.click(
-      await screen.findByRole('button', { name: /Sí, cambiar y borrar datos/i })
+      await screen.findByRole('button', { name: /Confirmar/i })
     )
     await waitFor(() => {
       expect(screen.getByText(/No se pudo actualizar el modo de operación/i)).toBeInTheDocument()
@@ -318,7 +318,7 @@ describe('SettingsDialog', () => {
     )
     await user.click(screen.getByRole('button', { name: /^Guardar$/i }))
     await user.click(
-      await screen.findByRole('button', { name: /Sí, cambiar y borrar datos/i })
+      await screen.findByRole('button', { name: /Confirmar/i })
     )
     // The confirm button text flips to "Guardando..." while the PUT is pending.
     await waitFor(() => {

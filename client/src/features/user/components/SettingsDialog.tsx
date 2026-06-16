@@ -205,7 +205,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                           size="sm"
                           onClick={expanded ? cancelEditing : startEditing}
                           disabled={setMode.isPending}
-                          className="shrink-0 border-0 text-[11px] uppercase tracking-[0.18em]"
+                          className="shrink-0 border-0 text-[11px] tracking-[0.18em]"
                           style={{
                             background: 'oklch(1 0 0 / 0.06)',
                             color: 'oklch(0.92 0 0)',
@@ -289,7 +289,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                           <Button
                             onClick={() => setConfirmOpen(true)}
                             disabled={!canSave || setMode.isPending}
-                            className="text-[11px] uppercase tracking-[0.18em]"
+                            className="text-[11px] tracking-[0.18em]"
                             style={{
                               background: 'oklch(0.95 0 0)',
                               color: 'oklch(0.12 0 0)',
@@ -352,7 +352,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
               variant="ghost"
               onClick={() => setConfirmOpen(false)}
               disabled={setMode.isPending}
-              className="text-[11px] uppercase tracking-[0.18em]"
+              className="text-[11px] tracking-[0.18em]"
               style={{ color: 'oklch(0.65 0 0)' }}
             >
               {t('settings.mode.confirmCancel')}
@@ -360,7 +360,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
             <Button
               onClick={confirmChange}
               disabled={setMode.isPending}
-              className="text-[11px] uppercase tracking-[0.18em]"
+              className="text-[11px] tracking-[0.18em]"
               style={{ background: 'oklch(0.58 0.2 28)', color: 'oklch(0.98 0 0)' }}
             >
               {setMode.isPending ? t('settings.mode.saving') : t('settings.mode.confirmConfirm')}
