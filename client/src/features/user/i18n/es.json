@@ -57,7 +57,7 @@
       "enrollError": "No se pudo iniciar la configuración",
       "scanHint": "Escaneá este código QR con tu app de autenticación y luego ingresá el código de 6 dígitos para confirmar.",
       "code": "Código de 6 dígitos",
-      "verify": "Verificar y activar",
+      "verify": "Verificar",
       "codeError": "Código inválido, probá de nuevo",
       "backupTitle": "Guardá tus códigos de respaldo",
       "backupHint": "Guardá estos códigos de un solo uso en un lugar seguro. Cada uno sirve una vez si perdés acceso a tu app de autenticación. No se mostrarán de nuevo.",
@@ -81,7 +81,7 @@
       "confirmTitle": "Confirmá el cambio de modo",
       "confirmBody": "Al cambiar de modo se eliminarán de forma permanente todos los movimientos y conciliaciones registrados hasta ahora. Esta acción es irreversible.",
       "confirmCancel": "Cancelar",
-      "confirmConfirm": "Sí, cambiar y borrar datos"
+      "confirmConfirm": "Confirmar"
     },
     "apiKeys": {
       "name": "Nombre",
