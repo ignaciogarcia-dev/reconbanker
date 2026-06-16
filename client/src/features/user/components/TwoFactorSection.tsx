@@ -79,7 +79,7 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
           <Button
             variant="ghost"
             onClick={() => setStage('disabling')}
-            className="text-[11px] uppercase tracking-[0.18em]"
+            className="text-[11px] tracking-[0.18em]"
             style={{ color: 'oklch(0.7 0.18 28)' }}
           >
             <ShieldOff className="size-3.5" />
@@ -195,7 +195,7 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
       <Button
         onClick={() => enroll.mutate()}
         disabled={enroll.isPending}
-        className="text-[11px] uppercase tracking-[0.18em]"
+        className="text-[11px] tracking-[0.18em]"
         style={{ background: 'oklch(0.95 0 0)', color: 'oklch(0.12 0 0)' }}
       >
         <ShieldCheck className="size-3.5" />

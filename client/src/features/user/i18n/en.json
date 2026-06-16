@@ -57,7 +57,7 @@
       "enrollError": "Could not start enrollment",
       "scanHint": "Scan this QR code with your authenticator app, then enter the 6-digit code to confirm.",
       "code": "6-digit code",
-      "verify": "Verify and enable",
+      "verify": "Verify",
       "codeError": "Invalid code, please try again",
       "backupTitle": "Save your backup codes",
       "backupHint": "Store these one-time codes somewhere safe. Each can be used once if you lose access to your authenticator. They won't be shown again.",
@@ -81,7 +81,7 @@
       "confirmTitle": "Confirm mode change",
       "confirmBody": "Changing the mode will permanently delete all movements and conciliations recorded so far. This action is irreversible.",
       "confirmCancel": "Cancel",
-      "confirmConfirm": "Yes, change and delete data"
+      "confirmConfirm": "Confirm"
     },
     "apiKeys": {
       "name": "Name",

@@ -176,7 +176,7 @@ export function ApiKeysSection() {
               <Button
                 size="sm"
                 onClick={() => setCreatedSecret(null)}
-                className="border-0 bg-white px-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-black hover:bg-white/90"
+                className="border-0 bg-white px-4 text-[11px] font-semibold tracking-[0.16em] text-black hover:bg-white/90"
               >
                 {t('settings.apiKeys.dismiss')}
               </Button>
@@ -254,7 +254,7 @@ export function ApiKeysSection() {
                 variant="ghost"
                 onClick={closeRevoke}
                 disabled={revoke.isPending}
-                className="text-[11px] uppercase tracking-[0.16em] text-white/60 hover:bg-white/10 hover:text-white"
+                className="text-[11px] tracking-[0.16em] text-white/60 hover:bg-white/10 hover:text-white"
               >
                 {t('settings.apiKeys.cancel')}
               </Button>
@@ -262,7 +262,7 @@ export function ApiKeysSection() {
                 size="sm"
                 onClick={submitRevoke}
                 disabled={revoke.isPending || (requires2fa && !revokeCode.trim())}
-                className="border-0 px-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-white"
+                className="border-0 px-4 text-[11px] font-semibold tracking-[0.16em] text-white"
                 style={{ background: 'oklch(0.55 0.2 28)' }}
               >
                 {t('settings.apiKeys.revokeConfirm')}
@@ -339,7 +339,7 @@ export function ApiKeysSection() {
               size="sm"
               onClick={handleCreate}
               disabled={create.isPending || !name.trim() || scopes.length === 0}
-              className="border-0 bg-white px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-black hover:bg-white/90"
+              className="border-0 bg-white px-3 text-[11px] font-semibold tracking-[0.16em] text-black hover:bg-white/90"
             >
               <KeyRound className="mr-1 size-3.5" />
               {create.isPending ? t('settings.apiKeys.creating') : t('settings.apiKeys.create')}

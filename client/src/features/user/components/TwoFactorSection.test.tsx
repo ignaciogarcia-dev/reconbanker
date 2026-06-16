@@ -37,7 +37,7 @@ describe('TwoFactorSection', () => {
 
       // confirm → backup codes
       await user.type(codeInput(), '123456')
-      await user.click(screen.getByRole('button', { name: /Verificar y activar/i }))
+      await user.click(screen.getByRole('button', { name: /Verificar/i }))
       expect(await screen.findByText(/Guardá tus códigos de respaldo/i)).toBeInTheDocument()
       expect(screen.getByText('AAAAA-BBBBB')).toBeInTheDocument()
       expect(screen.getByText('CCCCC-DDDDD')).toBeInTheDocument()
@@ -57,7 +57,7 @@ describe('TwoFactorSection', () => {
       await user.click(screen.getByRole('button', { name: /Activar 2FA/i }))
       await screen.findByText(/Escaneá este código QR/i)
       await user.type(codeInput(), '123456')
-      await user.click(screen.getByRole('button', { name: /Verificar y activar/i }))
+      await user.click(screen.getByRole('button', { name: /Verificar/i }))
       await screen.findByText(/Guardá tus códigos de respaldo/i)
 
       await user.click(screen.getByRole('button', { name: /Copiar/i }))
@@ -72,7 +72,7 @@ describe('TwoFactorSection', () => {
       await user.click(screen.getByRole('button', { name: /Activar 2FA/i }))
       await screen.findByText(/Escaneá este código QR/i)
       await user.type(codeInput(), '123456')
-      await user.click(screen.getByRole('button', { name: /Verificar y activar/i }))
+      await user.click(screen.getByRole('button', { name: /Verificar/i }))
       await screen.findByText(/Guardá tus códigos de respaldo/i)
 
       await user.click(screen.getByRole('button', { name: /Copiar/i }))
@@ -103,7 +103,7 @@ describe('TwoFactorSection', () => {
       await user.click(screen.getByRole('button', { name: /Activar 2FA/i }))
       await screen.findByText(/Escaneá este código QR/i)
       await user.type(codeInput(), '000000')
-      await user.click(screen.getByRole('button', { name: /Verificar y activar/i }))
+      await user.click(screen.getByRole('button', { name: /Verificar/i }))
       await waitFor(() => expect(toast.error).toHaveBeenCalled())
     })
 
@@ -133,7 +133,7 @@ describe('TwoFactorSection', () => {
       await user.click(screen.getByRole('button', { name: /Activar 2FA/i }))
       await screen.findByText(/Escaneá este código QR/i)
       await user.type(codeInput(), '123456')
-      await user.click(screen.getByRole('button', { name: /Verificar y activar/i }))
+      await user.click(screen.getByRole('button', { name: /Verificar/i }))
       expect(await screen.findByText(/Guardando/i)).toBeInTheDocument()
       await screen.findByText(/Guardá tus códigos de respaldo/i)
     })
