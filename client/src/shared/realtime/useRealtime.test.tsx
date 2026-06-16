@@ -20,8 +20,8 @@ class FakeWebSocket {
   }
 }
 
-function Harness() {
-  const { assistance, clearAccount } = useRealtime()
+function Harness({ accountIds = [] }: { accountIds?: string[] }) {
+  const { assistance, clearAccount } = useRealtime(accountIds)
   return (
     <div>
       <span data-testid="count">{assistance.size}</span>
@@ -33,9 +33,9 @@ function Harness() {
   )
 }
 
-function renderHarness() {
+function renderHarness(accountIds?: string[]) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(<QueryClientProvider client={qc}><Harness /></QueryClientProvider>)
+  return render(<QueryClientProvider client={qc}><Harness accountIds={accountIds} /></QueryClientProvider>)
 }
 
 async function firstSocket(): Promise<FakeWebSocket> {
@@ -76,6 +76,62 @@ describe('useRealtime', () => {
       type: 'assistance.fulfilled', userId: 'u-1', accountId: 'acc-1', occurredAt: 'now',
     }) }))
     expect(screen.getByTestId('count')).toHaveTextContent('0')
+  })
+
+  it('hydrates pending assistance for known accounts on load without a live event', async () => {
+    server.use(http.get('/api/accounts/acc-1/otp', () => HttpResponse.json({
+      id: 'req-hydrated', type: 'otp', descriptor: { length: 6, type: 'numeric', purpose: 'login' }, attempts: 1,
+    })))
+    server.use(http.get('/api/accounts/acc-2/otp', () => HttpResponse.json(null)))
+
+    renderHarness(['acc-1', 'acc-2'])
+    // The request was raised before this socket connected, so only the GET hydration surfaces it.
+    await waitFor(() => expect(screen.getByTestId('a-acc-1')).toHaveTextContent('acc-1:6:req-hydrated'))
+    expect(screen.queryByTestId('a-acc-2')).toBeNull()
+    expect(screen.getByTestId('count')).toHaveTextContent('1')
+  })
+
+  it('hydration adds nothing when no listed account has a pending request', async () => {
+    server.use(http.get('/api/accounts/:id/otp', () => HttpResponse.json(null)))
+    renderHarness(['acc-1', 'acc-2'])
+    await new Promise((r) => setTimeout(r, 30)) // let both lookups resolve
+    expect(screen.getByTestId('count')).toHaveTextContent('0')
+  })
+
+  it('hydration ignores a failed pending lookup', async () => {
+    server.use(http.get('/api/accounts/:id/otp', () => HttpResponse.json({ error: 'boom' }, { status: 500 })))
+    renderHarness(['acc-1'])
+    await new Promise((r) => setTimeout(r, 30))
+    expect(screen.getByTestId('count')).toHaveTextContent('0')
+  })
+
+  it('hydration does not override an account the live event already set', async () => {
+    server.use(http.get('/api/accounts/acc-1/otp', async () => {
+      await delay(80) // resolve well after the live event below so the merge sees acc-1 already set
+      return HttpResponse.json({ id: 'req-late', type: 'otp', descriptor: { length: 6, type: 'numeric' }, attempts: 1 })
+    }))
+    renderHarness(['acc-1'])
+    const ws = await firstSocket()
+    act(() => ws.onmessage?.({ data: JSON.stringify({
+      type: 'assistance.requested', userId: 'u-1', accountId: 'acc-1',
+      data: { requestId: 'req-live', descriptor: { length: 8, type: 'alphanumeric' } }, occurredAt: 'now',
+    }) }))
+    expect(screen.getByTestId('a-acc-1')).toHaveTextContent('acc-1:8:req-live')
+    // The slower GET resolves afterwards but must not clobber the live entry.
+    await new Promise((r) => setTimeout(r, 250))
+    expect(screen.getByTestId('a-acc-1')).toHaveTextContent('acc-1:8:req-live')
+  })
+
+  it('abandons hydration that resolves after unmount', async () => {
+    server.use(http.get('/api/accounts/acc-1/otp', async () => {
+      await delay(20)
+      return HttpResponse.json({ id: 'req-x', type: 'otp', descriptor: { length: 6, type: 'numeric' }, attempts: 1 })
+    }))
+    const { unmount } = renderHarness(['acc-1'])
+    unmount() // tear down before the GET resolves so the cancelled guard short-circuits it
+    await new Promise((r) => setTimeout(r, 60))
+    // The resolved lookup is discarded after teardown, so no state update is attempted and the tree is gone.
+    expect(screen.queryByTestId('count')).toBeNull()
   })
 
   it('falls back to the default descriptor and ignores malformed and unknown messages', async () => {

@@ -203,7 +203,10 @@ const OTP_INPUT_SELECTORS = [
 const OTP_SUBMIT_SELECTORS = ["#verifyCode", "#continue", "button[type=submit]"];
 const txt_otp_verify = /verify|verificar|continuar|continue|confirmar/i;
 const txt_otp_resend = /resend|reenviar|send.*new.*code|enviar.*nuevo.*c[oó]digo|reenv[ií]ar/i;
+// The bank renders this when a wrong token is submitted so we can ask the human for a fresh code
+const txt_otp_incorrect = /c[oó]digo[^.]*incorrecto|c[oó]digo[^.]*inv[aá]lido|incorrect code|invalid code|wrong code/i;
 const OTP_LENGTH = 6; // Pichincha SMS code length to confirm against a real SMS
+const OTP_MAX_ATTEMPTS = 5; // Cap human retries on a wrong code so a stuck login can't loop forever
 
 // Returns the first visible OTP input locator or null if the OTP page isn't shown
 const findOtpInput = async (page) => {
@@ -212,6 +215,54 @@ const findOtpInput = async (page) => {
     if (await el.isVisible().catch(() => false)) return el;
   }
   return null;
+};
+
+// Types the code into the 6 token boxes (or a single input) then clicks the confirm button
+const fillAndSubmitOtp = async (page, code, otpInput) => {
+  const boxes = page.locator("input.token");
+  const boxCount = await boxes.count().catch(() => 0);
+  if (boxCount >= 2) {
+    const digits = String(code).slice(0, boxCount).split("");
+    for (let i = 0; i < digits.length; i++) {
+      const box = boxes.nth(i);
+      await box.click().catch(() => {});
+      await box.fill("").catch(() => {});
+      await box.pressSequentially(digits[i], { delay: 50 });
+    }
+  } else {
+    const input = (await findOtpInput(page)) || otpInput;
+    await input.click().catch(() => {});
+    await input.fill("").catch(() => {});
+    await input.pressSequentially(String(code), { delay: 40 });
+  }
+  await page.waitForTimeout(300);
+
+  for (const sel of OTP_SUBMIT_SELECTORS) {
+    const btn = page.locator(sel).first();
+    if (await btn.isVisible().catch(() => false)) {
+      await btn.click().catch(() => {});
+      log("otp_submit_clicked", { via: sel });
+      return;
+    }
+  }
+  await page.getByRole("button", { name: txt_otp_verify }).first().click({ timeout: 5000 }).catch(() => {});
+  log("otp_submit_clicked", { via: "text-fallback" });
+};
+
+// After a submit, resolve "ok" once we leave the login host, "incorrect" when the bank rejects the
+// code, or "unknown" if neither shows so the caller falls back to isAuthenticated(). An initial settle
+// lets the prior attempt's stale error clear before we read it so a reload isn't misread as a rejection.
+const waitOtpOutcome = async (page) => {
+  await page.waitForTimeout(1500);
+  const deadline = Date.now() + 15000;
+  while (Date.now() < deadline) {
+    let host = "";
+    try { host = new URL(page.url()).hostname.toLowerCase(); } catch (_) {}
+    if (host === host_app && host !== host_login) return "ok";
+    if (await page.getByText(txt_otp_incorrect).first().isVisible().catch(() => false)) return "incorrect";
+    await page.waitForTimeout(500);
+  }
+  return "unknown";
 };
 
 // Returns true if it handled an OTP step and the coordinator owns the wait and resend policy while onResend clicks resend here
@@ -245,40 +296,18 @@ const handleOtp = async (page, context) => {
     }
   };
 
-  const code = await context.requestOtp({ length: OTP_LENGTH, type: "numeric", purpose: "login" }, onResend);
-
-  const boxes = page.locator("input.token");
-  const boxCount = await boxes.count().catch(() => 0);
-  if (boxCount >= 2) {
-    const digits = String(code).slice(0, boxCount).split("");
-    for (let i = 0; i < digits.length; i++) {
-      const box = boxes.nth(i);
-      await box.click().catch(() => {});
-      await box.fill("").catch(() => {});
-      await box.pressSequentially(digits[i], { delay: 50 });
-    }
-  } else {
-    const input = (await findOtpInput(page)) || otpInput;
-    await input.click().catch(() => {});
-    await input.fill("").catch(() => {});
-    await input.pressSequentially(String(code), { delay: 40 });
+  // Each wrong code re-asks the human: requestOtp re-opens the assistance request so the dashboard
+  // surfaces the input again, and we resubmit until the bank accepts the token or the cap is hit.
+  for (let attempt = 1; attempt <= OTP_MAX_ATTEMPTS; attempt++) {
+    const code = await context.requestOtp({ length: OTP_LENGTH, type: "numeric", purpose: "login" }, onResend);
+    await fillAndSubmitOtp(page, code, otpInput);
+    const outcome = await waitOtpOutcome(page);
+    log("otp_attempt_outcome", { attempt, outcome });
+    // "ok" or "unknown" hand off to isAuthenticated(); only a rejected code asks for another one
+    if (outcome !== "incorrect") return true;
+    otpInput = (await findOtpInput(page)) || otpInput;
   }
-  await page.waitForTimeout(300);
-
-  let submitted = false;
-  for (const sel of OTP_SUBMIT_SELECTORS) {
-    const btn = page.locator(sel).first();
-    if (await btn.isVisible().catch(() => false)) {
-      await btn.click().catch(() => {});
-      submitted = true;
-      log("otp_submit_clicked", { via: sel });
-      break;
-    }
-  }
-  if (!submitted) {
-    await page.getByRole("button", { name: txt_otp_verify }).first().click({ timeout: 5000 }).catch(() => {});
-    log("otp_submit_clicked", { via: "text-fallback" });
-  }
+  log("otp_max_attempts_exhausted", { attempts: OTP_MAX_ATTEMPTS });
   return true;
 };
 

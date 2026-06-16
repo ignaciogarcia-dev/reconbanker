@@ -36,8 +36,9 @@ export function Accounts() {
   const { data: accounts = [], isLoading, isError, refetch } = useAccounts()
   const { data: banks = [] } = useBanks()
 
-  // Live OTP assistance state pushed over the realtime WebSocket
-  const { assistance, clearAccount } = useRealtime()
+  // Live OTP assistance state pushed over the realtime WebSocket, seeded for the listed accounts
+  // so a request raised before the page opened still shows the assistance button.
+  const { assistance, clearAccount } = useRealtime(accounts.map(a => a.id))
   const [otpAccountId, setOtpAccountId] = useState<string | null>(null)
   const otpAssistance = otpAccountId ? assistance.get(otpAccountId) : undefined
 
