@@ -189,8 +189,9 @@ const fetchDetail = async (rowIndex, expectedUuid) => {
   return null;
 };
 
-// TODO confirm these best-effort B2C selectors against a live Pichincha SMS prompt
 const OTP_INPUT_SELECTORS = [
+  "input.token", 
+  "#oneDigit",
   "#otpCode",
   "#oneTimeCode",
   "input[autocomplete='one-time-code']",
@@ -246,10 +247,22 @@ const handleOtp = async (page, context) => {
 
   const code = await context.requestOtp({ length: OTP_LENGTH, type: "numeric", purpose: "login" }, onResend);
 
-  const input = (await findOtpInput(page)) || otpInput;
-  await input.click().catch(() => {});
-  await input.fill("").catch(() => {});
-  await input.pressSequentially(String(code), { delay: 40 });
+  const boxes = page.locator("input.token");
+  const boxCount = await boxes.count().catch(() => 0);
+  if (boxCount >= 2) {
+    const digits = String(code).slice(0, boxCount).split("");
+    for (let i = 0; i < digits.length; i++) {
+      const box = boxes.nth(i);
+      await box.click().catch(() => {});
+      await box.fill("").catch(() => {});
+      await box.pressSequentially(digits[i], { delay: 50 });
+    }
+  } else {
+    const input = (await findOtpInput(page)) || otpInput;
+    await input.click().catch(() => {});
+    await input.fill("").catch(() => {});
+    await input.pressSequentially(String(code), { delay: 40 });
+  }
   await page.waitForTimeout(300);
 
   let submitted = false;
