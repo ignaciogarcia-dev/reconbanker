@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { accountsQueryKey } from '@/features/account/hooks/useAccounts'
+import { getPendingAssistance } from '@/features/account/api/assistance'
 import { getRealtimeTicket, realtimeUrl, REALTIME_SUBPROTOCOL } from './realtimeApi'
 
 export interface SystemEvent {
@@ -25,8 +26,10 @@ export interface PendingAssistance {
 
 const DEFAULT_DESCRIPTOR: PendingAssistance['descriptor'] = { length: 6, type: 'numeric' }
 
-// Single app WebSocket that surfaces per-account OTP assistance state and reconnects with capped backoff
-export function useRealtime() {
+// Single app WebSocket that surfaces per-account OTP assistance state and reconnects with capped backoff.
+// `accountIds` seeds the map from the OTP endpoint so a request raised before this socket connected
+// (e.g. during a background/scheduled login) still surfaces, since the live event is never replayed.
+export function useRealtime(accountIds: readonly string[] = []) {
   const qc = useQueryClient()
   // A Map keeps server-provided account ids as plain entries, never object property
   // keys, so hostile ids like '__proto__' cannot pollute prototypes (CodeQL js/remote-property-injection)
@@ -43,6 +46,30 @@ export function useRealtime() {
       return next
     })
   }, [])
+
+  // Hydrate pending assistance for the known accounts on load. Only adds entries the live socket
+  // hasn't already set, so a slow GET never resurrects an account just cleared by a fulfilled event.
+  const idsKey = accountIds.join(',')
+  useEffect(() => {
+    if (!idsKey) return
+    let cancelled = false
+    const ids = idsKey.split(',')
+    void Promise.all(
+      ids.map((id) => getPendingAssistance(id).then((pending) => ({ id, pending })).catch(() => null)),
+    ).then((results) => {
+      if (cancelled) return
+      const pending = results.flatMap((r) => (r?.pending ? [{ id: r.id, dto: r.pending }] : []))
+      if (pending.length === 0) return
+      setAssistance((prev) => {
+        const additions = pending.filter((p) => !prev.has(p.id))
+        if (additions.length === 0) return prev
+        const next = new Map(prev)
+        for (const p of additions) next.set(p.id, { requestId: p.dto.id, descriptor: p.dto.descriptor })
+        return next
+      })
+    })
+    return () => { cancelled = true }
+  }, [idsKey])
 
   useEffect(() => {
     // Effect-local flag stops an async connect() from keeping a socket after teardown since the shared closedRef only gates reconnects
