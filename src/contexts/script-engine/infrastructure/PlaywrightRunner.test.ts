@@ -223,4 +223,46 @@ describe('PlaywrightRunner', () => {
     expect((err as Error).message).toMatch(/timed out/i)
     vi.useRealTimers()
   })
+
+  it('closes a browser that finishes launching after the launch timeout fired (no zombie leak)', async () => {
+    vi.useFakeTimers()
+    dbQueryMock.mockResolvedValueOnce({ rows: [{ username: 'u', encrypted_password: 'p' }] })
+    const close = vi.fn().mockRejectedValue(new Error('late close'))
+    // launch resolves only well after the 60s launch-timeout budget has elapsed.
+    launchMock.mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve({ newContext: vi.fn(), close }), 90_000)),
+    )
+    const runner = new PlaywrightRunner()
+    const caught = runner
+      .execute({ id: 's', codeSnapshot: 'return []' } as any, { accountId: 'a', lastExternalId: null })
+      .catch((e) => e)
+
+    await vi.advanceTimersByTimeAsync(60_000) // launch timeout fires → execute rejects
+    const err = await caught
+    expect((err as Error).message).toMatch(/timed out/i)
+
+    await vi.advanceTimersByTimeAsync(30_000) // the late launch resolves → leak handler closes it
+    await vi.runAllTimersAsync()
+    expect(close).toHaveBeenCalled()
+    vi.useRealTimers()
+  })
+
+  it('swallows and logs a browser close that fails instead of masking the result', async () => {
+    dbQueryMock.mockResolvedValueOnce({ rows: [{ username: 'u', encrypted_password: 'p' }] })
+    const close = vi.fn().mockRejectedValue(new Error('close hung'))
+    const page: Page = { addInitScript: vi.fn().mockResolvedValue(undefined) }
+    const ctx = { newPage: vi.fn().mockResolvedValue(page), close: vi.fn() }
+    launchMock.mockResolvedValue({ newContext: vi.fn().mockResolvedValue(ctx), close })
+    const child: any = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn() }
+    const logger: any = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn(() => child) }
+
+    const runner = new PlaywrightRunner(logger)
+    const txs = await runner.execute(
+      { id: 's', codeSnapshot: 'return []' } as any,
+      { accountId: 'a', lastExternalId: null },
+    )
+
+    expect(txs).toEqual([])
+    expect(logger.warn).toHaveBeenCalledWith('browser close timed out', expect.objectContaining({ error: 'close hung' }))
+  })
 })

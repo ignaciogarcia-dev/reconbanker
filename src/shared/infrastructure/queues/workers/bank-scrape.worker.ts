@@ -1,8 +1,14 @@
 import { Worker, Job } from "bullmq"
 import { redis } from "../QueueRegistry.js"
+import { withTimeout } from "../../../util/withTimeout.js"
 import type { Container } from "../../../../composition/container.js"
 
 const DEFAULT_CONCURRENCY = 2
+
+// Hard ceiling on a whole job, above the use-case run backstop (13 min). The
+// keepAlive renews the lock indefinitely, so without this an execute() that hangs
+// on an unbounded await (e.g. a stuck DB call) would wedge the slot forever.
+const JOB_TIMEOUT_MS = Number(process.env.BANK_SCRAPE_JOB_TIMEOUT_MS ?? 15 * 60_000)
 
 export function createBankScrapeWorker(container: Container): Worker {
   const log = container.logger.child('[bank-scrape]')
@@ -19,7 +25,11 @@ export function createBankScrapeWorker(container: Container): Worker {
       }, 30_000)
 
       try {
-        await container.banking.runBankScrape.execute(job.data)
+        await withTimeout(
+          container.banking.runBankScrape.execute(job.data),
+          JOB_TIMEOUT_MS,
+          `scrape job ${job.id}`,
+        )
         log.info(`job ${job.id} completed`)
       } catch (err) {
         log.error(`job ${job.id} failed`, {
