@@ -39,11 +39,11 @@ export class PlaywrightRunner {
     if (!creds) throw new Error(`No valid credentials for account ${context.accountId}`)
 
     const { chromium } = await import('playwright')
-    const browser = await withTimeout(
-      chromium.launch({ headless: isHeadless(), args: CHROMIUM_ARGS }),
-      LAUNCH_TIMEOUT_MS,
-      'browser launch',
-    )
+    const launch = chromium.launch({ headless: isHeadless(), args: CHROMIUM_ARGS })
+    const browser = await withTimeout(launch, LAUNCH_TIMEOUT_MS, 'browser launch').catch((err) => {
+      launch.then((b) => b.close()).catch(() => {})
+      throw err
+    })
 
     try {
       return await withTimeout(this.runOnBrowser(browser, script, context, creds), SCRIPT_TIMEOUT_MS, 'script execution')
