@@ -3,7 +3,12 @@ import { db } from '../../../shared/infrastructure/db/client.js'
 import { credentialsCipher } from '../../../shared/infrastructure/crypto/CredentialsCipher.js'
 import { CHROMIUM_ARGS, USER_AGENT, VIEWPORT, isHeadless, applyAntiWebdriver } from './playwrightLaunch.js'
 import { makeDebugLogSink } from './debugLogSink.js'
+import { withTimeout } from '../../../shared/util/withTimeout.js'
 import type { ILogger } from '../../../shared/logger/ILogger.js'
+
+const LAUNCH_TIMEOUT_MS = Number(process.env.BANK_SCRAPE_LAUNCH_TIMEOUT_MS ?? 60_000)
+const SCRIPT_TIMEOUT_MS = Number(process.env.BANK_SCRAPE_SCRIPT_TIMEOUT_MS ?? 10 * 60_000)
+const CLOSE_TIMEOUT_MS = Number(process.env.BANK_SCRAPE_CLOSE_TIMEOUT_MS ?? 30_000)
 
 interface ScrapedTransaction {
   externalId: string
@@ -34,53 +39,54 @@ export class PlaywrightRunner {
     if (!creds) throw new Error(`No valid credentials for account ${context.accountId}`)
 
     const { chromium } = await import('playwright')
-    const browser = await chromium.launch({
-      headless: isHeadless(),
-      args: CHROMIUM_ARGS,
+    const browser = await withTimeout(
+      chromium.launch({ headless: isHeadless(), args: CHROMIUM_ARGS }),
+      LAUNCH_TIMEOUT_MS,
+      'browser launch',
+    )
+
+    try {
+      return await withTimeout(this.runOnBrowser(browser, script, context, creds), SCRIPT_TIMEOUT_MS, 'script execution')
+    } finally {
+      await withTimeout(browser.close(), CLOSE_TIMEOUT_MS, 'browser close').catch((err) => {
+        this.logger?.warn('browser close timed out', { error: err instanceof Error ? err.message : String(err) })
+      })
+    }
+  }
+
+  private async runOnBrowser(
+    browser: import('playwright').Browser,
+    script: BankScript,
+    context: RunContext,
+    creds: { username: string; encrypted_password: string },
+  ): Promise<ScrapedTransaction[]> {
+    const ctx = await browser.newContext({
+      userAgent: USER_AGENT,
+      viewport: VIEWPORT,
+      locale: 'es-UY',
     })
 
-    const TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
-    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    const page = await ctx.newPage()
 
-    // Everything after launch is wrapped so the browser is always closed — even
-    // if newContext/newPage/applyAntiWebdriver throws — and the timeout timer is
-    // always cleared (a finished scrape must not leave a 10-min timer running).
-    try {
-      const ctx = await browser.newContext({
-        userAgent: USER_AGENT,
-        viewport: VIEWPORT,
-        locale: 'es-UY',
-      })
+    await applyAntiWebdriver(page)
 
-      const page = await ctx.newPage()
-
-      await applyAntiWebdriver(page)
-
-      const scriptContext = {
-        accountId: context.accountId,
-        username: creds.username,
-        password: credentialsCipher().decrypt(creds.encrypted_password),
-        lastExternalId: context.lastExternalId,
-        debugLog: this.logger
-          ? makeDebugLogSink(this.logger.child('[bank-scrape-script]'), { accountId: context.accountId })
-          : undefined,
-      }
-
-      const timeout = new Promise<never>((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error(`Script execution timed out after ${TIMEOUT_MS / 1000}s`)), TIMEOUT_MS)
-      })
-
-      const wrappedCode = `
-        return (async function(page, context) {
-          ${script.codeSnapshot}
-        })(page, context)
-      `
-      const fn = new Function('page', 'context', wrappedCode)
-      const transactions: ScrapedTransaction[] = await Promise.race([fn(page, scriptContext), timeout])
-      return transactions ?? []
-    } finally {
-      if (timeoutId) clearTimeout(timeoutId)
-      await browser.close()
+    const scriptContext = {
+      accountId: context.accountId,
+      username: creds.username,
+      password: credentialsCipher().decrypt(creds.encrypted_password),
+      lastExternalId: context.lastExternalId,
+      debugLog: this.logger
+        ? makeDebugLogSink(this.logger.child('[bank-scrape-script]'), { accountId: context.accountId })
+        : undefined,
     }
+
+    const wrappedCode = `
+      return (async function(page, context) {
+        ${script.codeSnapshot}
+      })(page, context)
+    `
+    const fn = new Function('page', 'context', wrappedCode)
+    const transactions: ScrapedTransaction[] = await fn(page, scriptContext)
+    return transactions ?? []
   }
 }
