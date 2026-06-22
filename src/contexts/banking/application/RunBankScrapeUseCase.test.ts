@@ -111,6 +111,26 @@ describe('RunBankScrapeUseCase', () => {
     )
   })
 
+  it('records a timeout failure (not a hang) when runScript never settles', async () => {
+    const txRepo = new InMemoryBankTransactionRepository()
+    const scrapeRunRepo = new InMemoryScrapeRunRepository()
+    const eventBus = new InMemoryEventBus()
+    const ingest = new IngestTransactionsUseCase({ txRepo, eventBus })
+    const useCase = new RunBankScrapeUseCase({
+      accountReader: { findById: async () => ({ id: 'acc-1', userId: 'user-1', bank: 'b', sessionType: 'one-shot' as const, loginMode: 'simple' as const }) },
+      txRepo, scrapeRunRepo,
+      scriptEngine: {
+        loadActiveScript: async () => ({ id: 'script-1', codeSnapshot: '' }),
+        runScript: () => new Promise(() => {}),
+      },
+      ingest, runTimeoutMs: 20,
+    })
+
+    await expect(useCase.execute({ accountId: 'acc-1' })).resolves.toBeUndefined()
+    expect(scrapeRunRepo.runs[0].status).toBe('failed')
+    expect(scrapeRunRepo.runs[0].failureType).toBe('timeout')
+  })
+
   it('returns without scraping for persistent accounts when ensureSession is not provided', async () => {
     const txRepo = new InMemoryBankTransactionRepository()
     const scrapeRunRepo = new InMemoryScrapeRunRepository()

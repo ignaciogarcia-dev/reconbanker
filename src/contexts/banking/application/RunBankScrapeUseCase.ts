@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import { NotFoundError } from '../../../shared/errors/index.js'
+import { withTimeout, TimeoutError } from '../../../shared/util/withTimeout.js'
 import { ILogger } from '../../../shared/logger/ILogger.js'
 import { IBankTransactionRepository } from '../domain/IBankTransactionRepository.js'
 import { IScriptEnginePort } from '../domain/IScriptEnginePort.js'
@@ -9,6 +10,8 @@ import { IngestTransactionsUseCase } from './IngestTransactionsUseCase.js'
 
 interface JobData { accountId: string }
 
+const DEFAULT_RUN_TIMEOUT_MS = Number(process.env.BANK_SCRAPE_RUN_TIMEOUT_MS ?? 13 * 60_000)
+
 export interface RunBankScrapeDeps {
   accountReader: IAccountForBankingReader
   txRepo: IBankTransactionRepository
@@ -17,6 +20,7 @@ export interface RunBankScrapeDeps {
   ingest: IngestTransactionsUseCase
   logger?: ILogger
   ensureSession?: (accountId: string) => Promise<void>
+  runTimeoutMs?: number
 }
 
 export class RunBankScrapeUseCase {
@@ -42,7 +46,11 @@ export class RunBankScrapeUseCase {
     await scrapeRunRepo.create(runId, accountId, script.id)
 
     try {
-      const transactions = await scriptEngine.runScript(script, { accountId, lastExternalId })
+      const transactions = await withTimeout(
+        scriptEngine.runScript(script, { accountId, lastExternalId }),
+        this.deps.runTimeoutMs ?? DEFAULT_RUN_TIMEOUT_MS,
+        `bank scrape ${account.bank}`,
+      )
       const saved = await ingest.execute(accountId, script.id, transactions)
       await scrapeRunRepo.markSuccess(runId, saved)
     } catch (err) {
@@ -51,7 +59,8 @@ export class RunBankScrapeUseCase {
       // on its next cycle. Only genuine misconfiguration (missing account/script)
       // throws — those happen before this try and surface as a failed job.
       const message = err instanceof Error ? err.message : String(err)
-      await scrapeRunRepo.markFailed(runId, message, 'unknown')
+      const failureType = err instanceof TimeoutError ? 'timeout' : 'unknown'
+      await scrapeRunRepo.markFailed(runId, message, failureType)
       logger?.warn('bank scrape run failed', { accountId, runId, scriptId: script.id, error: message })
     }
   }
