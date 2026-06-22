@@ -1,6 +1,6 @@
 import crypto from 'crypto'
-import { NotFoundError } from '../../../shared/errors/index.js'
-import { withTimeout, TimeoutError } from '../../../shared/util/withTimeout.js'
+import { NotFoundError, TimeoutError } from '../../../shared/errors/index.js'
+import { withTimeout } from '../../../shared/util/withTimeout.js'
 import { ILogger } from '../../../shared/logger/ILogger.js'
 import { IBankTransactionRepository } from '../domain/IBankTransactionRepository.js'
 import { IScriptEnginePort } from '../domain/IScriptEnginePort.js'
@@ -10,7 +10,8 @@ import { IngestTransactionsUseCase } from './IngestTransactionsUseCase.js'
 
 interface JobData { accountId: string }
 
-const DEFAULT_RUN_TIMEOUT_MS = Number(process.env.BANK_SCRAPE_RUN_TIMEOUT_MS ?? 13 * 60_000)
+// Fallback when the composition root does not inject runTimeoutMs (env is read there).
+const DEFAULT_RUN_TIMEOUT_MS = 13 * 60_000
 
 export interface RunBankScrapeDeps {
   accountReader: IAccountForBankingReader

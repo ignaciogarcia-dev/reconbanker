@@ -146,6 +146,7 @@ export function buildBankingModule(container: ContainerBase): BankingModule {
       accountReader, txRepo: bankTxRepo, scrapeRunRepo, scriptEngine, ingest,
       logger: container.logger.child('[run-bank-scrape]'),
       ensureSession: (accountId) => sessionManager.ensureRunning(accountId),
+      runTimeoutMs: Number(process.env.BANK_SCRAPE_RUN_TIMEOUT_MS ?? 13 * 60_000),
     }),
     notifyBankMovement: new NotifyBankMovementUseCase({
       bankTxRepo, accountReader, configReader, userModeReader,

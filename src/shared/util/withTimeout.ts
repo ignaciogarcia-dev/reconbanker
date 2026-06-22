@@ -1,9 +1,4 @@
-export class TimeoutError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'TimeoutError'
-  }
-}
+import { TimeoutError } from '../errors/index.js'
 
 export function withTimeout<T>(
   promise: PromiseLike<T>,

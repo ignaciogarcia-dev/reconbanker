@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { withTimeout, TimeoutError } from './withTimeout.js'
+import { withTimeout } from './withTimeout.js'
+import { TimeoutError } from '../errors/index.js'
 
 describe('withTimeout', () => {
   afterEach(() => {
