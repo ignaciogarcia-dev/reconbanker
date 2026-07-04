@@ -92,4 +92,47 @@ describe('OtpAssistanceCoordinator', () => {
     // assistance.cancelled is dashboard-only and never sent to the notifier stream
     expect(bus.enqueueNotification).not.toHaveBeenCalled()
   })
+
+  it('cancel is a no-op when there is no pending request', async () => {
+    const { bus } = makeBus(async () => '1')
+    const repoNoPending = { ...repo, findPending: vi.fn(async () => null) }
+    const coord = new OtpAssistanceCoordinator(repoNoPending, bus, undefined, { windowMs: 1, maxResends: 0 })
+
+    await coord.cancel('acc-1', 'u-1')
+
+    expect(repoNoPending.close).not.toHaveBeenCalled()
+    expect(bus.publishUserEvent).not.toHaveBeenCalled()
+  })
+
+  it('swallows an onResend failure and keeps waiting for the code', async () => {
+    // First window elapses (triggers a resend that throws), second yields the code.
+    let call = 0
+    const { bus } = makeBus(async () => { call += 1; return call <= 1 ? null : '777777' })
+    const onResend = vi.fn(async () => { throw new Error('sms failed') })
+    const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn() }
+    const coord = new OtpAssistanceCoordinator(repo, bus, logger as never, { windowMs: 1, maxResends: 1 })
+    const requestOtp = coord.forSession({ accountId: 'acc-1', userId: 'u-1' })
+
+    const code = await requestOtp(DESCRIPTOR, onResend)
+
+    expect(code).toBe('777777')
+    expect(onResend).toHaveBeenCalledTimes(1)
+    expect(logger.warn).toHaveBeenCalledWith('otp resend failed', expect.objectContaining({ error: expect.stringContaining('sms failed') }))
+  })
+
+  it('swallows fire-and-forget bus publish/enqueue failures during emit', async () => {
+    const { bus } = makeBus(async () => '123456')
+    bus.publishUserEvent.mockRejectedValue(new Error('pub down'))
+    bus.enqueueNotification.mockRejectedValue(new Error('enq down'))
+    const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn() }
+    const coord = new OtpAssistanceCoordinator(repo, bus, logger as never, { windowMs: 10, maxResends: 0 })
+    const requestOtp = coord.forSession({ accountId: 'acc-1', userId: 'u-1' })
+
+    // The flow still resolves even though every dashboard/notifier delivery rejects.
+    await expect(requestOtp(DESCRIPTOR)).resolves.toBe('123456')
+    // Let the swallowed (void) rejections settle, then assert both .catch handlers logged.
+    await new Promise((r) => setTimeout(r, 5))
+    expect(logger.warn).toHaveBeenCalledWith('publish failed', expect.objectContaining({ error: expect.stringContaining('pub down') }))
+    expect(logger.warn).toHaveBeenCalledWith('notify enqueue failed', expect.objectContaining({ error: expect.stringContaining('enq down') }))
+  })
 })

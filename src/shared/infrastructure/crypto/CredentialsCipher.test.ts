@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, afterEach } from 'vitest'
 import { randomBytes } from 'node:crypto'
-import { CredentialsCipher } from './CredentialsCipher.js'
+import { CredentialsCipher, credentialsCipher, resetCredentialsCipher } from './CredentialsCipher.js'
 
 const cipher = new CredentialsCipher(randomBytes(32))
 
@@ -36,5 +36,32 @@ describe('CredentialsCipher', () => {
     const other = new CredentialsCipher(randomBytes(32))
     const enc = cipher.encrypt('secret')
     expect(() => other.decrypt(enc)).toThrow()
+  })
+})
+
+describe('credentialsCipher singleton', () => {
+  const prevKey = process.env.CREDENTIALS_ENCRYPTION_KEY
+
+  afterEach(() => {
+    resetCredentialsCipher()
+    if (prevKey === undefined) delete process.env.CREDENTIALS_ENCRYPTION_KEY
+    else process.env.CREDENTIALS_ENCRYPTION_KEY = prevKey
+  })
+
+  it('throws when CREDENTIALS_ENCRYPTION_KEY is not set', () => {
+    resetCredentialsCipher()
+    delete process.env.CREDENTIALS_ENCRYPTION_KEY
+    expect(() => credentialsCipher()).toThrow(/CREDENTIALS_ENCRYPTION_KEY is required/)
+  })
+
+  it('memoizes the cipher and rebuilds it only after resetCredentialsCipher', () => {
+    process.env.CREDENTIALS_ENCRYPTION_KEY = randomBytes(32).toString('base64')
+    resetCredentialsCipher()
+
+    const first = credentialsCipher()
+    expect(credentialsCipher()).toBe(first) // second call returns the memoized instance
+
+    resetCredentialsCipher()
+    expect(credentialsCipher()).not.toBe(first) // reset forces a fresh build from the env key
   })
 })

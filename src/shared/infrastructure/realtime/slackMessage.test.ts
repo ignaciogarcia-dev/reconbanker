@@ -102,4 +102,28 @@ describe('formatSlackMessage', () => {
     })
     expect(msg).toContain('Dejó de responder')
   })
+
+  it('falls back to the raw reason when the needs_attention reason is unmapped', () => {
+    const text = formatSlackMessage(base({ type: 'session.needs_attention', data: { reason: 'brand_new_reason' } }), label)
+    expect(text).toContain('*Motivo*: brand_new_reason')
+  })
+
+  it('returns the raw timestamp string when occurredAt is unparseable', () => {
+    const text = formatSlackMessage(base({ type: 'scrape.failed', data: { category: 'timeout' }, occurredAt: 'not-a-date' }), label)
+    expect(text).toContain('*Hora*: not-a-date')
+  })
+
+  it('falls back to the raw ISO timestamp when NOTIFY_TZ is an invalid timezone', () => {
+    // An unusable NOTIFY_TZ makes Intl.DateTimeFormat throw; formatTimestamp catches it and
+    // returns the raw ISO string instead of a formatted local time.
+    const prev = process.env.NOTIFY_TZ
+    process.env.NOTIFY_TZ = 'Not/AZone'
+    try {
+      const text = formatSlackMessage(base({ type: 'scrape.failed', data: { category: 'timeout' } }), label)
+      expect(text).toContain('*Hora*: 2026-06-22T14:05:00.000Z')
+    } finally {
+      if (prev === undefined) delete process.env.NOTIFY_TZ
+      else process.env.NOTIFY_TZ = prev
+    }
+  })
 })

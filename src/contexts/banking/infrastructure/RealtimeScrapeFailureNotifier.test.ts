@@ -93,6 +93,24 @@ describe('RealtimeScrapeFailureNotifier', () => {
     expect(bus.enqueueNotification).toHaveBeenCalledWith(expect.objectContaining({ type: 'scrape.recovered', accountId: 'acc-1' }))
   })
 
+  it('emits a connection recovery when the connection group had alerted', async () => {
+    const bus = makeBus()
+    const notifier = new RealtimeScrapeFailureNotifier(bus as unknown as RealtimeBus, makeStore(), 3)
+
+    // Drive the connection group over the threshold so it alerts.
+    for (let i = 0; i < 3; i++) {
+      await notifier.recordFailure({ userId: 'u-1', accountId: 'acc-1', category: 'login_failed' })
+    }
+    bus.enqueueNotification.mockClear()
+    bus.publishUserEvent.mockClear()
+
+    await notifier.recordSuccess({ userId: 'u-1', accountId: 'acc-1' })
+
+    // Only connection recovered (scrape never alerted) → the connection.recovered ternary arm.
+    expect(bus.enqueueNotification).toHaveBeenCalledTimes(1)
+    expect(bus.enqueueNotification).toHaveBeenCalledWith(expect.objectContaining({ type: 'connection.recovered', accountId: 'acc-1' }))
+  })
+
   it('does not emit a recovery when no alert was sent', async () => {
     const bus = makeBus()
     const notifier = new RealtimeScrapeFailureNotifier(bus as unknown as RealtimeBus, makeStore(), 3)

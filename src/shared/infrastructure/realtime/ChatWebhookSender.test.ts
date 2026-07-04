@@ -79,4 +79,15 @@ describe('sendChatWebhook', () => {
     fetchMock.mockResolvedValue(makeResponse(200, 'ok'))
     await expect(sendChatWebhook({ url: 'https://example.com/x', text: 't' })).resolves.toBeUndefined()
   })
+
+  it('uses an empty body when reading the error response body fails', async () => {
+    // response.text() rejecting exercises the `.catch(() => '')` fallback; the thrown error
+    // still carries the status and an empty body (no " — <body>" suffix in the message).
+    fetchMock.mockResolvedValue({
+      ok: false, status: 502, statusText: 'Bad Gateway',
+      text: vi.fn().mockRejectedValue(new Error('stream aborted')),
+    })
+    await expect(sendChatWebhook({ url: 'https://example.com/x', text: 't' }))
+      .rejects.toMatchObject({ status: 502, body: '', message: 'Chat webhook failed: 502 Bad Gateway' })
+  })
 })
