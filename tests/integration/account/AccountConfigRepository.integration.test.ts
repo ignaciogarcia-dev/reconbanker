@@ -35,6 +35,8 @@ describe('AccountConfigRepository (integration)', () => {
       notificationAuthType: null,
       notificationAuthToken: null,
       notificationEvents: null,
+      notificationTransport: 'api',
+      notificationSlackChannel: null,
       ...overrides,
     }
   }

@@ -236,18 +236,22 @@ describe('GetBankDetailUseCase', () => {
 describe('ListAccountsForUserUseCase', () => {
   it('maps accounts to summary DTOs', async () => {
     const repo = {
-      findAllByUser: async () => [
+      findSummariesByUser: async () => [
         {
           id: 'a-1',
           bank: 'mi-dinero',
           name: 'one',
           status: 'active',
+          sessionStatus: 'running',
+          assistedPersistent: true,
         },
         {
           id: 'a-2',
           bank: 'mi-dinero',
           name: null,
           status: 'inactive',
+          sessionStatus: null,
+          assistedPersistent: false,
         },
       ],
     } as any
@@ -260,7 +264,7 @@ describe('ListAccountsForUserUseCase', () => {
   })
 
   it('returns empty array when user has no accounts', async () => {
-    const repo = { findAllByUser: async () => [] } as any
+    const repo = { findSummariesByUser: async () => [] } as any
     expect(await new ListAccountsForUserUseCase(repo).execute('u-1')).toEqual([])
   })
 })

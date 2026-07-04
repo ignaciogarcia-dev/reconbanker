@@ -38,15 +38,41 @@ export class UpsertAccountConfigUseCase {
       await assertSafeUrl(normalizedPendingEndpoint, 'pending_orders_endpoint')
     }
 
-    const normalizedNotificationUrl = input.notificationEndpointUrl?.trim() || null
-    if (normalizedNotificationUrl) {
-      await assertSafeUrl(normalizedNotificationUrl, 'notification_endpoint_url')
-    }
-
     // Clients echo back a masked sentinel to mean leave the stored secret untouched
     const existing = await this.configRepo.findByAccountId(input.accountId)
     const resolveSecret = (incoming: string | null, current: string | null | undefined) =>
       incoming === SECRET_PRESENT_MASK ? (current ?? null) : (incoming?.trim() || null)
+
+    const transport = input.notificationTransport ?? 'api'
+    const normalizedNotificationUrl = input.notificationEndpointUrl?.trim() || null
+    const normalizedSlackChannel = input.notificationSlackChannel?.trim() || null
+    const resolvedNotificationToken = resolveSecret(input.notificationAuthToken, existing?.notificationAuthToken)
+    const subscribedToEvents = (input.notificationEvents?.length ?? 0) > 0
+
+    if (transport === 'api') {
+      // 'slack' targets a fixed Slack host, so SSRF validation only applies to the generic webhook URL
+      if (normalizedNotificationUrl) {
+        await assertSafeUrl(normalizedNotificationUrl, 'notification_endpoint_url')
+      }
+    } else if (transport === 'chat_webhook') {
+      // Posts { text } to an operator-supplied URL, so it needs the same SSRF guard as 'api'.
+      if (subscribedToEvents && !normalizedNotificationUrl) {
+        throw new ValidationError('notification_endpoint_url is required for chat webhook notifications', { field: 'notification_endpoint_url' })
+      }
+      if (normalizedNotificationUrl) {
+        await assertSafeUrl(normalizedNotificationUrl, 'notification_endpoint_url')
+      }
+    } else if (subscribedToEvents) {
+      if (!normalizedSlackChannel) {
+        throw new ValidationError('notification_slack_channel is required for Slack notifications', { field: 'notification_slack_channel' })
+      }
+      if (!resolvedNotificationToken) {
+        throw new ValidationError('a Slack bot token is required for Slack notifications', { field: 'notification_auth_token' })
+      }
+    }
+
+    // chat_webhook authenticates via the URL secret, not a header/channel; never persist auth/channel for it.
+    const isChatWebhook = transport === 'chat_webhook'
 
     const config = await this.configRepo.upsert({
       accountId: input.accountId,
@@ -65,9 +91,11 @@ export class UpsertAccountConfigUseCase {
       sessionType: input.sessionType,
       loginMode: input.loginMode,
       notificationEndpointUrl: normalizedNotificationUrl,
-      notificationAuthType: input.notificationAuthType,
-      notificationAuthToken: resolveSecret(input.notificationAuthToken, existing?.notificationAuthToken),
+      notificationAuthType: isChatWebhook ? null : input.notificationAuthType,
+      notificationAuthToken: isChatWebhook ? null : resolvedNotificationToken,
       notificationEvents: input.notificationEvents,
+      notificationTransport: transport,
+      notificationSlackChannel: isChatWebhook ? null : normalizedSlackChannel,
     })
 
     if (input.bankUsername && input.bankPassword) {

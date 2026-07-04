@@ -40,8 +40,9 @@ export class AccountConfigRepository implements IAccountConfigRepository {
           retry_limit, polling_method, polling_body, auth_type, auth_token,
           webhook_auth_type, webhook_auth_token, notify_on_expired, webhook_extra_fields, silent_ingestion,
           session_type, login_mode,
-          notification_endpoint_url, notification_auth_type, notification_auth_token, notification_events)
-       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19::jsonb)
+          notification_endpoint_url, notification_auth_type, notification_auth_token, notification_events,
+          notification_transport, notification_slack_channel)
+       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19::jsonb, $20, $21)
        ON CONFLICT (account_id) DO UPDATE SET
          pending_orders_endpoint = $2,
          webhook_url             = $3,
@@ -61,6 +62,8 @@ export class AccountConfigRepository implements IAccountConfigRepository {
          notification_auth_type    = $17,
          notification_auth_token   = $18,
          notification_events       = $19::jsonb,
+         notification_transport    = $20,
+         notification_slack_channel = $21,
          updated_at              = now()
        RETURNING *`,
       [
@@ -83,6 +86,8 @@ export class AccountConfigRepository implements IAccountConfigRepository {
         input.notificationAuthType,
         encryptedNotificationAuthToken,
         input.notificationEvents ? JSON.stringify(input.notificationEvents) : null,
+        input.notificationTransport,
+        input.notificationSlackChannel,
       ]
     )
     return decryptConfig(AccountConfigRowMapper.toDto(rows[0]))

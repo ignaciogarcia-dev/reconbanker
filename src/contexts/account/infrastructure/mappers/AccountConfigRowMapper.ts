@@ -1,4 +1,4 @@
-import { AccountConfig, AuthType, PollingMethod, SessionType, LoginMode } from '../../domain/AccountConfig.js'
+import { AccountConfig, AuthType, PollingMethod, SessionType, LoginMode, NotificationTransport } from '../../domain/AccountConfig.js'
 
 export interface AccountConfigRow {
   id: string
@@ -21,6 +21,8 @@ export interface AccountConfigRow {
   notification_auth_type: AuthType | null
   notification_auth_token: string | null
   notification_events: string[] | null
+  notification_transport: NotificationTransport
+  notification_slack_channel: string | null
 }
 
 export const AccountConfigRowMapper = {
@@ -46,6 +48,8 @@ export const AccountConfigRowMapper = {
       notificationAuthType: row.notification_auth_type,
       notificationAuthToken: row.notification_auth_token,
       notificationEvents: row.notification_events,
+      notificationTransport: row.notification_transport,
+      notificationSlackChannel: row.notification_slack_channel,
     }
   },
 }

@@ -44,6 +44,8 @@ const baseInput = {
   notificationAuthType: null,
   notificationAuthToken: null,
   notificationEvents: null,
+  notificationTransport: 'api' as const,
+  notificationSlackChannel: null,
   bankUsername: null,
   bankPassword: null,
 }
