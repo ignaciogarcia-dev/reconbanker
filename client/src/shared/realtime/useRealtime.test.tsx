@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { http, HttpResponse, delay } from 'msw'
@@ -21,14 +21,18 @@ class FakeWebSocket {
 }
 
 function Harness({ accountIds = [] }: { accountIds?: string[] }) {
-  const { assistance, clearAccount } = useRealtime(accountIds)
+  const { assistance, clearAccount, sessionStatus, starting, markStarting, clearStarting } = useRealtime(accountIds)
   return (
     <div>
       <span data-testid="count">{assistance.size}</span>
       {[...assistance.entries()].map(([id, a]) => (
         <span key={id} data-testid={`a-${id}`}>{id}:{a.descriptor.length}:{a.requestId ?? '-'}</span>
       ))}
+      <span data-testid="starting">{[...starting].join(',')}</span>
+      <span data-testid="status-acc-1">{sessionStatus.get('acc-1') ?? '-'}</span>
       <button onClick={() => clearAccount('acc-1')}>clear</button>
+      <button onClick={() => markStarting('acc-1')}>mark</button>
+      <button onClick={() => clearStarting('acc-1')}>clearstart</button>
     </div>
   )
 }
@@ -200,5 +204,81 @@ describe('useRealtime', () => {
     // No socket is created because the ticket request rejects; the catch schedules a reconnect.
     await new Promise((r) => setTimeout(r, 0))
     expect(FakeWebSocket.instances.length).toBe(0)
+  })
+
+  it('tracks live session-light status from session.* events (running/needs_attention/stopped)', async () => {
+    renderHarness()
+    const ws = await firstSocket()
+
+    act(() => ws.onmessage?.({ data: JSON.stringify({ type: 'session.started', userId: 'u', accountId: 'acc-1', occurredAt: 'now' }) }))
+    expect(screen.getByTestId('status-acc-1')).toHaveTextContent('running')
+
+    act(() => ws.onmessage?.({ data: JSON.stringify({ type: 'session.needs_attention', userId: 'u', accountId: 'acc-1', occurredAt: 'now' }) }))
+    expect(screen.getByTestId('status-acc-1')).toHaveTextContent('needs_attention')
+
+    // A plain stop only dims the light (no query invalidation branch), so it must still land.
+    act(() => ws.onmessage?.({ data: JSON.stringify({ type: 'session.stopped', userId: 'u', accountId: 'acc-1', occurredAt: 'now' }) }))
+    expect(screen.getByTestId('status-acc-1')).toHaveTextContent('stopped')
+
+    // A type handled by neither the assistance nor the session branch falls through untouched.
+    act(() => ws.onmessage?.({ data: JSON.stringify({ type: 'connection.failed', userId: 'u', accountId: 'acc-1', occurredAt: 'now' }) }))
+    expect(screen.getByTestId('status-acc-1')).toHaveTextContent('stopped')
+    expect(screen.getByTestId('count')).toHaveTextContent('0')
+  })
+
+  it('marks the optimistic starting overlay and clears it (clearing an un-started account is a no-op)', async () => {
+    renderHarness()
+    await firstSocket()
+
+    act(() => { fireEvent.click(screen.getByText('mark')) })
+    expect(screen.getByTestId('starting')).toHaveTextContent('acc-1')
+
+    act(() => { fireEvent.click(screen.getByText('clearstart')) })
+    expect(screen.getByTestId('starting')).toHaveTextContent('')
+
+    // Clearing an account that is not starting removes nothing and does not throw.
+    act(() => { fireEvent.click(screen.getByText('clearstart')) })
+    expect(screen.getByTestId('starting')).toHaveTextContent('')
+  })
+
+  it('a session.* event clears a pending starting overlay for that account', async () => {
+    renderHarness()
+    const ws = await firstSocket()
+
+    act(() => { fireEvent.click(screen.getByText('mark')) })
+    expect(screen.getByTestId('starting')).toHaveTextContent('acc-1')
+
+    act(() => ws.onmessage?.({ data: JSON.stringify({ type: 'session.started', userId: 'u', accountId: 'acc-1', occurredAt: 'now' }) }))
+    expect(screen.getByTestId('starting')).toHaveTextContent('')
+    expect(screen.getByTestId('status-acc-1')).toHaveTextContent('running')
+  })
+
+  it('auto-clears the starting overlay after the fallback timeout, replacing a prior timer on re-mark', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      renderHarness()
+      act(() => { fireEvent.click(screen.getByText('mark')) })
+      // Re-marking clears the prior fallback timer before scheduling a fresh one.
+      act(() => { fireEvent.click(screen.getByText('mark')) })
+      expect(screen.getByTestId('starting')).toHaveTextContent('acc-1')
+
+      act(() => { vi.advanceTimersByTime(90_000) })
+      expect(screen.getByTestId('starting')).toHaveTextContent('')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('clears pending starting timers on unmount', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const { unmount } = renderHarness()
+      act(() => { fireEvent.click(screen.getByText('mark')) })
+      unmount()
+      // The unmount cleanup cleared the fallback timer, so advancing fires nothing (no throw).
+      act(() => { vi.advanceTimersByTime(90_000) })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
