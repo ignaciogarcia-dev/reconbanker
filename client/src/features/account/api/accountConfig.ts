@@ -22,6 +22,8 @@ interface AccountConfigRow {
   notification_auth_type: AccountConfig['notificationAuthType']
   notification_auth_token: string | null
   notification_events: string[] | null
+  notification_transport: AccountConfig['notificationTransport']
+  notification_slack_channel: string | null
   bank_username: string | null
 }
 
@@ -63,6 +65,8 @@ function toAccountConfig(row: AccountConfigRow): AccountConfig {
     notificationAuthType: row.notification_auth_type,
     notificationAuthToken: row.notification_auth_token,
     notificationEvents: row.notification_events,
+    notificationTransport: row.notification_transport,
+    notificationSlackChannel: row.notification_slack_channel,
     bankUsername: row.bank_username,
   }
 }
@@ -87,6 +91,8 @@ function toBackendBody(input: UpsertAccountConfigInput) {
     notification_auth_type: input.notificationAuthType,
     notification_auth_token: input.notificationAuthToken,
     notification_events: input.notificationEvents,
+    notification_transport: input.notificationTransport,
+    notification_slack_channel: input.notificationSlackChannel,
     bank_username: input.bankUsername,
     bank_password: input.bankPassword,
   }

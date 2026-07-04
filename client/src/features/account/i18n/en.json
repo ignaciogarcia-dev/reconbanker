@@ -37,6 +37,26 @@
       "cancel": "Cancel",
       "submitted": "Code submitted",
       "submitError": "Could not submit the code"
+    },
+    "session": {
+      "start": "Start",
+      "starting": "Starting…",
+      "reactivate": "Reactivate",
+      "reactivating": "Reactivating…",
+      "needsAttention": "Needs reactivation",
+      "reactivateError": "Could not reactivate the session",
+      "kill": "Kill",
+      "killing": "Killing…",
+      "killConfirmTitle": "Kill session",
+      "killConfirmBody": "Force-stop this session's browser now. A simple account will relaunch automatically; an assisted account will need reactivation.",
+      "killConfirm": "Kill session",
+      "killError": "Could not kill the session",
+      "light": {
+        "running": "Scraping",
+        "starting": "Connecting…",
+        "needs_attention": "Needs reactivation",
+        "off": "Off"
+      }
     }
   },
   "banks": {
@@ -157,7 +177,16 @@
       "endpoint": "Endpoint URL",
       "authType": "Authentication type",
       "authToken": "Authentication token",
-      "eventAssistance": "Notify when assistance is required (SMS code)"
+      "eventAssistance": "Notify when assistance is required (SMS code)",
+      "transport": "Notification destination",
+      "transportApi": "API (webhook)",
+      "transportSlack": "Slack",
+      "transportChatWebhook": "Chat (webhook)",
+      "chatWebhookHelp": "Posts a { text } message to a Slack / Mattermost incoming webhook. The secret lives in the URL; no token is used.",
+      "slackToken": "Slack bot token",
+      "slackChannel": "Slack channel",
+      "eventConnectionFailed": "Notify disconnections (couldn't reach/authenticate the bank)",
+      "eventScrapeFailed": "Notify scrape failures (connected but failed afterwards)"
     }
   }
 }

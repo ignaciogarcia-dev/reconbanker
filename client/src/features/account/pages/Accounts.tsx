@@ -10,13 +10,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
-import { Plus, Settings, ShieldAlert } from 'lucide-react'
+import { Plus, Settings, ShieldAlert, RotateCw, Power } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useAccounts, useCreateAccount } from '../hooks/useAccounts'
+import { useAccounts, useCreateAccount, useReactivate, useKillSession } from '../hooks/useAccounts'
 import { useBanks } from '../hooks/useBanks'
 import { useRealtime } from '@/shared/realtime/useRealtime'
 import { OtpAssistanceModal } from '../components/OtpAssistanceModal'
+import { SessionLight } from '../components/SessionLight'
 
 type FormErrors = { bankId?: string; name?: string }
 
@@ -36,14 +37,20 @@ export function Accounts() {
   const { data: accounts = [], isLoading, isError, refetch } = useAccounts()
   const { data: banks = [] } = useBanks()
 
-  // Live OTP assistance state pushed over the realtime WebSocket, seeded for the listed accounts
-  // so a request raised before the page opened still shows the assistance button.
-  const { assistance, clearAccount } = useRealtime(accounts.map(a => a.id))
+  // Live OTP assistance state + persistent-session light status pushed over the realtime WebSocket,
+  // seeded for the listed accounts so a request raised before the page opened still shows.
+  const { assistance, clearAccount, sessionStatus, starting, markStarting, clearStarting } = useRealtime(accounts.map(a => a.id))
+  const reactivate = useReactivate()
+  const kill = useKillSession()
   const [otpAccountId, setOtpAccountId] = useState<string | null>(null)
+  const [killAccountId, setKillAccountId] = useState<string | null>(null)
   const otpAssistance = otpAccountId ? assistance.get(otpAccountId) : undefined
 
   /* v8 ignore next -- the modal only ever requests close here; the open branch is defensive */
   const closeOtpModal = (o: boolean) => { if (!o) setOtpAccountId(null) }
+
+  /* v8 ignore next -- the dialog only ever requests close here; the open branch is defensive */
+  const closeKillDialog = (o: boolean) => { if (!o) setKillAccountId(null) }
 
   /* v8 ignore next 2 -- the OTP button only renders for listed accounts, so find matches; the name/id fallbacks are defensive */
   const otpAccountName =
@@ -191,12 +198,16 @@ export function Accounts() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {accounts.map((a) => (
+                {accounts.map((a) => {
+                  const liveStatus = sessionStatus.get(a.id) ?? a.sessionStatus
+                  const displayStatus = starting.has(a.id) ? 'starting' : liveStatus
+                  return (
                   <TableRow key={a.id}>
                     <TableCell className="font-medium">{a.name ?? '—'}</TableCell>
                     <TableCell>{bankNameByCode[a.bank] ?? a.bank}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
+                        <SessionLight status={displayStatus} />
                         <Badge variant={a.status === 'active' ? 'default' : 'secondary'}>
                           {t(`common:enums.accountStatus.${a.status}`)}
                         </Badge>
@@ -211,6 +222,39 @@ export function Accounts() {
                             {t('accounts.otp.assistanceNeeded')}
                           </Button>
                         )}
+                        {a.assistedPersistent && liveStatus !== 'running' && !starting.has(a.id) && (
+                          <Button
+                            size="sm"
+                            variant={liveStatus === 'needs_attention' ? 'destructive' : 'default'}
+                            className="h-6 px-2 text-[11px]"
+                            disabled={reactivate.isPending}
+                            onClick={() => {
+                              markStarting(a.id)
+                              reactivate.mutate(a.id, {
+                                onError: err => {
+                                  clearStarting(a.id)
+                                  toast.error(localizedApiError(err) ?? t('accounts.session.reactivateError'))
+                                },
+                              })
+                            }}
+                          >
+                            <RotateCw className="size-3 mr-1" />
+                            {reactivate.isPending
+                              ? (liveStatus === 'needs_attention' ? t('accounts.session.reactivating') : t('accounts.session.starting'))
+                              : (liveStatus === 'needs_attention' ? t('accounts.session.reactivate') : t('accounts.session.start'))}
+                          </Button>
+                        )}
+                        {liveStatus === 'running' && (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-6 px-2 text-[11px]"
+                            onClick={() => setKillAccountId(a.id)}
+                          >
+                            <Power className="size-3 mr-1" />
+                            {t('accounts.session.kill')}
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground text-xs font-mono">{a.id}</TableCell>
@@ -221,7 +265,8 @@ export function Accounts() {
                       </Button>
                     </TableCell>
                   </TableRow>
-                ))}
+                  )
+                })}
                 {accounts.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
@@ -245,6 +290,41 @@ export function Accounts() {
           onSubmitted={() => clearAccount(otpAccountId)}
         />
       )}
+
+      <Dialog open={!!killAccountId} onOpenChange={closeKillDialog}>
+        <DialogContent className="gap-5 p-5 sm:max-w-[400px]">
+          <DialogHeader className="gap-1">
+            <DialogTitle className="text-[15px] tracking-tight">{t('accounts.session.killConfirmTitle')}</DialogTitle>
+            <DialogDescription className="text-[13px] leading-snug">
+              {t('accounts.session.killConfirmBody')}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <DialogClose render={<Button variant="ghost" size="sm" />}>
+              {t('accounts.dialog.cancel')}
+            </DialogClose>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={kill.isPending}
+              onClick={() => {
+                const id = killAccountId
+                /* v8 ignore next -- the button only renders inside the open-with-id dialog, so this is defensive */
+                if (!id) return
+                kill.mutate(id, {
+                  onSuccess: () => setKillAccountId(null),
+                  onError: err => {
+                    setKillAccountId(null)
+                    toast.error(localizedApiError(err) ?? t('accounts.session.killError'))
+                  },
+                })
+              }}
+            >
+              {kill.isPending ? t('accounts.session.killing') : t('accounts.session.killConfirm')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
