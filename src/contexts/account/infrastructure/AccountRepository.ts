@@ -1,7 +1,16 @@
 import { Account } from '../domain/Account.js'
-import { IAccountRepository } from '../domain/IAccountRepository.js'
+import { IAccountRepository, AccountSummary } from '../domain/IAccountRepository.js'
 import { Executor } from './Executor.js'
 import { AccountRowMapper, AccountRow } from './mappers/AccountRowMapper.js'
+
+interface AccountSummaryRow {
+  id: string
+  bank: string
+  name: string | null
+  status: string
+  session_status: AccountSummary['sessionStatus']
+  assisted_persistent: boolean | null
+}
 
 export class AccountRepository implements IAccountRepository {
   constructor(private readonly executor: Executor) {}
@@ -41,6 +50,26 @@ export class AccountRepository implements IAccountRepository {
       [userId]
     )
     return rows.map(AccountRowMapper.toAggregate)
+  }
+
+  async findSummariesByUser(userId: string): Promise<AccountSummary[]> {
+    const { rows } = await this.executor.query<AccountSummaryRow>(
+      `SELECT a.id, a.bank, a.name, a.status, bs.status AS session_status,
+              (ac.session_type = 'persistent' AND ac.login_mode = 'assisted') AS assisted_persistent
+         FROM accounts a
+         LEFT JOIN bank_sessions bs ON bs.account_id = a.id
+         LEFT JOIN account_config ac ON ac.account_id = a.id
+        WHERE a.user_id = $1 AND a.status = 'active'`,
+      [userId]
+    )
+    return rows.map((r) => ({
+      id: r.id,
+      bank: r.bank,
+      name: r.name ?? null,
+      status: r.status,
+      sessionStatus: r.session_status ?? null,
+      assistedPersistent: r.assisted_persistent === true,
+    }))
   }
 
   async save(account: Account): Promise<void> {

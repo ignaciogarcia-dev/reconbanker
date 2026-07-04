@@ -1487,6 +1487,7 @@ describe('AccountConfig page', () => {
           silent_ingestion: false, session_type: 'one-shot', login_mode: 'simple', bank_username: 'alice',
           notification_endpoint_url: null, notification_auth_type: null,
           notification_auth_token: null, notification_events: null,
+          notification_transport: 'api', notification_slack_channel: null,
         })
       ),
       http.put('/api/accounts/:accountId/config', async ({ request, params }) => {
@@ -1501,19 +1502,287 @@ describe('AccountConfig page', () => {
     await user.click(screen.getByRole('tab', { name: /Notificaciones/i }))
     await user.type(screen.getByLabelText('URL del endpoint'), 'https://hooks.example.com/recon')
     await user.type(screen.getByLabelText('Token de autenticación'), 'sekret')
-    // Exercise the auth-type select.
-    await user.click(screen.getByRole('combobox'))
+    // Exercise the auth-type select (disambiguated from the transport select via its label).
+    await user.click(screen.getByLabelText('Tipo de autenticación'))
     await user.click(await screen.findByRole('option', { name: 'Api-Key' }))
-    await user.click(screen.getByRole('checkbox'))
+    await user.click(screen.getByRole('checkbox', { name: /asistencia/i }))
 
     await user.click(screen.getByRole('button', { name: /Guardar configuración/i }))
 
     await waitFor(() => expect(putBody).toBeDefined())
     expect(putBody).toMatchObject({
+      notification_transport: 'api',
       notification_endpoint_url: 'https://hooks.example.com/recon',
       notification_auth_type: 'api_key',
       notification_auth_token: 'sekret',
       notification_events: ['assistance_required'],
+    })
+  })
+
+  it('saves Slack notification settings from the notifications tab', async () => {
+    const user = userEvent.setup()
+    let putBody: Record<string, unknown> | undefined
+    server.use(
+      http.get('/api/accounts/:accountId/config', ({ params }) =>
+        HttpResponse.json({
+          id: 'cfg-1', account_id: params.accountId, pending_orders_endpoint: null,
+          webhook_url: 'https://hook.example.com/x', retry_limit: 3, polling_method: 'GET',
+          polling_body: null, auth_type: 'bearer', auth_token: null, webhook_auth_type: null,
+          webhook_auth_token: null, notify_on_expired: false, webhook_extra_fields: null,
+          silent_ingestion: false, session_type: 'one-shot', login_mode: 'simple', bank_username: 'alice',
+          notification_endpoint_url: null, notification_auth_type: null,
+          notification_auth_token: null, notification_events: null,
+          notification_transport: 'api', notification_slack_channel: null,
+        })
+      ),
+      http.put('/api/accounts/:accountId/config', async ({ request, params }) => {
+        putBody = (await request.json()) as Record<string, unknown>
+        return HttpResponse.json({ id: 'cfg-1', account_id: params.accountId })
+      })
+    )
+
+    renderAccountConfig()
+    await waitFor(() => expect(screen.getByDisplayValue('alice')).toBeInTheDocument())
+
+    await user.click(screen.getByRole('tab', { name: /Notificaciones/i }))
+    await user.click(screen.getByLabelText('Destino de la notificación'))
+    await user.click(await screen.findByRole('option', { name: 'Slack' }))
+    await user.type(screen.getByLabelText('Canal de Slack'), '#alerts')
+    await user.type(screen.getByLabelText('Slack bot token'), 'xoxb-1')
+    await user.click(screen.getByRole('checkbox', { name: /desconexiones/i }))
+    await user.click(screen.getByRole('checkbox', { name: /fallas del scrape/i }))
+
+    await user.click(screen.getByRole('button', { name: /Guardar configuración/i }))
+
+    await waitFor(() => expect(putBody).toBeDefined())
+    expect(putBody).toMatchObject({
+      notification_transport: 'slack',
+      notification_slack_channel: '#alerts',
+      notification_auth_token: 'xoxb-1',
+      notification_endpoint_url: null,
+      notification_auth_type: null,
+      notification_events: ['connection_failed', 'scrape_failed'],
+    })
+  })
+
+  it('sends null slack channel when Slack transport is selected with an empty channel', async () => {
+    const user = userEvent.setup()
+    let putBody: Record<string, unknown> | undefined
+    server.use(
+      http.get('/api/accounts/:accountId/config', ({ params }) =>
+        HttpResponse.json({
+          id: 'cfg-1', account_id: params.accountId, pending_orders_endpoint: null,
+          webhook_url: 'https://hook.example.com/x', retry_limit: 3, polling_method: 'GET',
+          polling_body: null, auth_type: 'bearer', auth_token: null, webhook_auth_type: null,
+          webhook_auth_token: null, notify_on_expired: false, webhook_extra_fields: null,
+          silent_ingestion: false, session_type: 'one-shot', login_mode: 'simple', bank_username: 'alice',
+          notification_endpoint_url: null, notification_auth_type: null,
+          notification_auth_token: null, notification_events: null,
+          notification_transport: 'api', notification_slack_channel: null,
+        })
+      ),
+      http.put('/api/accounts/:accountId/config', async ({ request, params }) => {
+        putBody = (await request.json()) as Record<string, unknown>
+        return HttpResponse.json({ id: 'cfg-1', account_id: params.accountId })
+      })
+    )
+
+    renderAccountConfig()
+    await waitFor(() => expect(screen.getByDisplayValue('alice')).toBeInTheDocument())
+
+    await user.click(screen.getByRole('tab', { name: /Notificaciones/i }))
+    await user.click(screen.getByLabelText('Destino de la notificación'))
+    await user.click(await screen.findByRole('option', { name: 'Slack' }))
+    await user.type(screen.getByLabelText('Slack bot token'), 'xoxb-1')
+
+    await user.click(screen.getByRole('button', { name: /Guardar configuración/i }))
+
+    await waitFor(() => expect(putBody).toBeDefined())
+    expect(putBody).toMatchObject({
+      notification_transport: 'slack',
+      notification_slack_channel: null,
+      notification_auth_token: 'xoxb-1',
+    })
+  })
+
+  it('toggles notification fields when switching transport between api and slack', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.get('/api/accounts/:accountId/config', ({ params }) =>
+        HttpResponse.json({
+          id: 'cfg-1', account_id: params.accountId, pending_orders_endpoint: null,
+          webhook_url: 'https://hook.example.com/x', retry_limit: 3, polling_method: 'GET',
+          polling_body: null, auth_type: 'bearer', auth_token: null, webhook_auth_type: null,
+          webhook_auth_token: null, notify_on_expired: false, webhook_extra_fields: null,
+          silent_ingestion: false, session_type: 'one-shot', login_mode: 'simple', bank_username: 'alice',
+          notification_endpoint_url: null, notification_auth_type: null,
+          notification_auth_token: null, notification_events: null,
+          notification_transport: 'api', notification_slack_channel: null,
+        })
+      )
+    )
+
+    renderAccountConfig()
+    await waitFor(() => expect(screen.getByDisplayValue('alice')).toBeInTheDocument())
+
+    await user.click(screen.getByRole('tab', { name: /Notificaciones/i }))
+    expect(screen.getByLabelText('URL del endpoint')).toBeInTheDocument()
+    expect(screen.getByLabelText('Tipo de autenticación')).toBeInTheDocument()
+    expect(screen.getByLabelText('Token de autenticación')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Canal de Slack')).not.toBeInTheDocument()
+
+    await user.click(screen.getByLabelText('Destino de la notificación'))
+    await user.click(await screen.findByRole('option', { name: 'Slack' }))
+    expect(screen.queryByLabelText('URL del endpoint')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Tipo de autenticación')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Canal de Slack')).toBeInTheDocument()
+    expect(screen.getByLabelText('Slack bot token')).toBeInTheDocument()
+
+    await user.click(screen.getByLabelText('Destino de la notificación'))
+    await user.click(await screen.findByRole('option', { name: /API \(webhook\)/i }))
+    expect(screen.getByLabelText('URL del endpoint')).toBeInTheDocument()
+    expect(screen.getByLabelText('Tipo de autenticación')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Canal de Slack')).not.toBeInTheDocument()
+  })
+
+  it('shows the human label (not the raw value) on the transport and auth-type triggers', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.get('/api/accounts/:accountId/config', ({ params }) =>
+        HttpResponse.json({
+          id: 'cfg-1', account_id: params.accountId, pending_orders_endpoint: null,
+          webhook_url: 'https://hook.example.com/x', retry_limit: 3, polling_method: 'GET',
+          polling_body: null, auth_type: 'bearer', auth_token: null, webhook_auth_type: null,
+          webhook_auth_token: null, notify_on_expired: false, webhook_extra_fields: null,
+          silent_ingestion: false, session_type: 'one-shot', login_mode: 'simple', bank_username: 'alice',
+          notification_endpoint_url: null, notification_auth_type: null,
+          notification_auth_token: null, notification_events: null,
+          notification_transport: 'api', notification_slack_channel: null,
+        })
+      )
+    )
+
+    renderAccountConfig()
+    await waitFor(() => expect(screen.getByDisplayValue('alice')).toBeInTheDocument())
+
+    await user.click(screen.getByRole('tab', { name: /Notificaciones/i }))
+    const transport = screen.getByLabelText('Destino de la notificación')
+    expect(transport).toHaveTextContent('API (webhook)')
+    expect(transport).not.toHaveTextContent(/^api$/)
+    expect(screen.getByLabelText('Tipo de autenticación')).toHaveTextContent('Bearer')
+  })
+
+  it('hydrates Slack notification settings and event checkboxes from the API', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.get('/api/accounts/:accountId/config', ({ params }) =>
+        HttpResponse.json({
+          id: 'cfg-1', account_id: params.accountId, pending_orders_endpoint: null,
+          webhook_url: 'https://hook.example.com/x', retry_limit: 3, polling_method: 'GET',
+          polling_body: null, auth_type: 'bearer', auth_token: null, webhook_auth_type: null,
+          webhook_auth_token: null, notify_on_expired: false, webhook_extra_fields: null,
+          silent_ingestion: false, session_type: 'one-shot', login_mode: 'simple', bank_username: 'alice',
+          notification_endpoint_url: null, notification_auth_type: null,
+          notification_auth_token: null,
+          notification_events: ['assistance_required', 'connection_failed', 'scrape_failed'],
+          notification_transport: 'slack', notification_slack_channel: '#ops',
+        })
+      )
+    )
+
+    renderAccountConfig()
+    await waitFor(() => expect(screen.getByDisplayValue('alice')).toBeInTheDocument())
+
+    await user.click(screen.getByRole('tab', { name: /Notificaciones/i }))
+    expect(screen.getByLabelText('Destino de la notificación')).toHaveTextContent(/slack/i)
+    expect(screen.getByDisplayValue('#ops')).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /asistencia/i })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: /desconexiones/i })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: /fallas del scrape/i })).toBeChecked()
+  })
+
+  it('loads chat_webhook notification settings and shows URL but not token/channel fields', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.get('/api/accounts/:accountId/config', ({ params }) =>
+        HttpResponse.json({
+          id: 'cfg-1', account_id: params.accountId, pending_orders_endpoint: null,
+          webhook_url: 'https://hook.example.com/x', retry_limit: 3, polling_method: 'GET',
+          polling_body: null, auth_type: 'bearer', auth_token: null,
+          webhook_auth_type: null, webhook_auth_token: null, notify_on_expired: false, webhook_extra_fields: null,
+          silent_ingestion: false, session_type: 'one-shot', login_mode: 'simple', bank_username: 'alice',
+          notification_endpoint_url: 'https://hooks.slack.com/services/T/B/x',
+          notification_auth_type: null, notification_auth_token: null,
+          notification_events: ['connection_failed'],
+          notification_transport: 'chat_webhook',
+          notification_slack_channel: null,
+        })
+      )
+    )
+
+    renderAccountConfig()
+    await waitFor(() => expect(screen.getByDisplayValue('alice')).toBeInTheDocument())
+
+    await user.click(screen.getByRole('tab', { name: /Notificaciones/i }))
+
+    // Transport label should read "Chat (webhook)"
+    expect(screen.getByLabelText('Destino de la notificación')).toHaveTextContent('Chat (webhook)')
+
+    // The URL input should be present and hydrated with the stored URL
+    expect(screen.getByDisplayValue('https://hooks.slack.com/services/T/B/x')).toBeInTheDocument()
+
+    // Token and channel fields should not be shown for chat_webhook
+    expect(screen.queryByLabelText('Slack bot token')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Token de autenticación')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Canal de Slack')).not.toBeInTheDocument()
+  })
+
+  it('saves Chat (webhook) notification settings and nulls auth/channel', async () => {
+    const user = userEvent.setup()
+    let putBody: Record<string, unknown> | undefined
+    server.use(
+      http.get('/api/accounts/:accountId/config', ({ params }) =>
+        HttpResponse.json({
+          id: 'cfg-1', account_id: params.accountId, pending_orders_endpoint: null,
+          webhook_url: 'https://hook.example.com/x', retry_limit: 3, polling_method: 'GET',
+          polling_body: null, auth_type: 'bearer', auth_token: null, webhook_auth_type: null,
+          webhook_auth_token: null, notify_on_expired: false, webhook_extra_fields: null,
+          silent_ingestion: false, session_type: 'one-shot', login_mode: 'simple', bank_username: 'alice',
+          notification_endpoint_url: null, notification_auth_type: null,
+          notification_auth_token: null, notification_events: null,
+          notification_transport: 'api', notification_slack_channel: null,
+        })
+      ),
+      http.put('/api/accounts/:accountId/config', async ({ request, params }) => {
+        putBody = (await request.json()) as Record<string, unknown>
+        return HttpResponse.json({ id: 'cfg-1', account_id: params.accountId })
+      })
+    )
+
+    renderAccountConfig()
+    await waitFor(() => expect(screen.getByDisplayValue('alice')).toBeInTheDocument())
+
+    await user.click(screen.getByRole('tab', { name: /Notificaciones/i }))
+    await user.click(screen.getByLabelText('Destino de la notificación'))
+    await user.click(await screen.findByRole('option', { name: 'Chat (webhook)' }))
+
+    // The URL field is shown; the token / auth-type / channel fields are hidden for this transport.
+    await user.type(screen.getByLabelText('URL del endpoint'), 'https://hooks.example.com/services/x')
+    expect(screen.queryByLabelText('Slack bot token')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Token de autenticación')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Canal de Slack')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('checkbox', { name: /desconexiones/i }))
+    await user.click(screen.getByRole('button', { name: /Guardar configuración/i }))
+
+    await waitFor(() => expect(putBody).toBeDefined())
+    expect(putBody).toMatchObject({
+      notification_transport: 'chat_webhook',
+      notification_endpoint_url: 'https://hooks.example.com/services/x',
+      notification_auth_type: null,
+      notification_auth_token: null,
+      notification_slack_channel: null,
+      notification_events: ['connection_failed'],
     })
   })
 

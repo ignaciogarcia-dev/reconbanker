@@ -317,4 +317,105 @@ describe('runMonitor', () => {
     expect(reason).toBe('stop_requested')
     expect(onTransactions).not.toHaveBeenCalled()
   })
+
+  it('invokes onAuthenticated once after authentication succeeds', async () => {
+    const onAuthenticated = vi.fn()
+    const h = hooks({ poll: vi.fn().mockResolvedValue([]) })
+    let calls = 0
+    await runMonitor({
+      hooks: h, page: {}, context: baseContext, sleep: noSleep, onAuthenticated,
+      onTransactions: async () => {},
+      shouldStop: () => { calls += 1; return calls > 1 },
+    })
+    expect(onAuthenticated).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not invoke onAuthenticated on auth_timeout', async () => {
+    const onAuthenticated = vi.fn()
+    const h = hooks({ isAuthenticated: vi.fn().mockResolvedValue(false) })
+    const reason = await runMonitor({
+      hooks: h, page: {}, context: baseContext, sleep: noSleep, authTimeoutMs: 5, onAuthenticated,
+      onTransactions: async () => {},
+    })
+    expect(reason).toBe('auth_timeout')
+    expect(onAuthenticated).not.toHaveBeenCalled()
+  })
+})
+
+// The monitor loop bounds each isAuthenticated / poll / keepAlive call with
+// withTimeout(2 * pollIntervalMs). reconbanker's withTimeout REJECTS with a
+// TimeoutError (no sentinel), which runMonitor catches and converts into a
+// 'watchdog_timeout' stop reason so a hung page can't wedge the loop. A hook
+// that never resolves + a tiny pollIntervalMs drives the real setTimeout.
+describe('runMonitor watchdog', () => {
+  const hang = () => new Promise<never>(() => {})
+
+  it('returns watchdog_timeout when the loop isAuthenticated check hangs', async () => {
+    let auth = 0
+    const h = hooks({
+      // true on the initial auth wait, then hang on the loop's liveness check
+      isAuthenticated: vi.fn().mockImplementation(() => { auth += 1; return auth <= 1 ? Promise.resolve(true) : hang() }),
+    })
+    const reason = await runMonitor({
+      hooks: h, page: {}, context: baseContext, sleep: noSleep, pollIntervalMs: 10,
+      onTransactions: async () => {},
+    })
+    expect(reason).toBe('watchdog_timeout')
+  })
+
+  it('returns watchdog_timeout when poll hangs', async () => {
+    const h = hooks({ poll: vi.fn().mockReturnValue(hang()) })
+    const reason = await runMonitor({
+      hooks: h, page: {}, context: baseContext, sleep: noSleep, pollIntervalMs: 10,
+      onTransactions: async () => {},
+    })
+    expect(reason).toBe('watchdog_timeout')
+  })
+
+  it('returns watchdog_timeout when keepAlive hangs after an empty poll', async () => {
+    const h = hooks({ poll: vi.fn().mockResolvedValue([]), keepAlive: vi.fn().mockReturnValue(hang()) })
+    const reason = await runMonitor({
+      hooks: h, page: {}, context: baseContext, sleep: noSleep, pollIntervalMs: 10,
+      onTransactions: async () => {},
+    })
+    expect(reason).toBe('watchdog_timeout')
+  })
+
+  it('returns watchdog_timeout when keepAlive hangs during poll-failure recovery', async () => {
+    let n = 0
+    const h = hooks({
+      poll: vi.fn().mockImplementation(async () => { n += 1; if (n === 1) throw new Error('boom'); return [] }),
+      keepAlive: vi.fn().mockReturnValue(hang()),
+    })
+    const reason = await runMonitor({
+      hooks: h, page: {}, context: baseContext, sleep: noSleep, pollIntervalMs: 10,
+      onTransactions: async () => {},
+    })
+    expect(reason).toBe('watchdog_timeout')
+  })
+
+  it('rethrows a non-timeout error from the initial auth check (fatal abort)', async () => {
+    // isAuthenticated may throw a fatal Error to abort without retry. withTimeout rejects with
+    // that (non-Timeout) error, so runMonitor rethrows it rather than treating it as auth_timeout.
+    const h = hooks({ isAuthenticated: vi.fn().mockRejectedValue(new Error('fatal auth')) })
+    await expect(runMonitor({
+      hooks: h, page: {}, context: baseContext, sleep: noSleep,
+      onTransactions: async () => {},
+    })).rejects.toThrow('fatal auth')
+  })
+
+  it('rethrows a non-timeout error from the loop auth check (fatal abort)', async () => {
+    let auth = 0
+    const h = hooks({
+      isAuthenticated: vi.fn().mockImplementation(async () => {
+        auth += 1
+        if (auth <= 1) return true             // initial auth wait passes
+        throw new Error('fatal loop auth')     // the loop liveness check aborts fatally
+      }),
+    })
+    await expect(runMonitor({
+      hooks: h, page: {}, context: baseContext, sleep: noSleep, pollIntervalMs: 10,
+      onTransactions: async () => {},
+    })).rejects.toThrow('fatal loop auth')
+  })
 })

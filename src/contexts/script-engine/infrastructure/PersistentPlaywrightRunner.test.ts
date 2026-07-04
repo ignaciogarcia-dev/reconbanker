@@ -20,6 +20,9 @@ vi.mock('./runMonitor.js', async () => {
 import { PersistentPlaywrightRunner } from './PersistentPlaywrightRunner.js'
 
 function buildContext(pages: any[] = []) {
+  const handlers: Record<string, Array<() => void>> = {}
+  const on = vi.fn((evt: string, cb: () => void) => { (handlers[evt] ||= []).push(cb) })
+  const browserOn = vi.fn()
   const newPage = vi.fn()
   const close = vi.fn().mockResolvedValue(undefined)
   const page = pages[0] ?? {
@@ -30,9 +33,11 @@ function buildContext(pages: any[] = []) {
     pages: () => pages,
     newPage,
     close,
+    on,
+    browser: () => ({ on: browserOn }),
   }
   launchPersistentContextMock.mockResolvedValue(browserContext)
-  return { browserContext, page, close, newPage }
+  return { browserContext, page, close, newPage, emit: (evt: string) => (handlers[evt] || []).forEach((f) => f()) }
 }
 
 const baseInput = () => ({
@@ -187,6 +192,60 @@ describe('PersistentPlaywrightRunner', () => {
     const handle = await runner.start(baseInput())
     await expect(handle.done).resolves.toBe('stop_requested')
     expect(close).toHaveBeenCalled()
+  })
+
+  it('resolves authenticated=true once runMonitor reports authentication', async () => {
+    buildContext()
+    // runMonitor signals auth by invoking the injected onAuthenticated hook (wired to markAuthed(true)).
+    runMonitorMock.mockImplementation((opts: any) => { opts.onAuthenticated?.(); return Promise.resolve('stop_requested') })
+    const runner = new PersistentPlaywrightRunner()
+
+    const handle = await runner.start(baseInput())
+    await expect(handle.authenticated).resolves.toBe(true)
+    await handle.done
+  })
+
+  it('resolves authenticated=false when the session ends before authenticating', async () => {
+    buildContext()
+    runMonitorMock.mockResolvedValue('auth_timeout') // onAuthenticated never invoked
+    const runner = new PersistentPlaywrightRunner()
+
+    const handle = await runner.start(baseInput())
+    await handle.done
+    await expect(handle.authenticated).resolves.toBe(false)
+  })
+
+  it('keeps authenticated non-rejecting (resolves false) when the monitor rejects before auth', async () => {
+    buildContext()
+    runMonitorMock.mockRejectedValue(new Error('monitor blew up'))
+    const runner = new PersistentPlaywrightRunner()
+
+    const handle = await runner.start(baseInput())
+    await expect(handle.done).rejects.toThrow('monitor blew up')
+    await expect(handle.authenticated).resolves.toBe(false)
+  })
+
+  it('kill() rejects done with session_killed and closes the context', async () => {
+    const { close } = buildContext()
+    runMonitorMock.mockReturnValue(new Promise(() => {})) // hung monitor that never settles
+    const runner = new PersistentPlaywrightRunner()
+
+    const handle = await runner.start(baseInput())
+    handle.kill()
+
+    await expect(handle.done).rejects.toThrow('session_killed')
+    expect(close).toHaveBeenCalled()
+  })
+
+  it('an external browser close rejects done with browser_closed (not session_killed)', async () => {
+    const { emit } = buildContext()
+    runMonitorMock.mockReturnValue(new Promise(() => {}))
+    const runner = new PersistentPlaywrightRunner()
+
+    const handle = await runner.start(baseInput())
+    emit('close')
+
+    await expect(handle.done).rejects.toThrow('browser_closed')
   })
 
   it('exercises the addInitScript navigator.webdriver guard', async () => {

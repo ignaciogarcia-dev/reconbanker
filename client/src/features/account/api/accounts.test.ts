@@ -7,6 +7,8 @@ import {
   createAccount,
   deleteAccount,
   enqueueScrape,
+  reactivateSession,
+  killSession,
 } from './accounts'
 
 describe('accounts api', () => {
@@ -19,6 +21,8 @@ describe('accounts api', () => {
             bank: 'mi-dinero',
             name: 'Cuenta 1',
             status: 'active',
+            sessionStatus: 'running',
+            assistedPersistent: true,
           },
         ])
       )
@@ -30,6 +34,8 @@ describe('accounts api', () => {
         bank: 'mi-dinero',
         name: 'Cuenta 1',
         status: 'active',
+        sessionStatus: 'running',
+        assistedPersistent: true,
       },
     ])
   })
@@ -51,6 +57,8 @@ describe('accounts api', () => {
       bank: 'mi-dinero',
       name: null,
       status: 'inactive',
+      sessionStatus: null,
+      assistedPersistent: false,
     })
   })
 
@@ -86,5 +94,21 @@ describe('accounts api', () => {
       )
     )
     await expect(enqueueScrape('a-1')).resolves.toEqual({ queued: true })
+  })
+
+  it('reactivateSession POSTs to the reactivate endpoint and returns queued', async () => {
+    server.use(
+      http.post('/api/accounts/a-1/reactivate', () =>
+        HttpResponse.json({ queued: true })
+      )
+    )
+    await expect(reactivateSession('a-1')).resolves.toEqual({ queued: true })
+  })
+
+  it('killSession POSTs to the kill endpoint and returns killed', async () => {
+    server.use(
+      http.post('/api/accounts/a-1/kill', () => HttpResponse.json({ killed: true }))
+    )
+    await expect(killSession('a-1')).resolves.toEqual({ killed: true })
   })
 })

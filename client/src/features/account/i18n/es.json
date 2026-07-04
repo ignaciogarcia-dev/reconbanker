@@ -37,6 +37,26 @@
       "cancel": "Cancelar",
       "submitted": "Código enviado",
       "submitError": "No se pudo enviar el código"
+    },
+    "session": {
+      "start": "Iniciar",
+      "starting": "Iniciando…",
+      "reactivate": "Reactivar",
+      "reactivating": "Reactivando…",
+      "needsAttention": "Requiere reactivación",
+      "reactivateError": "No se pudo reactivar la sesión",
+      "kill": "Detener",
+      "killing": "Deteniendo…",
+      "killConfirmTitle": "Detener sesión",
+      "killConfirmBody": "Fuerza el cierre del navegador de esta sesión ahora. Una cuenta simple se reiniciará automáticamente; una asistida necesitará reactivación.",
+      "killConfirm": "Detener sesión",
+      "killError": "No se pudo detener la sesión",
+      "light": {
+        "running": "Scrapeando",
+        "starting": "Conectando…",
+        "needs_attention": "Requiere reactivación",
+        "off": "Apagada"
+      }
     }
   },
   "banks": {
@@ -157,7 +177,16 @@
       "endpoint": "URL del endpoint",
       "authType": "Tipo de autenticación",
       "authToken": "Token de autenticación",
-      "eventAssistance": "Notificar cuando se requiera asistencia (código SMS)"
+      "eventAssistance": "Notificar cuando se requiera asistencia (código SMS)",
+      "transport": "Destino de la notificación",
+      "transportApi": "API (webhook)",
+      "transportSlack": "Slack",
+      "transportChatWebhook": "Chat (webhook)",
+      "chatWebhookHelp": "Envía un mensaje { text } a un webhook entrante de Slack / Mattermost. El secreto va en la URL; no se usa token.",
+      "slackToken": "Slack bot token",
+      "slackChannel": "Canal de Slack",
+      "eventConnectionFailed": "Notificar desconexiones (no se pudo conectar/autenticar con el banco)",
+      "eventScrapeFailed": "Notificar fallas del scrape (conectó pero falló después)"
     }
   }
 }

@@ -26,6 +26,18 @@ export class InMemoryAccountRepository implements IAccountRepository {
   async findAllByUser(userId: string) {
     return [...this.store.values()].filter((a) => a.userId === userId && a.status === 'active')
   }
+  async findSummariesByUser(userId: string) {
+    return [...this.store.values()]
+      .filter((a) => a.userId === userId && a.status === 'active')
+      .map((a) => ({
+        id: a.id,
+        bank: a.bank,
+        name: a.name ?? null,
+        status: a.status,
+        sessionStatus: null,
+        assistedPersistent: false,
+      }))
+  }
   async save(account: Account) { this.store.set(account.id, account) }
   async delete(id: string) { this.store.delete(id) }
 }

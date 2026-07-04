@@ -4,6 +4,8 @@ export type AuthType = 'bearer' | 'api_key'
 export type PollingMethod = 'GET' | 'POST'
 export type SessionType = 'one-shot' | 'persistent'
 export type LoginMode = 'simple' | 'assisted'
+export type NotificationTransport = 'api' | 'slack' | 'chat_webhook'
+export type SessionStatus = 'running' | 'stopped' | 'needs_attention'
 
 export interface Bank {
   id: string
@@ -18,6 +20,10 @@ export interface Account {
   bank: string
   name: string | null
   status: AccountStatus
+  // Live persistent-session status for the dashboard light; null when no session row yet.
+  sessionStatus: SessionStatus | null
+  // Persistent + assisted accounts never auto-launch; the list shows a manual start/reactivate button.
+  assistedPersistent: boolean
 }
 
 export interface AccountConfig {
@@ -41,6 +47,8 @@ export interface AccountConfig {
   notificationAuthType: AuthType | null
   notificationAuthToken: string | null
   notificationEvents: string[] | null
+  notificationTransport: NotificationTransport
+  notificationSlackChannel: string | null
   bankUsername: string | null
 }
 

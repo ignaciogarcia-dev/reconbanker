@@ -45,6 +45,8 @@ function baseInput(accountId: string, userId: string, overrides: Partial<UpsertA
     notificationAuthType: null,
     notificationAuthToken: null,
     notificationEvents: null,
+    notificationTransport: 'api',
+    notificationSlackChannel: null,
     bankUsername: null,
     bankPassword: null,
     ...overrides,

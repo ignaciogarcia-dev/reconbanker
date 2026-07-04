@@ -25,6 +25,8 @@ describe('AccountConfigRowMapper', () => {
     notification_auth_type: null,
     notification_auth_token: null,
     notification_events: null,
+    notification_transport: 'api',
+    notification_slack_channel: null,
   }
 
   it('maps a full row into the domain config', () => {
@@ -49,6 +51,8 @@ describe('AccountConfigRowMapper', () => {
       notificationAuthType: null,
       notificationAuthToken: null,
       notificationEvents: null,
+      notificationTransport: 'api',
+      notificationSlackChannel: null,
     })
   })
 

@@ -42,6 +42,8 @@ const upsertConfigSchema = z.object({
   notification_auth_type: z.enum(['bearer', 'api_key']).nullable().optional(),
   notification_auth_token: z.string().nullable().optional(),
   notification_events: z.array(z.string()).nullable().optional(),
+  notification_transport: z.enum(['api', 'slack', 'chat_webhook']).optional(),
+  notification_slack_channel: z.string().nullable().optional(),
 })
 
 const RESERVED_WEBHOOK_KEYS = ['external_id', 'status', 'amount', 'currency', 'name', 'id', 'received_at']
@@ -104,6 +106,8 @@ function toJson(config: AccountConfigDto) {
     notification_auth_type: config.notificationAuthType,
     notification_auth_token: config.notificationAuthToken ? SECRET_PRESENT_MASK : null,
     notification_events: config.notificationEvents,
+    notification_transport: config.notificationTransport,
+    notification_slack_channel: config.notificationSlackChannel,
     bank_username: config.bankUsername,
   }
 }
@@ -180,6 +184,8 @@ export function buildAccountsRouter(account: AccountModule): Router {
       notificationAuthType: body.notification_auth_type ?? null,
       notificationAuthToken: body.notification_auth_token ?? null,
       notificationEvents: body.notification_events ?? null,
+      notificationTransport: body.notification_transport ?? 'api',
+      notificationSlackChannel: body.notification_slack_channel?.trim() || null,
       bankUsername: body.bank_username ?? null,
       bankPassword: body.bank_password ?? null,
     })

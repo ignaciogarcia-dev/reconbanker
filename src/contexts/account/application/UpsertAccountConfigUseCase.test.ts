@@ -44,6 +44,8 @@ const baseInput = {
   notificationAuthType: null,
   notificationAuthToken: null,
   notificationEvents: null,
+  notificationTransport: 'api' as const,
+  notificationSlackChannel: null,
   bankUsername: null,
   bankPassword: null,
 }
@@ -136,5 +138,96 @@ describe('UpsertAccountConfigUseCase', () => {
     const stored = configRepo.store.get('acc-1')!
     expect(stored.authToken).toBeNull()
     expect(stored.webhookAuthToken).toBeNull()
+  })
+
+  describe('notification transports', () => {
+    // Literal public IP so the SSRF guard runs without DNS.
+    const publicUrl = 'https://93.184.216.34/notify'
+
+    it('validates the notification endpoint URL for the api transport (SSRF guard)', async () => {
+      const { useCase } = buildSut()
+      await expect(useCase.execute({
+        ...baseInput, notificationTransport: 'api',
+        notificationEndpointUrl: 'http://169.254.169.254/x', notificationEvents: ['assistance_required'],
+      })).rejects.toBeInstanceOf(ValidationError)
+    })
+
+    it('persists a validated api notification endpoint URL', async () => {
+      const { useCase, configRepo } = buildSut()
+      await useCase.execute({
+        ...baseInput, notificationTransport: 'api',
+        notificationEndpointUrl: publicUrl, notificationEvents: ['assistance_required'],
+      })
+      expect(configRepo.store.get('acc-1')?.notificationEndpointUrl).toBe(publicUrl)
+    })
+
+    it('requires the endpoint URL for a subscribed chat_webhook transport', async () => {
+      const { useCase } = buildSut()
+      await expect(useCase.execute({
+        ...baseInput, notificationTransport: 'chat_webhook',
+        notificationEndpointUrl: null, notificationEvents: ['connection_failed'],
+      })).rejects.toBeInstanceOf(ValidationError)
+    })
+
+    it('rejects an SSRF chat_webhook endpoint URL', async () => {
+      const { useCase } = buildSut()
+      await expect(useCase.execute({
+        ...baseInput, notificationTransport: 'chat_webhook',
+        notificationEndpointUrl: 'http://10.0.0.9/x', notificationEvents: ['connection_failed'],
+      })).rejects.toBeInstanceOf(ValidationError)
+    })
+
+    it('persists a chat_webhook transport and nulls channel/auth (URL carries the secret)', async () => {
+      const { useCase, configRepo } = buildSut()
+      await useCase.execute({
+        ...baseInput, notificationTransport: 'chat_webhook',
+        notificationEndpointUrl: publicUrl, notificationEvents: ['connection_failed'],
+        notificationAuthType: 'bearer', notificationAuthToken: 'should-be-dropped', notificationSlackChannel: '#x',
+      })
+      const stored = configRepo.store.get('acc-1')!
+      expect(stored.notificationTransport).toBe('chat_webhook')
+      expect(stored.notificationEndpointUrl).toBe(publicUrl)
+      expect(stored.notificationAuthType).toBeNull()
+      expect(stored.notificationAuthToken).toBeNull()
+      expect(stored.notificationSlackChannel).toBeNull()
+    })
+
+    it('requires a slack channel for a subscribed slack transport', async () => {
+      const { useCase } = buildSut()
+      await expect(useCase.execute({
+        ...baseInput, notificationTransport: 'slack',
+        notificationSlackChannel: null, notificationAuthToken: 'xoxb', notificationEvents: ['connection_failed'],
+      })).rejects.toBeInstanceOf(ValidationError)
+    })
+
+    it('requires a slack token for a subscribed slack transport', async () => {
+      const { useCase } = buildSut()
+      await expect(useCase.execute({
+        ...baseInput, notificationTransport: 'slack',
+        notificationSlackChannel: '#alerts', notificationAuthToken: null, notificationEvents: ['connection_failed'],
+      })).rejects.toBeInstanceOf(ValidationError)
+    })
+
+    it('persists a slack transport with channel + token', async () => {
+      const { useCase, configRepo } = buildSut()
+      await useCase.execute({
+        ...baseInput, notificationTransport: 'slack',
+        notificationSlackChannel: '#alerts', notificationAuthToken: 'xoxb-1', notificationEvents: ['connection_failed'],
+      })
+      const stored = configRepo.store.get('acc-1')!
+      expect(stored.notificationTransport).toBe('slack')
+      expect(stored.notificationSlackChannel).toBe('#alerts')
+      expect(stored.notificationAuthToken).toBe('xoxb-1')
+    })
+
+    it('skips slack validation when not subscribed to any events', async () => {
+      const { useCase, configRepo } = buildSut()
+      // No events → subscribedToEvents false → the slack channel/token validations are skipped.
+      await useCase.execute({
+        ...baseInput, notificationTransport: 'slack',
+        notificationSlackChannel: null, notificationAuthToken: null, notificationEvents: null,
+      })
+      expect(configRepo.store.get('acc-1')?.notificationTransport).toBe('slack')
+    })
   })
 })

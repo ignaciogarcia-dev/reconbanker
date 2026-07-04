@@ -20,7 +20,7 @@ import { useTranslation } from 'react-i18next'
 import { useUser } from '@/features/user/hooks/useUser'
 import { useAccount, useDeleteAccount } from '../hooks/useAccounts'
 import { useAccountConfig, useUpsertAccountConfig } from '../hooks/useAccountConfig'
-import type { AuthType, PollingMethod, SessionType, LoginMode } from '../types'
+import type { AuthType, PollingMethod, SessionType, LoginMode, NotificationTransport } from '../types'
 import {
   FIELD_ORDER,
   mapServerErrorToField,
@@ -54,7 +54,11 @@ export function AccountConfig() {
     notificationEndpointUrl: '',
     notificationAuthType: 'bearer',
     notificationAuthToken: '',
+    notificationTransport: 'api',
+    notificationSlackChannel: '',
     notificationEventAssistance: false,
+    notificationEventConnectionFailed: false,
+    notificationEventScrapeFailed: false,
   })
   const [errors, setErrors] = useState<FormErrors>({})
   const [serverError, setServerError] = useState<string | null>(null)
@@ -146,7 +150,11 @@ export function AccountConfig() {
       notificationEndpointUrl: data.notificationEndpointUrl ?? '',
       notificationAuthType: data.notificationAuthType ?? 'bearer',
       notificationAuthToken: data.notificationAuthToken ?? '',
+      notificationTransport: data.notificationTransport ?? 'api',
+      notificationSlackChannel: data.notificationSlackChannel ?? '',
       notificationEventAssistance: (data.notificationEvents ?? []).includes('assistance_required'),
+      notificationEventConnectionFailed: (data.notificationEvents ?? []).includes('connection_failed'),
+      notificationEventScrapeFailed: (data.notificationEvents ?? []).includes('scrape_failed'),
     }))
   }, [data])
 
@@ -225,10 +233,16 @@ export function AccountConfig() {
         silentIngestion: form.silentIngestion,
         sessionType: form.sessionType,
         loginMode: form.loginMode,
-        notificationEndpointUrl: form.notificationEndpointUrl.trim() === '' ? null : form.notificationEndpointUrl.trim(),
-        notificationAuthType: form.notificationEndpointUrl.trim() === '' ? null : form.notificationAuthType,
-        notificationAuthToken: form.notificationAuthToken.trim() === '' ? null : form.notificationAuthToken.trim(),
-        notificationEvents: form.notificationEventAssistance ? ['assistance_required'] : [],
+        notificationEndpointUrl: form.notificationTransport === 'slack' || form.notificationEndpointUrl.trim() === '' ? null : form.notificationEndpointUrl.trim(),
+        notificationAuthType: form.notificationTransport === 'slack' || form.notificationTransport === 'chat_webhook' || form.notificationEndpointUrl.trim() === '' ? null : form.notificationAuthType,
+        notificationAuthToken: form.notificationTransport === 'chat_webhook' || form.notificationAuthToken.trim() === '' ? null : form.notificationAuthToken.trim(),
+        notificationTransport: form.notificationTransport,
+        notificationSlackChannel: form.notificationTransport === 'slack' ? (form.notificationSlackChannel.trim() || null) : null,
+        notificationEvents: [
+          ...(form.notificationEventAssistance ? ['assistance_required'] : []),
+          ...(form.notificationEventConnectionFailed ? ['connection_failed'] : []),
+          ...(form.notificationEventScrapeFailed ? ['scrape_failed'] : []),
+        ],
         /* v8 ignore start -- validation requires bankUsername so the empty branch is unreachable */
         bankUsername: trimmedBankUsername === '' ? null : trimmedBankUsername,
         /* v8 ignore stop */
@@ -546,39 +560,83 @@ export function AccountConfig() {
                 <div>{t('accountConfig.notifications.desc')}</div>
               </div>
               <div className="grid gap-1.5">
-                <Label htmlFor="notif-url">{t('accountConfig.notifications.endpoint')}</Label>
-                <Input
-                  id="notif-url"
-                  placeholder="https://example.com/hooks/recon"
-                  value={form.notificationEndpointUrl}
-                  onChange={e => setForm(f => ({ ...f, notificationEndpointUrl: e.target.value }))}
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="notif-auth-type">{t('accountConfig.notifications.authType')}</Label>
+                <Label htmlFor="notif-transport">{t('accountConfig.notifications.transport')}</Label>
                 <Select
-                  value={form.notificationAuthType}
-                  onValueChange={v => setForm(f => ({ ...f, notificationAuthType: v as AuthType }))}
+                  value={form.notificationTransport}
+                  onValueChange={v => setForm(f => ({ ...f, notificationTransport: v as NotificationTransport }))}
                 >
-                  <SelectTrigger id="notif-auth-type" className="w-full">
-                    <SelectValue />
+                  <SelectTrigger id="notif-transport" className="w-full">
+                    <SelectValue>
+                      {form.notificationTransport === 'slack'
+                        ? t('accountConfig.notifications.transportSlack')
+                        : form.notificationTransport === 'chat_webhook'
+                          ? t('accountConfig.notifications.transportChatWebhook')
+                          : t('accountConfig.notifications.transportApi')}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="bearer">Bearer</SelectItem>
-                    <SelectItem value="api_key">Api-Key</SelectItem>
+                    <SelectItem value="api">{t('accountConfig.notifications.transportApi')}</SelectItem>
+                    <SelectItem value="slack">{t('accountConfig.notifications.transportSlack')}</SelectItem>
+                    <SelectItem value="chat_webhook">{t('accountConfig.notifications.transportChatWebhook')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="notif-token">{t('accountConfig.notifications.authToken')}</Label>
-                <Input
-                  id="notif-token"
-                  type="password"
-                  placeholder="••••••••"
-                  value={form.notificationAuthToken}
-                  onChange={e => setForm(f => ({ ...f, notificationAuthToken: e.target.value }))}
-                />
-              </div>
+              {(form.notificationTransport === 'api' || form.notificationTransport === 'chat_webhook') && (
+                <div className="grid gap-1.5">
+                  <Label htmlFor="notif-url">{t('accountConfig.notifications.endpoint')}</Label>
+                  <Input
+                    id="notif-url"
+                    placeholder="https://hooks.slack.com/services/..."
+                    value={form.notificationEndpointUrl}
+                    onChange={e => setForm(f => ({ ...f, notificationEndpointUrl: e.target.value }))}
+                  />
+                  {form.notificationTransport === 'chat_webhook' && (
+                    <p className="text-xs text-muted-foreground">{t('accountConfig.notifications.chatWebhookHelp')}</p>
+                  )}
+                </div>
+              )}
+              {form.notificationTransport === 'api' && (
+                <div className="grid gap-1.5">
+                  <Label htmlFor="notif-auth-type">{t('accountConfig.notifications.authType')}</Label>
+                  <Select
+                    value={form.notificationAuthType}
+                    onValueChange={v => setForm(f => ({ ...f, notificationAuthType: v as AuthType }))}
+                  >
+                    <SelectTrigger id="notif-auth-type" className="w-full">
+                      <SelectValue>{form.notificationAuthType === 'api_key' ? 'Api-Key' : 'Bearer'}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bearer">Bearer</SelectItem>
+                      <SelectItem value="api_key">Api-Key</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {form.notificationTransport === 'slack' && (
+                <div className="grid gap-1.5">
+                  <Label htmlFor="notif-slack-channel">{t('accountConfig.notifications.slackChannel')}</Label>
+                  <Input
+                    id="notif-slack-channel"
+                    placeholder="#alerts"
+                    value={form.notificationSlackChannel}
+                    onChange={e => setForm(f => ({ ...f, notificationSlackChannel: e.target.value }))}
+                  />
+                </div>
+              )}
+              {form.notificationTransport !== 'chat_webhook' && (
+                <div className="grid gap-1.5">
+                  <Label htmlFor="notif-token">
+                    {t(form.notificationTransport === 'slack' ? 'accountConfig.notifications.slackToken' : 'accountConfig.notifications.authToken')}
+                  </Label>
+                  <Input
+                    id="notif-token"
+                    type="password"
+                    placeholder="••••••••"
+                    value={form.notificationAuthToken}
+                    onChange={e => setForm(f => ({ ...f, notificationAuthToken: e.target.value }))}
+                  />
+                </div>
+              )}
               <label className="flex items-center justify-between gap-3 rounded-md border border-border p-3 text-sm">
                 <span className="flex items-center gap-2">
                   <ShieldAlert className="size-4" />
@@ -589,6 +647,30 @@ export function AccountConfig() {
                   className="size-4"
                   checked={form.notificationEventAssistance}
                   onChange={e => setForm(f => ({ ...f, notificationEventAssistance: e.target.checked }))}
+                />
+              </label>
+              <label className="flex items-center justify-between gap-3 rounded-md border border-border p-3 text-sm">
+                <span className="flex items-center gap-2">
+                  <AlertCircle className="size-4" />
+                  {t('accountConfig.notifications.eventConnectionFailed')}
+                </span>
+                <input
+                  type="checkbox"
+                  className="size-4"
+                  checked={form.notificationEventConnectionFailed}
+                  onChange={e => setForm(f => ({ ...f, notificationEventConnectionFailed: e.target.checked }))}
+                />
+              </label>
+              <label className="flex items-center justify-between gap-3 rounded-md border border-border p-3 text-sm">
+                <span className="flex items-center gap-2">
+                  <AlertTriangle className="size-4" />
+                  {t('accountConfig.notifications.eventScrapeFailed')}
+                </span>
+                <input
+                  type="checkbox"
+                  className="size-4"
+                  checked={form.notificationEventScrapeFailed}
+                  onChange={e => setForm(f => ({ ...f, notificationEventScrapeFailed: e.target.checked }))}
                 />
               </label>
             </CardContent>

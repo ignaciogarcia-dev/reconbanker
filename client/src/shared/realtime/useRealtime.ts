@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { accountsQueryKey } from '@/features/account/hooks/useAccounts'
 import { getPendingAssistance } from '@/features/account/api/assistance'
+import type { SessionStatus } from '@/features/account/types'
 import { getRealtimeTicket, realtimeUrl, REALTIME_SUBPROTOCOL } from './realtimeApi'
 
 export interface SystemEvent {
@@ -9,6 +10,9 @@ export interface SystemEvent {
     | 'assistance.requested'
     | 'assistance.fulfilled'
     | 'assistance.cancelled'
+    | 'session.started'
+    | 'session.stopped'
+    | 'session.needs_attention'
     | string
   userId: string
   accountId: string
@@ -25,18 +29,27 @@ export interface PendingAssistance {
 }
 
 const DEFAULT_DESCRIPTOR: PendingAssistance['descriptor'] = { length: 6, type: 'numeric' }
+// How long the optimistic "starting" overlay lingers if the session.started event never arrives
+// (the 30s accounts poll then reflects the real status).
+const STARTING_FALLBACK_MS = 90_000
 
-// Single app WebSocket that surfaces per-account OTP assistance state and reconnects with capped backoff.
-// `accountIds` seeds the map from the OTP endpoint so a request raised before this socket connected
-// (e.g. during a background/scheduled login) still surfaces, since the live event is never replayed.
+// Single app WebSocket that surfaces per-account OTP assistance state and persistent-session light
+// status, and reconnects with capped backoff. `accountIds` seeds the assistance map from the OTP
+// endpoint so a request raised before this socket connected (e.g. during a background/scheduled login)
+// still surfaces, since the live event is never replayed.
 export function useRealtime(accountIds: readonly string[] = []) {
   const qc = useQueryClient()
   // A Map keeps server-provided account ids as plain entries, never object property
   // keys, so hostile ids like '__proto__' cannot pollute prototypes (CodeQL js/remote-property-injection)
   const [assistance, setAssistance] = useState<ReadonlyMap<string, PendingAssistance>>(new Map())
+  // Live persistent-session status pushed over the socket, keyed by account id (drives the light).
+  const [sessionStatus, setSessionStatus] = useState<ReadonlyMap<string, SessionStatus>>(new Map())
+  // Optimistic per-account "starting" overlay while a reactivation launches, until a session.* event lands.
+  const [starting, setStarting] = useState<ReadonlySet<string>>(new Set())
   const wsRef = useRef<WebSocket | null>(null)
   const closedRef = useRef(false)
   const attemptRef = useRef(0)
+  const startTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
 
   const clearAccount = useCallback((accountId: string) => {
     setAssistance((prev) => {
@@ -46,6 +59,25 @@ export function useRealtime(accountIds: readonly string[] = []) {
       return next
     })
   }, [])
+
+  const clearStarting = useCallback((accountId: string) => {
+    const timer = startTimersRef.current.get(accountId)
+    if (timer) { clearTimeout(timer); startTimersRef.current.delete(accountId) }
+    setStarting((prev) => {
+      if (!prev.has(accountId)) return prev
+      const next = new Set(prev)
+      next.delete(accountId)
+      return next
+    })
+  }, [])
+
+  const markStarting = useCallback((accountId: string) => {
+    setStarting((prev) => new Set(prev).add(accountId))
+    const existing = startTimersRef.current.get(accountId)
+    if (existing) clearTimeout(existing)
+    // Fallback in case the session.started event never arrives (the poll then shows the real status).
+    startTimersRef.current.set(accountId, setTimeout(() => clearStarting(accountId), STARTING_FALLBACK_MS))
+  }, [clearStarting])
 
   // Hydrate pending assistance for the known accounts on load. Only adds entries the live socket
   // hasn't already set, so a slow GET never resurrects an account just cleared by a fulfilled event.
@@ -71,6 +103,12 @@ export function useRealtime(accountIds: readonly string[] = []) {
     return () => { cancelled = true }
   }, [idsKey])
 
+  // Clear any pending starting-overlay timers on unmount.
+  useEffect(() => () => {
+    for (const timer of startTimersRef.current.values()) clearTimeout(timer)
+    startTimersRef.current.clear()
+  }, [])
+
   useEffect(() => {
     // Effect-local flag stops an async connect() from keeping a socket after teardown since the shared closedRef only gates reconnects
     let cancelled = false
@@ -86,7 +124,13 @@ export function useRealtime(accountIds: readonly string[] = []) {
         const ws = new WebSocket(realtimeUrl(), [REALTIME_SUBPROTOCOL, ticket])
         wsRef.current = ws
 
-        ws.onopen = () => { attemptRef.current = 0 }
+        ws.onopen = () => {
+          attemptRef.current = 0
+          // Recover anything missed while disconnected: refetch the account list and drop stale live
+          // status overrides so the freshly-refetched session status wins.
+          qc.invalidateQueries({ queryKey: accountsQueryKey })
+          setSessionStatus(new Map())
+        }
 
         ws.onmessage = (ev) => {
           let event: SystemEvent
@@ -104,6 +148,24 @@ export function useRealtime(accountIds: readonly string[] = []) {
           } else if (event.type === 'assistance.fulfilled' || event.type === 'assistance.cancelled') {
             qc.invalidateQueries({ queryKey: accountsQueryKey })
             clearAccount(event.accountId)
+          } else if (
+            event.type === 'session.started' ||
+            event.type === 'session.stopped' ||
+            event.type === 'session.needs_attention'
+          ) {
+            const status: SessionStatus =
+              event.type === 'session.started' ? 'running'
+              : event.type === 'session.stopped' ? 'stopped'
+              : 'needs_attention'
+            // A start/needs_attention changes what buttons render, so refetch; a plain stop only
+            // dims the light and the live override already reflects it.
+            if (event.type !== 'session.stopped') qc.invalidateQueries({ queryKey: accountsQueryKey })
+            clearStarting(event.accountId)
+            setSessionStatus((prev) => {
+              const next = new Map(prev)
+              next.set(event.accountId, status)
+              return next
+            })
           }
         }
 
@@ -134,7 +196,7 @@ export function useRealtime(accountIds: readonly string[] = []) {
       wsRef.current?.close()
       wsRef.current = null
     }
-  }, [qc, clearAccount])
+  }, [qc, clearAccount, clearStarting])
 
-  return { assistance, clearAccount }
+  return { assistance, clearAccount, sessionStatus, starting, markStarting, clearStarting }
 }

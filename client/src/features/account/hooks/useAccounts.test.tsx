@@ -38,6 +38,8 @@ describe('useAccounts', () => {
         bank: 'mi-dinero',
         name: 'Cuenta 1',
         status: 'active',
+        sessionStatus: null,
+        assistedPersistent: false,
       },
     ])
   })

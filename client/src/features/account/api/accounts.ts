@@ -6,6 +6,8 @@ interface AccountRow {
   bank: string
   name: string | null
   status: Account['status']
+  sessionStatus?: Account['sessionStatus']
+  assistedPersistent?: boolean
 }
 
 export async function listAccounts(): Promise<Account[]> {
@@ -34,11 +36,23 @@ export async function enqueueScrape(accountId: string): Promise<{ queued: boolea
   return data
 }
 
+export async function reactivateSession(accountId: string): Promise<{ queued: boolean }> {
+  const { data } = await httpClient.post<{ queued: boolean }>(`/accounts/${accountId}/reactivate`)
+  return data
+}
+
+export async function killSession(accountId: string): Promise<{ killed: boolean }> {
+  const { data } = await httpClient.post<{ killed: boolean }>(`/accounts/${accountId}/kill`)
+  return data
+}
+
 function toAccount(row: AccountRow): Account {
   return {
     id: row.id,
     bank: row.bank,
     name: row.name,
     status: row.status,
+    sessionStatus: row.sessionStatus ?? null,
+    assistedPersistent: row.assistedPersistent ?? false,
   }
 }

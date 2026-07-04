@@ -1,4 +1,4 @@
-import type { AuthType, PollingMethod, SessionType, LoginMode } from '../types'
+import type { AuthType, PollingMethod, SessionType, LoginMode, NotificationTransport } from '../types'
 
 export interface AccountConfigForm {
   pendingOrdersEndpoint: string
@@ -17,8 +17,15 @@ export interface AccountConfigForm {
   notificationEndpointUrl: string
   notificationAuthType: AuthType
   notificationAuthToken: string
-  // Subscribes to the assistance_required event which is the only notifiable type today
+  // 'api' uses endpoint URL + auth header; 'slack' uses bot token + channel; 'chat_webhook' POSTs {text} to the URL (secret in URL, no auth header)
+  notificationTransport: NotificationTransport
+  notificationSlackChannel: string
+  // Per-event subscriptions sent as the notification_events array
   notificationEventAssistance: boolean
+  // connection_failed: scrape couldn't reach/authenticate the bank (disconnection)
+  notificationEventConnectionFailed: boolean
+  // scrape_failed: scrape connected but failed afterwards
+  notificationEventScrapeFailed: boolean
 }
 
 export type FormErrors = Partial<Record<keyof AccountConfigForm, string>>

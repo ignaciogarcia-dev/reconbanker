@@ -1,3 +1,6 @@
+import { withTimeout } from '../../../shared/util/withTimeout.js'
+import { TimeoutError } from '../../../shared/errors/index.js'
+
 // Local copy of banking's ScrapedTransaction so script-engine never depends on the banking context
 export interface MonitorTransaction {
   externalId: string
@@ -53,6 +56,9 @@ export interface RunMonitorOptions {
   authTimeoutMs?: number        // around 300_000 assisted and 30_000 simple
   // Injectable sleep so tests run without real timers
   sleep?(ms: number): Promise<void>
+  // Called once immediately after authentication succeeds (before the monitor loop). Used to
+  // signal a session that came back from needs_attention has actually re-authenticated.
+  onAuthenticated?(): void
 }
 
 export type MonitorStopReason =
@@ -60,6 +66,7 @@ export type MonitorStopReason =
   | 'max_runtime'
   | 'logged_out'
   | 'auth_timeout'
+  | 'watchdog_timeout'
 
 export async function runMonitor(opts: RunMonitorOptions): Promise<MonitorStopReason> {
   const {
@@ -70,6 +77,7 @@ export async function runMonitor(opts: RunMonitorOptions): Promise<MonitorStopRe
     maxRuntimeMs = 0,
     authTimeoutMs = 300_000,
     sleep = (ms: number) => new Promise((r) => setTimeout(r, ms)),
+    onAuthenticated,
   } = opts
 
   const log = (event: string, data?: Record<string, unknown>) =>
@@ -80,11 +88,24 @@ export async function runMonitor(opts: RunMonitorOptions): Promise<MonitorStopRe
   const authDeadline = Date.now() + authTimeoutMs
   let authed = false
   while (Date.now() < authDeadline) {
-    if (await hooks.isAuthenticated(page)) { authed = true; break }
+    // Bound each check by the remaining auth budget so a hang *inside* isAuthenticated can't block
+    // past the deadline. A fatal throw still propagates (rejects the monitor); the void-catch only
+    // guards the losing race arm. A timeout here is just the auth budget running out -> auth_timeout.
+    const check = hooks.isAuthenticated(page)
+    void check.catch(() => {})
+    let res: boolean
+    try {
+      res = await withTimeout(check, Math.max(0, authDeadline - Date.now()), 'auth check')
+    } catch (err) {
+      if (err instanceof TimeoutError) break
+      throw err
+    }
+    if (res) { authed = true; break }
     await sleep(1_500)
   }
   if (!authed) { log('auth_timeout'); return 'auth_timeout' }
   log('authenticated')
+  onAuthenticated?.()
 
   // Monitor loop
   const seen = new Set<string>()
@@ -100,15 +121,32 @@ export async function runMonitor(opts: RunMonitorOptions): Promise<MonitorStopRe
     const day = getBankDay()
     if (day !== currentDay) { seen.clear(); currentDay = day }
 
-    // Detect a lost session
-    if (!(await hooks.isAuthenticated(page))) { log('logged_out'); return 'logged_out' }
+    // Detect a lost session (watchdog-bounded so a hung check can't wedge the loop)
+    const authCall = hooks.isAuthenticated(page)
+    void authCall.catch(() => {})
+    let authRes: boolean
+    try {
+      authRes = await withTimeout(authCall, 2 * pollIntervalMs, 'auth check')
+    } catch (err) {
+      if (err instanceof TimeoutError) { log('watchdog_timeout'); return 'watchdog_timeout' }
+      throw err
+    }
+    if (!authRes) { log('logged_out'); return 'logged_out' }
 
     let batch: MonitorTransaction[]
     try {
-      batch = await hooks.poll(page, context)
+      batch = await withTimeout(hooks.poll(page, context), 2 * pollIntervalMs, 'poll')
     } catch (err) {
+      if (err instanceof TimeoutError) { log('watchdog_timeout'); return 'watchdog_timeout' }
       log('poll_failed', { error: err instanceof Error ? err.message : String(err) })
-      if (hooks.keepAlive) await hooks.keepAlive(page).catch(() => {})
+      if (hooks.keepAlive) {
+        // The inner .catch makes a keepAlive *error* non-fatal (resolves undefined); only a *hang* trips the watchdog.
+        try {
+          await withTimeout(hooks.keepAlive(page).catch(() => {}), 2 * pollIntervalMs, 'keepAlive')
+        } catch (kaErr) {
+          if (kaErr instanceof TimeoutError) { log('watchdog_timeout'); return 'watchdog_timeout' }
+        }
+      }
       await sleep(pollIntervalMs)
       continue
     }
@@ -118,7 +156,11 @@ export async function runMonitor(opts: RunMonitorOptions): Promise<MonitorStopRe
       for (const t of fresh) seen.add(String(t.externalId))
       await onTransactions(fresh)
     } else if (hooks.keepAlive) {
-      await hooks.keepAlive(page).catch(() => {})
+      try {
+        await withTimeout(hooks.keepAlive(page).catch(() => {}), 2 * pollIntervalMs, 'keepAlive')
+      } catch (kaErr) {
+        if (kaErr instanceof TimeoutError) { log('watchdog_timeout'); return 'watchdog_timeout' }
+      }
     }
 
     await sleep(pollIntervalMs)

@@ -31,4 +31,35 @@ describe('BankSessionRepository (integration)', () => {
     expect(rows[0].stop_reason).toBe('logged_out')
     expect(rows[0].stopped_at).not.toBeNull()
   })
+
+  it('parks a session in needs_attention with the reason', async () => {
+    await repo.markRunning(account.id)
+    await repo.markNeedsAttention(account.id, 'auth_timeout')
+    const { rows } = await getTestPool().query(
+      `SELECT status, stop_reason FROM bank_sessions WHERE account_id=$1`, [account.id])
+    expect(rows[0].status).toBe('needs_attention')
+    expect(rows[0].stop_reason).toBe('auth_timeout')
+  })
+
+  it('resets every running session to stopped and returns the count', async () => {
+    await repo.markRunning(account.id)
+
+    const count = await repo.markAllRunningStopped('process_restart')
+
+    expect(count).toBe(1)
+    const { rows } = await getTestPool().query(
+      `SELECT status, stop_reason FROM bank_sessions WHERE account_id=$1`, [account.id])
+    expect(rows[0].status).toBe('stopped')
+    expect(rows[0].stop_reason).toBe('process_restart')
+  })
+
+  it('markRunning returns the previous status: null on first insert, prior status thereafter', async () => {
+    // First call inserts the row — there is no previous status.
+    expect(await repo.markRunning(account.id)).toBeNull()
+
+    // Park the session, then reactivate: markRunning reports the pre-update status, proving the CTE
+    // snapshot reads the row before the upsert overwrites it to 'running'.
+    await repo.markNeedsAttention(account.id, 'auth_timeout')
+    expect(await repo.markRunning(account.id)).toBe('needs_attention')
+  })
 })

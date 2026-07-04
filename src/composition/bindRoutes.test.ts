@@ -44,6 +44,8 @@ describe('bindRoutes', () => {
       '/v1',
       '/api/accounts/:accountId/movements',
       '/api/accounts/:accountId/otp',
+      '/api/accounts/:accountId/reactivate',
+      '/api/accounts/:accountId/kill',
       '/api/accounts',
       '/api/banks',
       '/api/conciliation',

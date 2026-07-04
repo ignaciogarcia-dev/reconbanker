@@ -4,6 +4,8 @@ import { buildAuthRouter, buildLogoutRouter } from '../api/routes/auth.routes.js
 import { buildAccountsRouter } from '../api/routes/accounts.routes.js'
 import { buildBankMovementsRouter } from '../api/routes/bank-movements.routes.js'
 import { buildAssistanceRouter } from '../api/routes/assistance.routes.js'
+import { buildReactivateRouter } from '../api/routes/reactivate.routes.js'
+import { buildKillRouter } from '../api/routes/kill.routes.js'
 import { buildBanksRouter } from '../api/routes/banks.routes.js'
 import { buildConciliationRouter } from '../api/routes/conciliation.routes.js'
 import { buildUserRouter } from '../api/routes/user.routes.js'
@@ -43,6 +45,22 @@ export function bindRoutes(app: Express, container: Container): void {
     '/api/accounts/:accountId/otp',
     protectedApi,
     buildAssistanceRouter({
+      banking: container.banking,
+      accountRepo: container.account.accountRepository,
+    })
+  )
+  app.use(
+    '/api/accounts/:accountId/reactivate',
+    protectedApi,
+    buildReactivateRouter({
+      banking: container.banking,
+      accountRepo: container.account.accountRepository,
+    })
+  )
+  app.use(
+    '/api/accounts/:accountId/kill',
+    protectedApi,
+    buildKillRouter({
       banking: container.banking,
       accountRepo: container.account.accountRepository,
     })
