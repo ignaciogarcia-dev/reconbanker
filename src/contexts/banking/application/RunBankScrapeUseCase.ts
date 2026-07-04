@@ -1,11 +1,13 @@
 import crypto from 'crypto'
-import { NotFoundError, TimeoutError } from '../../../shared/errors/index.js'
+import { NotFoundError } from '../../../shared/errors/index.js'
 import { withTimeout } from '../../../shared/util/withTimeout.js'
 import { ILogger } from '../../../shared/logger/ILogger.js'
 import { IBankTransactionRepository } from '../domain/IBankTransactionRepository.js'
 import { IScriptEnginePort } from '../domain/IScriptEnginePort.js'
 import { IScrapeRunRepository } from '../domain/IScrapeRunRepository.js'
 import { IAccountForBankingReader } from '../domain/ports/IAccountForBankingReader.js'
+import { IScrapeFailureNotifier } from '../domain/ports/IScrapeFailureNotifier.js'
+import { categorizeFailure } from '../domain/scrapeFailure.js'
 import { IngestTransactionsUseCase } from './IngestTransactionsUseCase.js'
 
 interface JobData { accountId: string }
@@ -22,6 +24,7 @@ export interface RunBankScrapeDeps {
   logger?: ILogger
   ensureSession?: (accountId: string) => Promise<void>
   runTimeoutMs?: number
+  notifier?: IScrapeFailureNotifier
 }
 
 export class RunBankScrapeUseCase {
@@ -54,15 +57,17 @@ export class RunBankScrapeUseCase {
       )
       const saved = await ingest.execute(accountId, script.id, transactions)
       await scrapeRunRepo.markSuccess(runId, saved)
+      await this.deps.notifier?.recordSuccess({ userId: account.userId, accountId })
     } catch (err) {
       // Expected scrape failures (login, missing selector, timeout) are recorded in
       // bank_scrape_runs and logged, but do NOT abort the job: the scheduler retries
       // on its next cycle. Only genuine misconfiguration (missing account/script)
       // throws — those happen before this try and surface as a failed job.
       const message = err instanceof Error ? err.message : String(err)
-      const failureType = err instanceof TimeoutError ? 'timeout' : 'unknown'
-      await scrapeRunRepo.markFailed(runId, message, failureType)
-      logger?.warn('bank scrape run failed', { accountId, runId, scriptId: script.id, error: message })
+      const category = categorizeFailure(err)
+      await scrapeRunRepo.markFailed(runId, message, category)
+      await this.deps.notifier?.recordFailure({ userId: account.userId, accountId, category })
+      logger?.warn('bank scrape run failed', { accountId, runId, scriptId: script.id, category, error: message })
     }
   }
 }
