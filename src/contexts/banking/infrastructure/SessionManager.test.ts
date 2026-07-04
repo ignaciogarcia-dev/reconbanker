@@ -7,8 +7,14 @@ function deferred<T>() {
   return { promise, resolve }
 }
 
-const sessionRepo = () => ({ markRunning: vi.fn().mockResolvedValue(undefined), markStopped: vi.fn().mockResolvedValue(undefined) })
+const sessionRepo = () => ({
+  markRunning: vi.fn().mockResolvedValue(undefined),
+  markStopped: vi.fn().mockResolvedValue(undefined),
+  markNeedsAttention: vi.fn().mockResolvedValue(undefined),
+  markAllRunningStopped: vi.fn().mockResolvedValue(0),
+})
 const fakeLogger = () => { const l: any = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: () => l }; return l }
+const fakeNotifier = () => ({ emitStarted: vi.fn(), emitStopped: vi.fn(), emitNeedsAttention: vi.fn(), emitRecovered: vi.fn() })
 
 describe('SessionManager', () => {
   it('starts a session, marks it running, and is idempotent while alive', async () => {
@@ -194,5 +200,267 @@ describe('SessionManager', () => {
 
     await expect(mgr.ensureRunning('acc-1')).rejects.toBe('login_failed: raw string')
     expect(repo.markStopped).toHaveBeenCalledWith('acc-1', 'login_failed: raw string')
+  })
+
+  it('resetOrphanedSessions resets running rows to stopped and returns the count', async () => {
+    const repo = sessionRepo()
+    repo.markAllRunningStopped.mockResolvedValue(2)
+    const log = fakeLogger()
+    const mgr = new SessionManager(vi.fn(), repo, log)
+
+    const count = await mgr.resetOrphanedSessions()
+
+    expect(count).toBe(2)
+    expect(repo.markAllRunningStopped).toHaveBeenCalledWith('process_restart')
+    expect(log.info).toHaveBeenCalledWith('reset orphaned sessions on boot', { count: 2 })
+  })
+
+  it('resetOrphanedSessions logs nothing when no rows were orphaned', async () => {
+    const repo = sessionRepo()
+    repo.markAllRunningStopped.mockResolvedValue(0)
+    const log = fakeLogger()
+    const mgr = new SessionManager(vi.fn(), repo, log)
+
+    expect(await mgr.resetOrphanedSessions()).toBe(0)
+    expect(log.info).not.toHaveBeenCalled()
+  })
+
+  it('resetOrphanedSessions tolerates a missing logger when rows were reset', async () => {
+    const repo = sessionRepo()
+    repo.markAllRunningStopped.mockResolvedValue(1)
+    const mgr = new SessionManager(vi.fn(), repo) // no logger
+
+    expect(await mgr.resetOrphanedSessions()).toBe(1)
+    expect(repo.markAllRunningStopped).toHaveBeenCalledWith('process_restart')
+  })
+
+  it('logs a stringified non-Error rejection when recording a session stop fails', async () => {
+    const repo = sessionRepo()
+    repo.markStopped.mockRejectedValue('db exploded') // non-Error rejection
+    const log = fakeLogger()
+    const d = deferred<string>()
+    const handle = { stop: vi.fn(), done: d.promise, userId: 'user-1' } as SessionHandle
+    const mgr = new SessionManager(vi.fn().mockResolvedValue(handle), repo, log)
+
+    await mgr.ensureRunning('acc-1')
+    d.resolve('logged_out')
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(log.error).toHaveBeenCalledWith('failed to record session stop', {
+      accountId: 'acc-1',
+      error: 'db exploded',
+    })
+  })
+
+  describe('assisted persistent needs_attention routing', () => {
+    const assistedHandle = (done: Promise<string>): SessionHandle =>
+      ({ stop: vi.fn(), done, userId: 'user-1', assistedPersistent: true } as SessionHandle)
+
+    it('parks an assisted session in needs_attention on auth_timeout and notifies', async () => {
+      const repo = sessionRepo()
+      const notifier = fakeNotifier()
+      const d = deferred<string>()
+      const mgr = new SessionManager(vi.fn().mockResolvedValue(assistedHandle(d.promise)), repo, undefined, notifier)
+
+      await mgr.ensureRunning('acc-1')
+      expect(notifier.emitStarted).toHaveBeenCalledWith({ accountId: 'acc-1', userId: 'user-1' })
+      d.resolve('auth_timeout')
+      await new Promise((r) => setTimeout(r, 0))
+
+      expect(repo.markNeedsAttention).toHaveBeenCalledWith('acc-1', 'auth_timeout')
+      expect(repo.markStopped).not.toHaveBeenCalled()
+      expect(notifier.emitNeedsAttention).toHaveBeenCalledWith({ accountId: 'acc-1', userId: 'user-1', reason: 'auth_timeout', notify: true })
+    })
+
+    it('parks an assisted session in needs_attention on logged_out', async () => {
+      const repo = sessionRepo()
+      const notifier = fakeNotifier()
+      const d = deferred<string>()
+      const mgr = new SessionManager(vi.fn().mockResolvedValue(assistedHandle(d.promise)), repo, undefined, notifier)
+
+      await mgr.ensureRunning('acc-1')
+      d.resolve('logged_out')
+      await new Promise((r) => setTimeout(r, 0))
+
+      expect(repo.markNeedsAttention).toHaveBeenCalledWith('acc-1', 'logged_out')
+    })
+
+    it('parks an assisted session in needs_attention on a crash (rejected done)', async () => {
+      const repo = sessionRepo()
+      const notifier = fakeNotifier()
+      const mgr = new SessionManager(
+        vi.fn().mockResolvedValue(assistedHandle(Promise.reject(new Error('boom')))), repo, undefined, notifier,
+      )
+
+      await mgr.ensureRunning('acc-1')
+      await new Promise((r) => setTimeout(r, 0))
+
+      expect(repo.markNeedsAttention).toHaveBeenCalledWith('acc-1', 'boom')
+    })
+
+    it('marks an assisted session stopped (not attention) on a clean stop', async () => {
+      const repo = sessionRepo()
+      const notifier = fakeNotifier()
+      const d = deferred<string>()
+      const mgr = new SessionManager(vi.fn().mockResolvedValue(assistedHandle(d.promise)), repo, undefined, notifier)
+
+      await mgr.ensureRunning('acc-1')
+      d.resolve('stop_requested')
+      await new Promise((r) => setTimeout(r, 0))
+
+      expect(repo.markStopped).toHaveBeenCalledWith('acc-1', 'stop_requested')
+      expect(repo.markNeedsAttention).not.toHaveBeenCalled()
+      expect(notifier.emitStopped).toHaveBeenCalledWith({ accountId: 'acc-1', userId: 'user-1', reason: 'stop_requested' })
+    })
+
+    it('still emits the needs_attention alert when the DB write fails (e.g. missing migration)', async () => {
+      const repo = sessionRepo()
+      repo.markNeedsAttention.mockRejectedValue(new Error('violates check constraint'))
+      const notifier = fakeNotifier()
+      const log = fakeLogger()
+      const d = deferred<string>()
+      const mgr = new SessionManager(vi.fn().mockResolvedValue(assistedHandle(d.promise)), repo, log, notifier)
+
+      await mgr.ensureRunning('acc-1')
+      d.resolve('auth_timeout')
+      await new Promise((r) => setTimeout(r, 0))
+
+      // The dashboard event fires regardless of the DB failure, so the light still turns amber,
+      // and the DB error is surfaced (not silently lost).
+      expect(notifier.emitNeedsAttention).toHaveBeenCalledWith({ accountId: 'acc-1', userId: 'user-1', reason: 'auth_timeout', notify: true })
+      expect(repo.markNeedsAttention).toHaveBeenCalledWith('acc-1', 'auth_timeout')
+      expect(log.error).toHaveBeenCalled()
+    })
+
+    it('parks an assisted session without a userId without emitting a dashboard event', async () => {
+      const repo = sessionRepo()
+      const notifier = fakeNotifier()
+      const d = deferred<string>()
+      const handle = { stop: vi.fn(), done: d.promise, assistedPersistent: true } as SessionHandle
+      const mgr = new SessionManager(vi.fn().mockResolvedValue(handle), repo, undefined, notifier)
+
+      await mgr.ensureRunning('acc-1')
+      d.resolve('auth_timeout')
+      await new Promise((r) => setTimeout(r, 0))
+
+      expect(repo.markNeedsAttention).toHaveBeenCalledWith('acc-1', 'auth_timeout')
+      expect(notifier.emitNeedsAttention).not.toHaveBeenCalled()
+    })
+
+    it('does NOT park a non-assisted persistent session on auth_timeout (unchanged behavior)', async () => {
+      const repo = sessionRepo()
+      const notifier = fakeNotifier()
+      const d = deferred<string>()
+      const handle = { stop: vi.fn(), done: d.promise, userId: 'user-1', assistedPersistent: false } as SessionHandle
+      const mgr = new SessionManager(vi.fn().mockResolvedValue(handle), repo, undefined, notifier)
+
+      await mgr.ensureRunning('acc-1')
+      d.resolve('auth_timeout')
+      await new Promise((r) => setTimeout(r, 0))
+
+      expect(repo.markStopped).toHaveBeenCalledWith('acc-1', 'auth_timeout')
+      expect(repo.markNeedsAttention).not.toHaveBeenCalled()
+    })
+
+    it('parks an assisted session in needs_attention on watchdog_timeout and notifies', async () => {
+      const repo = sessionRepo()
+      const notifier = fakeNotifier()
+      const d = deferred<string>()
+      const mgr = new SessionManager(vi.fn().mockResolvedValue(assistedHandle(d.promise)), repo, undefined, notifier)
+
+      await mgr.ensureRunning('acc-1')
+      d.resolve('watchdog_timeout')
+      await new Promise((r) => setTimeout(r, 0))
+
+      expect(repo.markNeedsAttention).toHaveBeenCalledWith('acc-1', 'watchdog_timeout')
+      expect(notifier.emitNeedsAttention).toHaveBeenCalledWith({ accountId: 'acc-1', userId: 'user-1', reason: 'watchdog_timeout', notify: true })
+    })
+
+    it('parks an assisted session on a manual kill but suppresses the Slack alert', async () => {
+      const repo = sessionRepo()
+      const notifier = fakeNotifier()
+      const mgr = new SessionManager(
+        vi.fn().mockResolvedValue(assistedHandle(Promise.reject(new Error('session_killed')))), repo, undefined, notifier,
+      )
+
+      await mgr.ensureRunning('acc-1')
+      await new Promise((r) => setTimeout(r, 0))
+
+      expect(repo.markNeedsAttention).toHaveBeenCalledWith('acc-1', 'session_killed')
+      expect(notifier.emitNeedsAttention).toHaveBeenCalledWith({ accountId: 'acc-1', userId: 'user-1', reason: 'session_killed', notify: false })
+    })
+  })
+
+  describe('recovery notification', () => {
+    it('emits recovered when a session returns from needs_attention and authenticates', async () => {
+      const repo = sessionRepo()
+      repo.markRunning.mockResolvedValue('needs_attention')
+      const notifier = fakeNotifier()
+      const handle = { stop: vi.fn(), done: new Promise<string>(() => {}), userId: 'user-1', authenticated: Promise.resolve(true) } as SessionHandle
+      const mgr = new SessionManager(vi.fn().mockResolvedValue(handle), repo, undefined, notifier)
+
+      await mgr.ensureRunning('acc-1')
+      await new Promise((r) => setTimeout(r, 0)) // let the authenticated.then microtask run
+
+      expect(notifier.emitStarted).toHaveBeenCalledWith({ accountId: 'acc-1', userId: 'user-1' })
+      expect(notifier.emitRecovered).toHaveBeenCalledWith({ accountId: 'acc-1', userId: 'user-1' })
+    })
+
+    it('does not emit recovered when the previous status was not needs_attention', async () => {
+      const repo = sessionRepo()
+      repo.markRunning.mockResolvedValue('stopped')
+      const notifier = fakeNotifier()
+      const handle = { stop: vi.fn(), done: new Promise<string>(() => {}), userId: 'user-1', authenticated: Promise.resolve(true) } as SessionHandle
+      const mgr = new SessionManager(vi.fn().mockResolvedValue(handle), repo, undefined, notifier)
+
+      await mgr.ensureRunning('acc-1')
+      await new Promise((r) => setTimeout(r, 0))
+
+      expect(notifier.emitRecovered).not.toHaveBeenCalled()
+    })
+
+    it('does not emit recovered when authentication never completes (resolves false)', async () => {
+      const repo = sessionRepo()
+      repo.markRunning.mockResolvedValue('needs_attention')
+      const notifier = fakeNotifier()
+      const handle = { stop: vi.fn(), done: new Promise<string>(() => {}), userId: 'user-1', authenticated: Promise.resolve(false) } as SessionHandle
+      const mgr = new SessionManager(vi.fn().mockResolvedValue(handle), repo, undefined, notifier)
+
+      await mgr.ensureRunning('acc-1')
+      await new Promise((r) => setTimeout(r, 0))
+
+      expect(notifier.emitRecovered).not.toHaveBeenCalled()
+    })
+
+    it('does not throw when authenticated rejects (defensive catch swallows it)', async () => {
+      const repo = sessionRepo()
+      repo.markRunning.mockResolvedValue('needs_attention')
+      const notifier = fakeNotifier()
+      const handle = { stop: vi.fn(), done: new Promise<string>(() => {}), userId: 'user-1', authenticated: Promise.reject(new Error('boom')) } as SessionHandle
+      const mgr = new SessionManager(vi.fn().mockResolvedValue(handle), repo, undefined, notifier)
+
+      await expect(mgr.ensureRunning('acc-1')).resolves.toBeUndefined()
+      await new Promise((r) => setTimeout(r, 0))
+
+      expect(notifier.emitRecovered).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('kill', () => {
+    it('kills a live session and returns true', async () => {
+      const repo = sessionRepo()
+      const kill = vi.fn()
+      const startFn = vi.fn().mockResolvedValue({ stop: vi.fn(), kill, done: new Promise<string>(() => {}) } as SessionHandle)
+      const mgr = new SessionManager(startFn, repo)
+
+      await mgr.ensureRunning('acc-1')
+      expect(mgr.kill('acc-1')).toBe(true)
+      expect(kill).toHaveBeenCalled()
+    })
+
+    it('returns false when no live session exists', () => {
+      const mgr = new SessionManager(vi.fn(), sessionRepo())
+      expect(mgr.kill('nope')).toBe(false)
+    })
   })
 })

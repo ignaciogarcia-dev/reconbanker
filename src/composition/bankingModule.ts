@@ -19,7 +19,12 @@ import { IngestTransactionsUseCase } from '../contexts/banking/application/Inges
 import { BankSessionRepository } from '../contexts/banking/infrastructure/BankSessionRepository.js'
 import { AssistanceRequestRepository } from '../contexts/banking/infrastructure/AssistanceRequestRepository.js'
 import { OtpAssistanceCoordinator } from '../contexts/banking/infrastructure/OtpAssistanceCoordinator.js'
+import { ScrapeFailureAlertRepository } from '../contexts/banking/infrastructure/ScrapeFailureAlertRepository.js'
+import { RealtimeScrapeFailureNotifier } from '../contexts/banking/infrastructure/RealtimeScrapeFailureNotifier.js'
+import { RealtimeSessionNotifier } from '../contexts/banking/infrastructure/RealtimeSessionNotifier.js'
 import { SubmitAssistanceCodeUseCase } from '../contexts/banking/application/SubmitAssistanceCodeUseCase.js'
+import { ReactivateSessionUseCase } from '../contexts/banking/application/ReactivateSessionUseCase.js'
+import { KillSessionUseCase } from '../contexts/banking/application/KillSessionUseCase.js'
 import { realtimeBus } from '../shared/infrastructure/realtime/RealtimeBus.js'
 import { SessionManager } from '../contexts/banking/infrastructure/SessionManager.js'
 import { PersistentPlaywrightRunner } from '../contexts/script-engine/infrastructure/PersistentPlaywrightRunner.js'
@@ -52,6 +57,8 @@ export interface BankingModule {
   sessionManager: SessionManager
   assistanceRepo: AssistanceRequestRepository
   submitAssistanceCode: SubmitAssistanceCodeUseCase
+  reactivateSession: ReactivateSessionUseCase
+  killSession: KillSessionUseCase
 }
 
 export function buildBankingModule(container: ContainerBase): BankingModule {
@@ -76,6 +83,16 @@ export function buildBankingModule(container: ContainerBase): BankingModule {
   const assistanceRepo = new AssistanceRequestRepository(exec)
   const otpCoordinator = new OtpAssistanceCoordinator(
     assistanceRepo, realtimeBus, container.logger.child('[otp-assist]')
+  )
+  const scrapeFailureAlertRepo = new ScrapeFailureAlertRepository(exec)
+  const scrapeFailureNotifier = new RealtimeScrapeFailureNotifier(
+    realtimeBus,
+    scrapeFailureAlertRepo,
+    Number(process.env.FAILURE_ALERT_THRESHOLD ?? 3),
+    container.logger.child('[scrape-notify]'),
+  )
+  const sessionNotifier = new RealtimeSessionNotifier(
+    realtimeBus, container.logger.child('[session-notify]')
   )
   const persistentRunner = new PersistentPlaywrightRunner()
 
@@ -125,10 +142,17 @@ export function buildBankingModule(container: ContainerBase): BankingModule {
       void otpCoordinator.cancel(accountId, account.userId).catch(() => {})
     })
 
-    return handle
+    // Stamp lifecycle metadata so SessionManager can emit the dashboard light events and
+    // route an assisted-persistent login loss to needs_attention instead of a silent relaunch.
+    // Object.assign (not a fresh literal) preserves handle.stop's binding to the runner.
+    const assistedPersistent = account.loginMode === 'assisted' && account.sessionType === 'persistent'
+    return Object.assign(handle, { userId: account.userId, assistedPersistent })
   }
 
-  const sessionManager = new SessionManager(startFn, bankSessionRepo, container.logger.child('[session-manager]'))
+  const sessionManager = new SessionManager(
+    startFn, bankSessionRepo, container.logger.child('[session-manager]'), sessionNotifier
+  )
+  const reactivateLog = container.logger.child('[reactivate]')
 
   const enqueueNotify = async (bankTransactionId: string) => {
     const jobId = `bank-movement-webhook_${bankTransactionId}`
@@ -147,6 +171,7 @@ export function buildBankingModule(container: ContainerBase): BankingModule {
       logger: container.logger.child('[run-bank-scrape]'),
       ensureSession: (accountId) => sessionManager.ensureRunning(accountId),
       runTimeoutMs: Number(process.env.BANK_SCRAPE_RUN_TIMEOUT_MS ?? 13 * 60_000),
+      notifier: scrapeFailureNotifier,
     }),
     notifyBankMovement: new NotifyBankMovementUseCase({
       bankTxRepo, accountReader, configReader, userModeReader,
@@ -163,5 +188,10 @@ export function buildBankingModule(container: ContainerBase): BankingModule {
     sessionManager,
     assistanceRepo,
     submitAssistanceCode: new SubmitAssistanceCodeUseCase(assistanceRepo, realtimeBus),
+    reactivateSession: new ReactivateSessionUseCase(accountReader, (id) => {
+      void sessionManager.ensureRunning(id).catch((err) =>
+        reactivateLog.error('reactivation start failed', { accountId: id, error: err instanceof Error ? err.message : String(err) }))
+    }),
+    killSession: new KillSessionUseCase(accountReader, (id) => sessionManager.kill(id)),
   }
 }

@@ -69,6 +69,7 @@ const notifier = startNotifier(container)
 
 const httpServer = app.listen(PORT, async () => {
   log.info(`server listening`, { port: PORT })
+  await container.banking.sessionManager.resetOrphanedSessions()
   await scheduler.start()
 })
 realtimeGateway.attach(httpServer)
