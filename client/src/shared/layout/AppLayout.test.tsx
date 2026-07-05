@@ -92,6 +92,23 @@ describe('AppLayout', () => {
     expect(screen.getByRole('link', { name: /Dashboard/i })).toBeInTheDocument()
   })
 
+  it('never flashes the conciliations nav item while /me is still loading in passthrough', async () => {
+    server.use(meHandler({ operation_mode: 'passthrough' }))
+    renderLayout()
+    // Before the /me query resolves, `me` is undefined: the item must stay hidden
+    // (regression guard — a `!== 'passthrough'` check would render it here first).
+    expect(
+      screen.queryByRole('link', { name: /Conciliaciones/i })
+    ).not.toBeInTheDocument()
+    // And it stays hidden once the query resolves to passthrough.
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: /Dashboard/i })).toBeInTheDocument()
+    })
+    expect(
+      screen.queryByRole('link', { name: /Conciliaciones/i })
+    ).not.toBeInTheDocument()
+  })
+
   it('navigates between routes when nav links are clicked', async () => {
     const user = userEvent.setup()
     renderLayout()
