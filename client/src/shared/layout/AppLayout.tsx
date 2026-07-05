@@ -52,7 +52,7 @@ export function AppLayout() {
     { to: '/', label: t('nav.dashboard'), icon: LayoutDashboard },
     { to: '/banks', label: t('nav.banks'), icon: Building },
     { to: '/accounts', label: t('nav.accounts'), icon: Building2 },
-    me?.operationMode !== 'passthrough' && {
+    me?.operationMode === 'reconcile' && {
       to: '/conciliations', label: t('nav.conciliations'), icon: GitMerge,
     },
     { to: '/movements', label: t('nav.movements'), icon: ArrowDownUp },
