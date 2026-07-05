@@ -1,25 +1,20 @@
 version: 2
 updates:
-  # Backend / root workspace
+  # npm — a SINGLE entry at the workspace root covers the whole pnpm
+  # workspace (root + client). There is one shared root pnpm-lock.yaml, so
+  # a separate `directory: /client` entry can never regenerate it and always
+  # failed frozen-install (ERR_PNPM_OUTDATED_LOCKFILE). Dependabot detects the
+  # `client` workspace package from here and updates both manifests against
+  # the one lockfile.
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
     open-pull-requests-limit: 10
     groups:
-      backend-minor-patch:
-        update-types:
-          - minor
-          - patch
-
-  # Frontend workspace
-  - package-ecosystem: npm
-    directory: /client
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 10
-    groups:
-      client-minor-patch:
+      workspace-minor-patch:
+        patterns:
+          - "*"
         update-types:
           - minor
           - patch
