@@ -52,7 +52,6 @@ export const commonEs = {
   },
   mascot: {
     phrases: [
-      '¡No soy Claude!',
       '¡Soy ReconBanker!',
       '¿Algún movimiento?',
       '¡Acá para ayudarte!',
@@ -148,7 +147,6 @@ export const commonEn = {
   },
   mascot: {
     phrases: [
-      "I'm not Claude!",
       "I'm ReconBanker!",
       'Any new movement?',
       "I'm here to help!",
