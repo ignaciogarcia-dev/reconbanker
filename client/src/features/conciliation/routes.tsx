@@ -1,4 +1,4 @@
-import { Route } from 'react-router-dom'
+import { Route } from 'react-router'
 import { ModeGuard } from '@/features/user/components/ModeGuard'
 import { Conciliations } from './pages/Conciliations'
 

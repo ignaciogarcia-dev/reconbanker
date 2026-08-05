@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { useAuth } from '@/features/user/hooks/useAuth'
 import { Avatar, AvatarFallback } from '@/shared/ui/avatar'

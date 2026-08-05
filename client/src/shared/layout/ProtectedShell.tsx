@@ -1,4 +1,4 @@
-import { Navigate } from 'react-router-dom'
+import { Navigate } from 'react-router'
 import { useAuth } from '@/features/user/hooks/useAuth'
 import { AppLayout } from './AppLayout'
 

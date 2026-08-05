@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router'
 import { toast } from 'sonner'
 import { register } from '../api/auth'
 import { localizedApiError } from '@/shared/http/client'
