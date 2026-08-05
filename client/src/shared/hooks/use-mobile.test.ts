@@ -59,7 +59,10 @@ describe('useIsMobile', () => {
     expect(result.current).toBe(false)
 
     act(() => {
+      // The hook's change handler reads mql.matches, not window.innerWidth, so the
+      // mock's matches flag is what has to flip for this to simulate a real resize.
       Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: 500 })
+      mql.matches = true
       listeners.forEach(l => l())
     })
 
