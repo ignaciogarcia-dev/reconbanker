@@ -59,7 +59,7 @@ export function AppLayout() {
     { to: '/scripts', label: t('nav.scripts'), icon: Code2 },
   ].filter(Boolean) as { to: string; label: string; icon: typeof LayoutDashboard }[]
 
-  const typePhraseRef = useRef<() => void>(() => {})
+  const typePhraseRef = useRef<(() => void) | null>(null)
 
   const typePhrase = useCallback(() => {
     const phrases = t('mascot.phrases', { returnObjects: true }) as string[]
@@ -89,7 +89,7 @@ export function AppLayout() {
           timeoutRef.current = setTimeout(eraseNext, 25)
         } else {
           phraseIndexRef.current = (phraseIndexRef.current + 1) % phrases.length
-          timeoutRef.current = setTimeout(() => typePhraseRef.current(), 400)
+          timeoutRef.current = setTimeout(() => typePhraseRef.current?.(), 400)
         }
       }
       eraseNext()
@@ -103,7 +103,7 @@ export function AppLayout() {
   }, [typePhrase])
 
   useEffect(() => {
-    timeoutRef.current = setTimeout(() => typePhraseRef.current(), 800)
+    timeoutRef.current = setTimeout(() => typePhraseRef.current?.(), 800)
     /* v8 ignore next 1 -- timeout is set synchronously above; the else branch is defensive. */
     return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current) }
   }, [typePhrase])
