@@ -1,4 +1,4 @@
-import { Route } from 'react-router-dom'
+import { Route } from 'react-router'
 import { Dashboard } from './pages/Dashboard'
 
 export const dashboardRoutes = (

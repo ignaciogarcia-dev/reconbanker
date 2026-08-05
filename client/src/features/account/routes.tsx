@@ -1,4 +1,4 @@
-import { Route } from 'react-router-dom'
+import { Route } from 'react-router'
 import { Accounts } from './pages/Accounts'
 import { AccountConfig } from './pages/AccountConfig'
 import { Banks } from './pages/Banks'

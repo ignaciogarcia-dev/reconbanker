@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { Routes } from 'react-router-dom'
+import { Routes } from 'react-router'
 import { screen, waitFor } from '@testing-library/react'
 import { server } from '../../../tests/msw/server'
 import { scriptEngineHandlers } from '../../../tests/msw/handlers/scriptEngine'
