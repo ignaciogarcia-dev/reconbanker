@@ -5,6 +5,37 @@ onlyBuiltDependencies:
 packages:
   - client
 overrides:
-  # Force the patched fast-uri (transitive via shadcn > ajv); <=3.1.1 has
-  # path-traversal / host-confusion advisories (GHSA-q3j6-qgpj-74h6, GHSA-v39h-62p7-jpjc).
-  fast-uri: '^3.1.2'
+  # ip-address: leading-zero octets decoded as decimal, CIDR suffix suppressing
+  # special-use classification, IPv4-mapped/NAT64 misclassification
+  # (GHSA-mwp4-54f8-5fhr, GHSA-4xrf-jv44-h6hh, GHSA-22jq-vg5j-6vgg). Via
+  # express-rate-limit, which parses client IPs — a stale parser here means the
+  # rate limiter can be bypassed by rotating representations of the same address.
+  ip-address: '^10.4.0'
+  # body-parser: DoS when an invalid `limit` silently disables size enforcement
+  # (GHSA-v422-hmwv-36x6). Transitive via express — the only server-side runtime advisory.
+  body-parser: '^2.3.0'
+  # postcss: path traversal via attacker-controlled sourceMappingURL, arbitrary
+  # .map file disclosure (GHSA-r28c-9q8g-f849, GHSA-fxqj-rqcc-2cmp). Via vite; build-time only.
+  postcss: '^8.5.23'
+  # undici: cross-user info disclosure via degenerate/whitespaced Cache-Control
+  # directives + cookie attribute injection (GHSA-4cwx-7wf7-3272, GHSA-jr45-8vmc-qm54,
+  # GHSA-v3r7-h72x-cjcm). Via jsdom; test-time only.
+  undici: '^7.29.0'
+  # brace-expansion: OOM crash via unbounded expansion (GHSA-mh99-v99m-4gvg).
+  # Via eslint > minimatch; lint-time only.
+  brace-expansion: '^5.0.8'
+  #
+  # The four below all arrive via `shadcn`, which client/src/index.css needs for
+  # `@import "shadcn/tailwind.css"`. Only that stylesheet is ever consumed — the CLI
+  # and its bundled MCP server never execute — so forcing these is risk-free.
+  #
+  # fast-uri: host confusion via literal backslash authority delimiter
+  # (GHSA-v2hh-gcrm-f6hx). Via shadcn > @modelcontextprotocol/sdk > ajv.
+  fast-uri: '^3.1.4'
+  # hono: JSX context not isolated per request, XSS via cx() escaping bypass,
+  # ReDoS in CORS middleware (GHSA-hvrm-45r6-mjfj, GHSA-w62v-xxxg-mg59,
+  # GHSA-8j4g-w8fx-2239). Via shadcn > @modelcontextprotocol/sdk.
+  hono: '^4.12.34'
+  # @hono/node-server: serve-static path traversal on Windows via encoded
+  # backslash (GHSA-frvp-7c67-39w9). Via shadcn > @modelcontextprotocol/sdk.
+  '@hono/node-server': '^2.0.5'
