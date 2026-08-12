@@ -3,6 +3,8 @@ import { buildScriptEngineModule } from './scriptEngineModule.js'
 import { PromoteScriptUseCase } from '../contexts/script-engine/application/PromoteScriptUseCase.js'
 import { ListScriptsUseCase } from '../contexts/script-engine/application/ListScriptsUseCase.js'
 import { GetScriptDetailUseCase } from '../contexts/script-engine/application/GetScriptDetailUseCase.js'
+import { DeprecateScriptUseCase } from '../contexts/script-engine/application/DeprecateScriptUseCase.js'
+import { PublishOfficialScriptUseCase } from '../contexts/script-engine/application/PublishOfficialScriptUseCase.js'
 
 describe('buildScriptEngineModule', () => {
   it('wires every script-engine use case', () => {
@@ -15,6 +17,8 @@ describe('buildScriptEngineModule', () => {
     expect(mod.promoteScript).toBeInstanceOf(PromoteScriptUseCase)
     expect(mod.listScripts).toBeInstanceOf(ListScriptsUseCase)
     expect(mod.getScriptDetail).toBeInstanceOf(GetScriptDetailUseCase)
+    expect(mod.deprecateScript).toBeInstanceOf(DeprecateScriptUseCase)
+    expect(mod.publishOfficialScript).toBeInstanceOf(PublishOfficialScriptUseCase)
     expect(mod.bankScriptRepository).toBeDefined()
   })
 })

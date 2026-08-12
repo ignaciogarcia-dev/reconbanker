@@ -165,6 +165,25 @@ describe('ScriptLoader', () => {
     expect(existsSyncMock).not.toHaveBeenCalled()
   })
 
+  it('scriptFileExists reports true when the on-disk file is present', () => {
+    existsSyncMock.mockReturnValueOnce(true)
+    const result = ScriptLoader.scriptFileExists('BancoPichincha', 'extract_transactions', '1.0.0')
+    expect(result).toBe(true)
+    const filePath = existsSyncMock.mock.calls[0][0] as string
+    expect(filePath).toMatch(/bancopichincha\/extract_transactions\.v1\.0\.0\.js$/)
+  })
+
+  it('scriptFileExists reports false when the on-disk file is missing', () => {
+    existsSyncMock.mockReturnValueOnce(false)
+    expect(ScriptLoader.scriptFileExists('GhostBank', 'extract_transactions', '9.9.9')).toBe(false)
+  })
+
+  it('scriptFileExists rejects a bank slug containing path-traversal characters', () => {
+    expect(() => ScriptLoader.scriptFileExists('../../../etc/passwd', 'extract_transactions', '1.0.0'))
+      .toThrow(/invalid bank/i)
+    expect(existsSyncMock).not.toHaveBeenCalled()
+  })
+
   it('slugifies bank names with internal whitespace before resolving the file path', async () => {
     dbQueryMock
       .mockResolvedValueOnce({ rows: [{ id: 'bank-id' }] })

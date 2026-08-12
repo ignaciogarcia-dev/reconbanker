@@ -2,12 +2,14 @@ import { IBankScriptRepository } from '../domain/IBankScriptRepository.js'
 import { NotFoundError } from '../../../shared/errors/index.js'
 import { ScriptDetailDto } from './dto/ScriptDto.js'
 
+interface Input { scriptId: string; callerId: string }
+
 export class GetScriptDetailUseCase {
   constructor(private readonly scriptRepo: IBankScriptRepository) {}
 
-  async execute(scriptId: string): Promise<ScriptDetailDto> {
+  async execute({ scriptId, callerId }: Input): Promise<ScriptDetailDto> {
     const s = await this.scriptRepo.findById(scriptId)
-    if (!s) throw new NotFoundError('Script not found')
+    if (!s || (s.userId != null && s.userId !== callerId)) throw new NotFoundError('Script not found')
     return {
       id: s.id,
       bank: s.bank,
