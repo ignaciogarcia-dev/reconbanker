@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest'
 import crypto from 'crypto'
 import { getTestPool, truncateAll, closeTestPool } from '../helpers/testDb.js'
-import { getMiDineroBank } from '../helpers/seed.js'
+import { getMiDineroBank, seedUser, seedAccount } from '../helpers/seed.js'
 import { BankScriptRepository } from '../../../src/contexts/script-engine/infrastructure/BankScriptRepository.js'
 import { executorFromPool } from '../../../src/contexts/script-engine/infrastructure/Executor.js'
 import { BankScript } from '../../../src/contexts/script-engine/domain/BankScript.js'
@@ -30,11 +30,13 @@ async function insertScriptRow(opts: {
   codeSnapshot?: string | null
   selectorMap?: Record<string, unknown>
   bankId: string
+  userId?: string | null
+  accountId?: string | null
 }): Promise<void> {
   await getTestPool().query(
     `INSERT INTO bank_scripts
-       (id, bank, flow_type, version, status, origin, code_snapshot, selector_map, bank_id, created_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, now())`,
+       (id, bank, flow_type, version, status, origin, code_snapshot, selector_map, bank_id, user_id, account_id, created_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, now())`,
     [
       opts.id,
       opts.bank ?? 'mi-dinero',
@@ -45,6 +47,8 @@ async function insertScriptRow(opts: {
       opts.codeSnapshot ?? null,
       JSON.stringify(opts.selectorMap ?? {}),
       opts.bankId,
+      opts.userId ?? null,
+      opts.accountId ?? null,
     ]
   )
 }
@@ -107,13 +111,21 @@ describe('BankScriptRepository (integration)', () => {
   })
 
   describe('findAll', () => {
-    it('lists all scripts (including the mi-dinero seeded ones)', async () => {
-      const list = await repo.findAll()
-      const miDinero = list.filter((s) => s.bank === 'mi-dinero')
-      expect(miDinero.length).toBeGreaterThanOrEqual(1)
-      const active = miDinero.find((s) => s.status === 'active')
-      expect(active).toBeTruthy()
-      expect(active!.flowType).toBe('extract_transactions')
+    it('lists system scripts plus the caller\'s own private scripts', async () => {
+      const owner = await seedUser()
+      const other = await seedUser()
+      const ownScriptId = crypto.randomUUID()
+      const otherScriptId = crypto.randomUUID()
+      await insertScriptRow({ id: ownScriptId, flowType: 'login', origin: 'user', userId: owner.id, bankId })
+      await insertScriptRow({ id: otherScriptId, flowType: 'login', version: '99.0.1', origin: 'user', userId: other.id, bankId })
+
+      const list = await repo.findAll(owner.id)
+      const ids = list.map((s) => s.id)
+
+      expect(ids).toContain(ownScriptId)
+      expect(ids).not.toContain(otherScriptId)
+      const miDinero = list.filter((s) => s.bank === 'mi-dinero' && s.userId == null)
+      expect(miDinero.find((s) => s.status === 'active')).toBeTruthy()
     })
   })
 
@@ -137,6 +149,27 @@ describe('BankScriptRepository (integration)', () => {
       expect(rows[0].bank).toBe('mi-dinero')
       expect(rows[0].bank_id).toBe(bankId)
       expect(rows[0].status).toBe('review')
+    })
+
+    it('persists user_id and account_id for an owned script', async () => {
+      const owner = await seedUser()
+      const account = await seedAccount(owner.id)
+      const id = crypto.randomUUID()
+      const script = BankScript.create(id, {
+        bank: 'mi-dinero',
+        flowType: 'login',
+        version: '99.0.0',
+        status: 'review',
+        origin: 'user',
+        selectorMap: {},
+        userId: owner.id,
+        accountId: account.id,
+      })
+      await repo.save(script)
+
+      const reloaded = await repo.findById(id)
+      expect(reloaded!.userId).toBe(owner.id)
+      expect(reloaded!.accountId).toBe(account.id)
     })
 
     it('UPDATE path (ON CONFLICT id) updates status and code_snapshot', async () => {
@@ -177,7 +210,7 @@ describe('BankScriptRepository (integration)', () => {
   })
 
   describe('deprecateActive', () => {
-    it('flips the active script for (bank, flowType) to deprecated', async () => {
+    it('flips the active system script for (bank, flowType) to deprecated', async () => {
       const id = crypto.randomUUID()
       await insertScriptRow({
         id,
@@ -188,13 +221,54 @@ describe('BankScriptRepository (integration)', () => {
         bankId,
       })
 
-      await repo.deprecateActive('mi-dinero', 'verify_payment')
+      await repo.deprecateActive('mi-dinero', 'verify_payment', null, null)
 
       const { rows } = await getTestPool().query(
         `SELECT status FROM bank_scripts WHERE id = $1`,
         [id]
       )
       expect(rows[0].status).toBe('deprecated')
+    })
+
+    it('deprecating a user-wide scope leaves the system script and other users\' scripts untouched', async () => {
+      const owner = await seedUser()
+      const other = await seedUser()
+      const systemId = crypto.randomUUID()
+      const ownId = crypto.randomUUID()
+      const otherId = crypto.randomUUID()
+      await insertScriptRow({ id: systemId, flowType: 'verify_payment', version: '50.0.0', status: 'active', origin: 'system', bankId })
+      await insertScriptRow({ id: ownId, flowType: 'verify_payment', version: '50.0.1', status: 'active', origin: 'user', userId: owner.id, bankId })
+      await insertScriptRow({ id: otherId, flowType: 'verify_payment', version: '50.0.2', status: 'active', origin: 'user', userId: other.id, bankId })
+
+      await repo.deprecateActive('mi-dinero', 'verify_payment', null, owner.id)
+
+      const { rows } = await getTestPool().query<{ id: string; status: string }>(
+        `SELECT id, status FROM bank_scripts WHERE id = ANY($1)`,
+        [[systemId, ownId, otherId]]
+      )
+      const byId = Object.fromEntries(rows.map((r) => [r.id, r.status]))
+      expect(byId[ownId]).toBe('deprecated')
+      expect(byId[systemId]).toBe('active')
+      expect(byId[otherId]).toBe('active')
+    })
+
+    it('deprecating an account-specific scope leaves the same user\'s user-wide script untouched', async () => {
+      const owner = await seedUser()
+      const account = await seedAccount(owner.id)
+      const userWideId = crypto.randomUUID()
+      const accountScriptId = crypto.randomUUID()
+      await insertScriptRow({ id: userWideId, flowType: 'verify_payment', version: '50.0.3', status: 'active', origin: 'user', userId: owner.id, bankId })
+      await insertScriptRow({ id: accountScriptId, flowType: 'verify_payment', version: '50.0.4', status: 'active', origin: 'user', userId: owner.id, accountId: account.id, bankId })
+
+      await repo.deprecateActive('mi-dinero', 'verify_payment', account.id, owner.id)
+
+      const { rows } = await getTestPool().query<{ id: string; status: string }>(
+        `SELECT id, status FROM bank_scripts WHERE id = ANY($1)`,
+        [[userWideId, accountScriptId]]
+      )
+      const byId = Object.fromEntries(rows.map((r) => [r.id, r.status]))
+      expect(byId[accountScriptId]).toBe('deprecated')
+      expect(byId[userWideId]).toBe('active')
     })
   })
 
@@ -205,7 +279,8 @@ describe('BankScriptRepository (integration)', () => {
       expect(txRepo).toBeInstanceOf(BankScriptRepository)
       expect(txRepo).not.toBe(repo)
 
-      const list = await txRepo.findAll()
+      const caller = await seedUser()
+      const list = await txRepo.findAll(caller.id)
       expect(list.length).toBeGreaterThan(0)
     })
   })

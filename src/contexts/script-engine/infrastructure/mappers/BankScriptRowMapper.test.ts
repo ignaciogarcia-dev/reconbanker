@@ -13,6 +13,8 @@ describe('BankScriptRowMapper', () => {
     code_snapshot: 'console.log("hi")',
     selector_map: { login: '#login' },
     created_at: new Date('2024-01-01T00:00:00Z'),
+    user_id: null,
+    account_id: null,
   }
 
   it('reconstitutes a script with all fields populated', () => {
@@ -31,5 +33,21 @@ describe('BankScriptRowMapper', () => {
     })
     expect(script.baseScriptId).toBeUndefined()
     expect(script.codeSnapshot).toBeUndefined()
+  })
+
+  it('passes through user_id and account_id when present', () => {
+    const script = BankScriptRowMapper.toAggregate({
+      ...row,
+      user_id: 'user-1',
+      account_id: 'acct-1',
+    })
+    expect(script.userId).toBe('user-1')
+    expect(script.accountId).toBe('acct-1')
+  })
+
+  it('drops user_id/account_id to undefined when null', () => {
+    const script = BankScriptRowMapper.toAggregate(row)
+    expect(script.userId).toBeUndefined()
+    expect(script.accountId).toBeUndefined()
   })
 })
