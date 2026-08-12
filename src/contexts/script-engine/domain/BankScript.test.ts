@@ -54,6 +54,37 @@ describe('BankScript.deprecate', () => {
   })
 })
 
+describe('BankScript ownership', () => {
+  it('is a system script when no userId is set', () => {
+    const s = BankScript.create('id-1', base)
+    expect(s.userId).toBeUndefined()
+    expect(s.accountId).toBeUndefined()
+    expect(s.isSystem()).toBe(true)
+  })
+
+  it('is not a system script when userId is set', () => {
+    const s = BankScript.create('id-1', { ...base, userId: 'user-1' })
+    expect(s.userId).toBe('user-1')
+    expect(s.isSystem()).toBe(false)
+  })
+
+  it('exposes accountId when set', () => {
+    const s = BankScript.create('id-1', { ...base, userId: 'user-1', accountId: 'acct-1' })
+    expect(s.accountId).toBe('acct-1')
+  })
+
+  it('belongsTo returns true only for the owning user', () => {
+    const s = BankScript.create('id-1', { ...base, userId: 'user-1' })
+    expect(s.belongsTo('user-1')).toBe(true)
+    expect(s.belongsTo('user-2')).toBe(false)
+  })
+
+  it('belongsTo returns false for a system script regardless of caller', () => {
+    const s = BankScript.create('id-1', base)
+    expect(s.belongsTo('user-1')).toBe(false)
+  })
+})
+
 describe('BankScript getters and validation', () => {
   it('rejects missing flowType', () => {
     expect(() => BankScript.create('id', { ...base, flowType: '' as 'login' })).toThrow(ValidationError)
