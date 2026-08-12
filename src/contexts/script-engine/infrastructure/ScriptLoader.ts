@@ -10,14 +10,18 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 const BANK_SLUG_RE = /^[a-z0-9-]+$/
 
-function loadScriptCode(bank: string, flowType: string, version: string): string {
+function resolveScriptFilePath(bank: string, flowType: string, version: string): string {
   const bankSlug = bank.toLowerCase().replace(/\s+/g, '')
   // The slug is interpolated into a filesystem path; reject anything that could
   // traverse out of scriptsDir (e.g. "../") before touching disk.
   if (!BANK_SLUG_RE.test(bankSlug)) {
     throw new Error(`invalid bank slug: ${bank}`)
   }
-  const filePath = path.join(scriptsDir, bankSlug, `${flowType}.v${version}.js`)
+  return path.join(scriptsDir, bankSlug, `${flowType}.v${version}.js`)
+}
+
+function loadScriptCode(bank: string, flowType: string, version: string): string {
+  const filePath = resolveScriptFilePath(bank, flowType, version)
   if (!existsSync(filePath)) {
     throw new Error(`Script file not found: ${filePath}`)
   }
@@ -31,6 +35,10 @@ async function resolveBankId(bankIdOrCode: string): Promise<string | null> {
 }
 
 export const ScriptLoader = {
+  scriptFileExists(bank: string, flowType: string, version: string): boolean {
+    return existsSync(resolveScriptFilePath(bank, flowType, version))
+  },
+
   async loadActive(bankIdOrCode: string, flowType: FlowType, accountId: string, userId: string): Promise<BankScript | null> {
     const bankId = await resolveBankId(bankIdOrCode)
     if (!bankId) return null

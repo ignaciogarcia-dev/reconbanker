@@ -43,7 +43,7 @@ export class RunBankScrapeUseCase {
 
     const lastExternalId = await txRepo.findLatestExternalId(accountId)
 
-    const script = await scriptEngine.loadActiveScript(account.bank, 'extract_transactions')
+    const script = await scriptEngine.loadActiveScript(account.bank, 'extract_transactions', account.id, account.userId)
     if (!script) throw new NotFoundError(`No active script for ${account.bank}:extract_transactions`)
 
     const runId = crypto.randomUUID()

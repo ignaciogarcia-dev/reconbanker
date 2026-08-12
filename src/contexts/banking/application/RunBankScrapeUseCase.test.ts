@@ -54,6 +54,24 @@ describe('RunBankScrapeUseCase', () => {
     expect(handler).toHaveBeenCalledTimes(2)
   })
 
+  it('resolves the script scoped to the account and its owning user', async () => {
+    const loadActiveScript = vi.fn().mockResolvedValue({ id: 'script-1', codeSnapshot: '' })
+    const txRepo = new InMemoryBankTransactionRepository()
+    const scrapeRunRepo = new InMemoryScrapeRunRepository()
+    const eventBus = new InMemoryEventBus()
+    const ingest = new IngestTransactionsUseCase({ txRepo, eventBus })
+    const useCase = new RunBankScrapeUseCase({
+      accountReader: { findById: async (accountId: string) => ({ id: accountId, userId: 'owner-1', bank: 'bancopichincha', sessionType: 'one-shot' as const, loginMode: 'simple' as const }) },
+      txRepo, scrapeRunRepo,
+      scriptEngine: { loadActiveScript, runScript: async () => [] },
+      ingest,
+    })
+
+    await useCase.execute({ accountId: 'acc-1' })
+
+    expect(loadActiveScript).toHaveBeenCalledWith('bancopichincha', 'extract_transactions', 'acc-1', 'owner-1')
+  })
+
   it('skips already-known transactions by externalId', async () => {
     const { useCase, txRepo } = buildSut([sample('ext-1'), sample('ext-1')])
     await useCase.execute({ accountId: 'acc-1' })

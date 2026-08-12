@@ -109,7 +109,7 @@ export function buildBankingModule(container: ContainerBase): BankingModule {
     )
     if (!creds) throw new Error(`No valid credentials for account ${accountId}`)
 
-    const script = await ScriptLoader.loadActive(account.bank, 'extract_transactions')
+    const script = await ScriptLoader.loadActive(account.bank, 'extract_transactions', accountId, account.userId)
     if (!script || !script.codeSnapshot) throw new Error(`No active script for ${account.bank}`)
 
     const lastExternalId = await bankTxRepo.findLatestExternalId(accountId)

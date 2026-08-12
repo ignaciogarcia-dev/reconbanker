@@ -68,5 +68,5 @@ export function bindRoutes(app: Express, container: Container): void {
   app.use('/api/accounts', protectedApi, buildAccountsRouter(container.account))
   app.use('/api/banks', protectedApi, buildBanksRouter(container.account, requireAdmin))
   app.use('/api/conciliation', protectedApi, buildConciliationRouter(container.conciliation))
-  app.use('/api/scripts', protectedApi, buildScriptsRouter(container.scriptEngine, requireAdmin))
+  app.use('/api/scripts', protectedApi, buildScriptsRouter(container.scriptEngine))
 }
