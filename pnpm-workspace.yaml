@@ -2,6 +2,7 @@ onlyBuiltDependencies:
   - bcrypt
   - esbuild
   - msgpackr-extract
+  - msw
 packages:
   - client
 overrides:
