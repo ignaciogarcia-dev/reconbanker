@@ -11,6 +11,8 @@ export interface BankScriptRow {
   code_snapshot: string | null
   selector_map: Record<string, unknown>
   created_at: Date
+  user_id: string | null
+  account_id: string | null
 }
 
 export const BankScriptRowMapper = {
@@ -25,6 +27,8 @@ export const BankScriptRowMapper = {
       codeSnapshot: row.code_snapshot ?? undefined,
       selectorMap: row.selector_map,
       createdAt: row.created_at,
+      userId: row.user_id ?? undefined,
+      accountId: row.account_id ?? undefined,
     })
   },
 }
