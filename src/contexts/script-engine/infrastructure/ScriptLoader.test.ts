@@ -16,6 +16,8 @@ vi.mock('fs', () => ({
 import { ScriptLoader } from './ScriptLoader.js'
 
 const UUID = '11111111-2222-3333-4444-555555555555'
+const ACCOUNT_ID = 'acct-1'
+const OWNER_ID = 'user-1'
 
 describe('ScriptLoader', () => {
   beforeEach(() => {
@@ -26,7 +28,7 @@ describe('ScriptLoader', () => {
 
   it('returns null when the bank code is unknown', async () => {
     dbQueryMock.mockResolvedValueOnce({ rows: [] })
-    const result = await ScriptLoader.loadActive('UNKNOWN', 'extract_transactions')
+    const result = await ScriptLoader.loadActive('UNKNOWN', 'extract_transactions', ACCOUNT_ID, OWNER_ID)
     expect(result).toBeNull()
     expect(dbQueryMock).toHaveBeenCalledTimes(1)
     expect(dbQueryMock).toHaveBeenCalledWith(expect.stringContaining('FROM banks'), ['UNKNOWN'])
@@ -35,17 +37,25 @@ describe('ScriptLoader', () => {
   it('treats a uuid input as a direct bank id without a lookup query', async () => {
     // First query is the active-script lookup (no banks lookup expected).
     dbQueryMock.mockResolvedValueOnce({ rows: [] })
-    const result = await ScriptLoader.loadActive(UUID, 'extract_transactions')
+    const result = await ScriptLoader.loadActive(UUID, 'extract_transactions', ACCOUNT_ID, OWNER_ID)
     expect(result).toBeNull()
     expect(dbQueryMock).toHaveBeenCalledTimes(1)
-    expect(dbQueryMock.mock.calls[0][1]).toEqual([UUID, 'extract_transactions'])
+    expect(dbQueryMock.mock.calls[0][1]).toEqual([UUID, 'extract_transactions', ACCOUNT_ID, OWNER_ID])
+  })
+
+  it('scopes the active-script lookup to the given account and user for the three-tier fallback', async () => {
+    dbQueryMock.mockResolvedValueOnce({ rows: [] })
+    await ScriptLoader.loadActive(UUID, 'extract_transactions', ACCOUNT_ID, OWNER_ID)
+    const sql = dbQueryMock.mock.calls[0][0] as string
+    expect(sql).toContain('account_id')
+    expect(sql).toContain('user_id')
   })
 
   it('returns null when the active-script lookup yields no rows', async () => {
     dbQueryMock
       .mockResolvedValueOnce({ rows: [{ id: 'bank-id' }] })
       .mockResolvedValueOnce({ rows: [] })
-    const result = await ScriptLoader.loadActive('bancopichincha', 'extract_transactions')
+    const result = await ScriptLoader.loadActive('bancopichincha', 'extract_transactions', ACCOUNT_ID, OWNER_ID)
     expect(result).toBeNull()
   })
 
@@ -68,7 +78,7 @@ describe('ScriptLoader', () => {
     existsSyncMock.mockReturnValueOnce(true)
     readFileSyncMock.mockReturnValueOnce('// script body')
 
-    const result = await ScriptLoader.loadActive('BancoPichincha', 'extract_transactions')
+    const result = await ScriptLoader.loadActive('BancoPichincha', 'extract_transactions', ACCOUNT_ID, OWNER_ID)
     expect(result).not.toBeNull()
     expect(result!.id).toBe('script-id')
     expect(result!.codeSnapshot).toBe('// script body')
@@ -79,6 +89,34 @@ describe('ScriptLoader', () => {
     // Verifies the bank slug lowercasing + whitespace strip in the file path.
     const filePath = existsSyncMock.mock.calls[0][0] as string
     expect(filePath).toMatch(/bancopichincha\/extract_transactions\.v1\.0\.0\.js$/)
+  })
+
+  it('reads codeSnapshot from the DB row instead of disk when the resolved script is not origin=system', async () => {
+    dbQueryMock
+      .mockResolvedValueOnce({ rows: [{ id: 'bank-id' }] })
+      .mockResolvedValueOnce({
+        rows: [{
+          id: 'script-id',
+          bank_code: 'BancoPichincha',
+          flow_type: 'extract_transactions',
+          version: '1.0.0',
+          status: 'active',
+          origin: 'user',
+          base_script_id: null,
+          code_snapshot: '// private fix',
+          selector_map: {},
+          user_id: OWNER_ID,
+          account_id: null,
+          created_at: new Date('2026-01-01T00:00:00Z'),
+        }],
+      })
+
+    const result = await ScriptLoader.loadActive('BancoPichincha', 'extract_transactions', ACCOUNT_ID, OWNER_ID)
+    expect(result).not.toBeNull()
+    expect(result!.codeSnapshot).toBe('// private fix')
+    expect(result!.userId).toBe(OWNER_ID)
+    expect(existsSyncMock).not.toHaveBeenCalled()
+    expect(readFileSyncMock).not.toHaveBeenCalled()
   })
 
   it('throws when the script file does not exist on disk', async () => {
@@ -100,7 +138,7 @@ describe('ScriptLoader', () => {
     existsSyncMock.mockReturnValueOnce(false)
 
     await expect(
-      ScriptLoader.loadActive('GhostBank', 'extract_transactions'),
+      ScriptLoader.loadActive('GhostBank', 'extract_transactions', ACCOUNT_ID, OWNER_ID),
     ).rejects.toThrow(/Script file not found/i)
   })
 
@@ -122,7 +160,7 @@ describe('ScriptLoader', () => {
       })
 
     await expect(
-      ScriptLoader.loadActive('whatever', 'extract_transactions'),
+      ScriptLoader.loadActive('whatever', 'extract_transactions', ACCOUNT_ID, OWNER_ID),
     ).rejects.toThrow(/invalid bank/i)
     expect(existsSyncMock).not.toHaveBeenCalled()
   })
@@ -146,7 +184,7 @@ describe('ScriptLoader', () => {
     existsSyncMock.mockReturnValueOnce(true)
     readFileSyncMock.mockReturnValueOnce('code')
 
-    await ScriptLoader.loadActive('Mi Dinero', 'extract_transactions')
+    await ScriptLoader.loadActive('Mi Dinero', 'extract_transactions', ACCOUNT_ID, OWNER_ID)
     const filePath = existsSyncMock.mock.calls[0][0] as string
     expect(filePath).toMatch(/midinero\/extract_transactions\.v2\.0\.0\.js$/)
   })
