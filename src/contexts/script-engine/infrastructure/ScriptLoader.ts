@@ -10,14 +10,18 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 const BANK_SLUG_RE = /^[a-z0-9-]+$/
 
-function loadScriptCode(bank: string, flowType: string, version: string): string {
+function resolveScriptFilePath(bank: string, flowType: string, version: string): string {
   const bankSlug = bank.toLowerCase().replace(/\s+/g, '')
   // The slug is interpolated into a filesystem path; reject anything that could
   // traverse out of scriptsDir (e.g. "../") before touching disk.
   if (!BANK_SLUG_RE.test(bankSlug)) {
     throw new Error(`invalid bank slug: ${bank}`)
   }
-  const filePath = path.join(scriptsDir, bankSlug, `${flowType}.v${version}.js`)
+  return path.join(scriptsDir, bankSlug, `${flowType}.v${version}.js`)
+}
+
+function loadScriptCode(bank: string, flowType: string, version: string): string {
+  const filePath = resolveScriptFilePath(bank, flowType, version)
   if (!existsSync(filePath)) {
     throw new Error(`Script file not found: ${filePath}`)
   }
@@ -31,7 +35,11 @@ async function resolveBankId(bankIdOrCode: string): Promise<string | null> {
 }
 
 export const ScriptLoader = {
-  async loadActive(bankIdOrCode: string, flowType: FlowType): Promise<BankScript | null> {
+  scriptFileExists(bank: string, flowType: string, version: string): boolean {
+    return existsSync(resolveScriptFilePath(bank, flowType, version))
+  },
+
+  async loadActive(bankIdOrCode: string, flowType: FlowType, accountId: string, userId: string): Promise<BankScript | null> {
     const bankId = await resolveBankId(bankIdOrCode)
     if (!bankId) return null
 
@@ -40,12 +48,18 @@ export const ScriptLoader = {
          FROM bank_scripts bs
          JOIN banks b ON b.id = bs.bank_id
         WHERE bs.bank_id = $1 AND bs.flow_type = $2 AND bs.status = 'active'
+          AND (bs.account_id = $3
+               OR (bs.account_id IS NULL AND bs.user_id = $4)
+               OR (bs.account_id IS NULL AND bs.user_id IS NULL))
+        ORDER BY (bs.account_id IS NOT NULL) DESC, (bs.user_id IS NOT NULL) DESC
         LIMIT 1`,
-      [bankId, flowType]
+      [bankId, flowType, accountId, userId]
     )
     if (!rows[0]) return null
 
-    const codeSnapshot = loadScriptCode(rows[0].bank_code, rows[0].flow_type, rows[0].version)
+    const codeSnapshot = rows[0].origin === 'system'
+      ? loadScriptCode(rows[0].bank_code, rows[0].flow_type, rows[0].version)
+      : rows[0].code_snapshot
 
     return BankScript.reconstitute(rows[0].id, {
       bank: rows[0].bank_code,
@@ -56,6 +70,8 @@ export const ScriptLoader = {
       baseScriptId: rows[0].base_script_id,
       codeSnapshot,
       selectorMap: rows[0].selector_map,
+      userId: rows[0].user_id ?? undefined,
+      accountId: rows[0].account_id ?? undefined,
       createdAt: rows[0].created_at,
     })
   }

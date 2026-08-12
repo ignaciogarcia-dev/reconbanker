@@ -21,6 +21,8 @@ interface Props {
   codeSnapshot?: string
   selectorMap: Record<string, unknown>
   createdAt: Date
+  userId?: string
+  accountId?: string
 }
 
 export class BankScript extends AggregateRoot<string> {
@@ -56,8 +58,12 @@ export class BankScript extends AggregateRoot<string> {
   get codeSnapshot() { return this.props.codeSnapshot }
   get selectorMap()  { return this.props.selectorMap }
   get createdAt()    { return this.props.createdAt }
+  get userId()        { return this.props.userId }
+  get accountId()     { return this.props.accountId }
 
   isActive(): boolean { return this.props.status === 'active' }
+  isSystem(): boolean { return this.props.userId == null }
+  belongsTo(userId: string): boolean { return this.props.userId === userId }
 
   promote(): void {
     if (this.props.status !== 'review') {

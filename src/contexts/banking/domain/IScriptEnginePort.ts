@@ -14,6 +14,6 @@ export interface ActiveScript {
 }
 
 export interface IScriptEnginePort {
-  loadActiveScript(bank: string, flowType: string): Promise<ActiveScript | null>
+  loadActiveScript(bank: string, flowType: string, accountId: string, userId: string): Promise<ActiveScript | null>
   runScript(script: ActiveScript, context: { accountId: string; lastExternalId: string | null }): Promise<ScrapedTransaction[]>
 }

@@ -1,18 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import request from 'supertest'
-import type { RequestHandler } from 'express'
 import { buildScriptsRouter } from './scripts.routes.js'
 import { buildTestApp, AUTH_HEADER } from '../../../tests/helpers/buildTestApp.js'
-import { NotFoundError } from '../../shared/errors/index.js'
+import { NotFoundError, ForbiddenError } from '../../shared/errors/index.js'
 import type { ScriptEngineModule } from '../../composition/scriptEngineModule.js'
 
-const allowAdmin: RequestHandler = (_req, _res, next) => next()
-const denyAdmin: RequestHandler = (_req, res) => { res.status(403).json({ error: 'Forbidden' }) }
+const CALLER_ID = 'user-1'
 
 type MockedScriptEngineModule = {
   listScripts: { execute: ReturnType<typeof vi.fn> }
   getScriptDetail: { execute: ReturnType<typeof vi.fn> }
   promoteScript: { execute: ReturnType<typeof vi.fn> }
+  deprecateScript: { execute: ReturnType<typeof vi.fn> }
 }
 
 function makeModule(): MockedScriptEngineModule {
@@ -20,13 +19,14 @@ function makeModule(): MockedScriptEngineModule {
     listScripts: { execute: vi.fn() },
     getScriptDetail: { execute: vi.fn() },
     promoteScript: { execute: vi.fn() },
+    deprecateScript: { execute: vi.fn() },
   }
 }
 
-function makeApp(mod: MockedScriptEngineModule, requireAdmin: RequestHandler = allowAdmin) {
+function makeApp(mod: MockedScriptEngineModule) {
   return buildTestApp({
     basePath: '/scripts',
-    router: buildScriptsRouter(mod as unknown as ScriptEngineModule, requireAdmin),
+    router: buildScriptsRouter(mod as unknown as ScriptEngineModule),
     protected: true,
   })
 }
@@ -50,7 +50,7 @@ describe('scripts.routes', () => {
 
       expect(res.status).toBe(200)
       expect(res.body).toEqual([{ id: 's1', name: 'one' }])
-      expect(mod.listScripts.execute).toHaveBeenCalledTimes(1)
+      expect(mod.listScripts.execute).toHaveBeenCalledWith({ callerId: CALLER_ID })
     })
 
     it('returns 401 when auth header is missing', async () => {
@@ -81,7 +81,7 @@ describe('scripts.routes', () => {
 
       expect(res.status).toBe(200)
       expect(res.body).toEqual({ id: SCRIPT_ID, name: 'one' })
-      expect(mod.getScriptDetail.execute).toHaveBeenCalledWith(SCRIPT_ID)
+      expect(mod.getScriptDetail.execute).toHaveBeenCalledWith({ scriptId: SCRIPT_ID, callerId: CALLER_ID })
     })
 
     it('returns 400 when scriptId is not a uuid', async () => {
@@ -117,7 +117,7 @@ describe('scripts.routes', () => {
 
       expect(res.status).toBe(200)
       expect(res.body).toEqual({ promoted: true })
-      expect(mod.promoteScript.execute).toHaveBeenCalledWith({ scriptId: SCRIPT_ID })
+      expect(mod.promoteScript.execute).toHaveBeenCalledWith({ scriptId: SCRIPT_ID, callerId: CALLER_ID })
     })
 
     it('returns 400 when scriptId is not a uuid', async () => {
@@ -135,13 +135,14 @@ describe('scripts.routes', () => {
       expect(res.status).toBe(401)
     })
 
-    it('returns 403 when the user is not an admin', async () => {
-      const res = await request(makeApp(mod, denyAdmin))
+    it('returns 403 when the use case rejects promoting a system script', async () => {
+      mod.promoteScript.execute.mockRejectedValue(new ForbiddenError('Only the script owner can promote it'))
+
+      const res = await request(makeApp(mod))
         .post(`/scripts/${SCRIPT_ID}/promote`)
         .set('Authorization', AUTH_HEADER)
 
       expect(res.status).toBe(403)
-      expect(mod.promoteScript.execute).not.toHaveBeenCalled()
     })
 
     it('returns 500 on unexpected errors', async () => {
@@ -152,6 +153,44 @@ describe('scripts.routes', () => {
         .set('Authorization', AUTH_HEADER)
 
       expect(res.status).toBe(500)
+    })
+  })
+
+  describe('POST /scripts/:scriptId/deprecate', () => {
+    it('returns 200 with deprecated true on a valid uuid', async () => {
+      mod.deprecateScript.execute.mockResolvedValue(undefined)
+
+      const res = await request(makeApp(mod))
+        .post(`/scripts/${SCRIPT_ID}/deprecate`)
+        .set('Authorization', AUTH_HEADER)
+
+      expect(res.status).toBe(200)
+      expect(res.body).toEqual({ deprecated: true })
+      expect(mod.deprecateScript.execute).toHaveBeenCalledWith({ scriptId: SCRIPT_ID, callerId: CALLER_ID })
+    })
+
+    it('returns 400 when scriptId is not a uuid', async () => {
+      const res = await request(makeApp(mod))
+        .post('/scripts/bad/deprecate')
+        .set('Authorization', AUTH_HEADER)
+
+      expect(res.status).toBe(400)
+      expect(mod.deprecateScript.execute).not.toHaveBeenCalled()
+    })
+
+    it('returns 401 when auth header is missing', async () => {
+      const res = await request(makeApp(mod)).post(`/scripts/${SCRIPT_ID}/deprecate`)
+      expect(res.status).toBe(401)
+    })
+
+    it('returns 404 when the use case throws NotFoundError', async () => {
+      mod.deprecateScript.execute.mockRejectedValue(new NotFoundError('Script not found'))
+
+      const res = await request(makeApp(mod))
+        .post(`/scripts/${SCRIPT_ID}/deprecate`)
+        .set('Authorization', AUTH_HEADER)
+
+      expect(res.status).toBe(404)
     })
   })
 })

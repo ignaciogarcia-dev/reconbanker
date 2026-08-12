@@ -6,8 +6,8 @@ import type { ILogger } from '../../../shared/logger/ILogger.js'
 export class ScriptEngineAdapter implements IScriptEnginePort {
   constructor(private readonly logger?: ILogger) {}
 
-  async loadActiveScript(bank: string, flowType: string): Promise<ActiveScript | null> {
-    const script = await ScriptLoader.loadActive(bank, flowType as any)
+  async loadActiveScript(bank: string, flowType: string, accountId: string, userId: string): Promise<ActiveScript | null> {
+    const script = await ScriptLoader.loadActive(bank, flowType as any, accountId, userId)
     if (!script || !script.codeSnapshot) return null
     return { id: script.id, codeSnapshot: script.codeSnapshot }
   }

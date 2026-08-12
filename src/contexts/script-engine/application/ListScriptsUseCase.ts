@@ -1,11 +1,13 @@
 import { IBankScriptRepository } from '../domain/IBankScriptRepository.js'
 import { ScriptListItemDto } from './dto/ScriptDto.js'
 
+interface Input { callerId: string }
+
 export class ListScriptsUseCase {
   constructor(private readonly scriptRepo: IBankScriptRepository) {}
 
-  async execute(): Promise<ScriptListItemDto[]> {
-    const items = await this.scriptRepo.findAll()
+  async execute({ callerId }: Input): Promise<ScriptListItemDto[]> {
+    const items = await this.scriptRepo.findAll(callerId)
     return items.map((s) => ({
       id: s.id,
       bank: s.bank,
