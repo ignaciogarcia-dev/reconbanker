@@ -28,22 +28,22 @@ describe('ScriptEngineAdapter', () => {
     it('returns null when ScriptLoader returns null', async () => {
       loadActiveMock.mockResolvedValue(null)
       const adapter = new ScriptEngineAdapter()
-      const result = await adapter.loadActiveScript('bancopichincha', 'extract_transactions')
+      const result = await adapter.loadActiveScript('bancopichincha', 'extract_transactions', 'acc-1', 'user-1')
       expect(result).toBeNull()
-      expect(loadActiveMock).toHaveBeenCalledWith('bancopichincha', 'extract_transactions')
+      expect(loadActiveMock).toHaveBeenCalledWith('bancopichincha', 'extract_transactions', 'acc-1', 'user-1')
     })
 
     it('returns null when the loaded script has no codeSnapshot', async () => {
       loadActiveMock.mockResolvedValue({ id: 'script-1', codeSnapshot: undefined })
       const adapter = new ScriptEngineAdapter()
-      const result = await adapter.loadActiveScript('bancopichincha', 'extract_transactions')
+      const result = await adapter.loadActiveScript('bancopichincha', 'extract_transactions', 'acc-1', 'user-1')
       expect(result).toBeNull()
     })
 
     it('returns id and codeSnapshot when the script is active', async () => {
       loadActiveMock.mockResolvedValue({ id: 'script-1', codeSnapshot: 'return []' })
       const adapter = new ScriptEngineAdapter()
-      const result = await adapter.loadActiveScript('bancopichincha', 'extract_transactions')
+      const result = await adapter.loadActiveScript('bancopichincha', 'extract_transactions', 'acc-1', 'user-1')
       expect(result).toEqual({ id: 'script-1', codeSnapshot: 'return []' })
     })
   })

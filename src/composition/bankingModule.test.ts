@@ -167,6 +167,25 @@ describe('buildBankingModule', () => {
       await expect(mod.sessionManager.ensureRunning('acc-1')).rejects.toThrow('No active script for TEST')
     })
 
+    it('resolves the active script scoped to the account and its owning user', async () => {
+      const c = makeContainer()
+      c.account.accountRepository.findById.mockResolvedValue({
+        id: 'acc-1', userId: 'owner-1', bank: 'TEST',
+      })
+      c.account.accountConfigRepository.findByAccountId.mockResolvedValue({
+        sessionType: 'persistent', loginMode: 'simple',
+      })
+      dbMock.query.mockResolvedValueOnce({ rows: [{ username: 'u', encrypted_password: 'p' }] })
+      scriptLoaderMock.loadActive.mockResolvedValue({ id: 'script-1', codeSnapshot: 'code()' })
+      ;(c.pool as any).query.mockResolvedValue({ rows: [] })
+      runnerStartMock.mockResolvedValue({ stop: vi.fn(), done: new Promise(() => {}) })
+
+      const mod = buildBankingModule(c)
+      await mod.sessionManager.ensureRunning('acc-1')
+
+      expect(scriptLoaderMock.loadActive).toHaveBeenCalledWith('TEST', 'extract_transactions', 'acc-1', 'owner-1')
+    })
+
     it('starts the persistent runner with context, ingest hook, and bank-day getter', async () => {
       const c = makeContainer()
       c.account.accountRepository.findById.mockResolvedValue({
