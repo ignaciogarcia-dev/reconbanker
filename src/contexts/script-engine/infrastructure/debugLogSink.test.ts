@@ -218,6 +218,16 @@ describe('makeDebugLogSink', () => {
       expect(meta.incoming).toBe(1)
     })
 
+    it('carries a runId supplied in baseMeta, and a script cannot spoof it', () => {
+      const log = fakeLogger()
+      makeDebugLogSink(log, { accountId: 'acc-1', runId: 'run-real' })(
+        emit('poll_summary', { runId: '1786556926403-behi6e', incoming: 1 })
+      )
+      const meta = log.info.mock.calls[0][1] as Record<string, unknown>
+      expect(meta.runId).toBe('run-real')
+      expect(meta.incoming).toBe(1)
+    })
+
     it('omits at when the payload has none', () => {
       const log = fakeLogger()
       makeDebugLogSink(log)(JSON.stringify({ event: 'poll_summary', incoming: 2 }))
