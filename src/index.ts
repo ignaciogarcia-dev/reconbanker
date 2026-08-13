@@ -70,6 +70,14 @@ const notifier = startNotifier(container)
 const httpServer = app.listen(PORT, async () => {
   log.info(`server listening`, { port: PORT })
   await container.banking.sessionManager.resetOrphanedSessions()
+  // Same reasoning as resetOrphanedSessions: a run still marked running cannot have
+  // survived the restart. Best-effort — a reconciliation failure must not stop boot.
+  await container.banking.scrapeRunRepo
+    .markOrphaned()
+    .then((n: number) => { if (n > 0) log.warn('reconciled orphaned scrape runs', { count: n }) })
+    .catch((err: unknown) => log.error('orphaned scrape run reconciliation failed', {
+      error: err instanceof Error ? err.message : String(err),
+    }))
   await scheduler.start()
 })
 realtimeGateway.attach(httpServer)
