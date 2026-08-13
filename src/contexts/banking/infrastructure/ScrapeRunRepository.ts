@@ -45,4 +45,18 @@ export class ScrapeRunRepository implements IScrapeRunRepository {
       [failureType, errorMessage, stopReason ?? null, runId]
     )
   }
+
+  // Age proves nothing here — a persistent session legitimately runs for days — so
+  // this is deliberately unconditional and boot-only rather than a periodic sweep.
+  async markOrphaned(): Promise<number> {
+    const { rowCount } = await this.executor.query(
+      `UPDATE bank_scrape_runs
+          SET status='failed', failure_type='orphaned',
+              error_message=COALESCE(error_message, 'run was still in progress when the process restarted'),
+              finished_at=now(),
+              duration_ms=${DURATION_MS}
+        WHERE status='running'`
+    )
+    return rowCount ?? 0
+  }
 }

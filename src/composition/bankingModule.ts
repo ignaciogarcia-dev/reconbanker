@@ -50,6 +50,8 @@ interface ContainerBase {
 
 export interface BankingModule {
   runBankScrape: RunBankScrapeUseCase
+  // Exposed for the boot-time orphan reconciliation in index.ts.
+  scrapeRunRepo: ScrapeRunRepository
   notifyBankMovement: NotifyBankMovementUseCase
   listBankMovements: ListBankMovementsUseCase
   reNotifyBankMovement: ReNotifyBankMovementUseCase
@@ -188,6 +190,7 @@ export function buildBankingModule(container: ContainerBase): BankingModule {
     }),
     bankTransactionRepository: bankTxRepo,
     sessionManager,
+    scrapeRunRepo,
     assistanceRepo,
     submitAssistanceCode: new SubmitAssistanceCodeUseCase(assistanceRepo, realtimeBus),
     reactivateSession: new ReactivateSessionUseCase(accountReader, (id) => {
