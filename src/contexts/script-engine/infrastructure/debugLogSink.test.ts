@@ -105,7 +105,7 @@ describe('makeDebugLogSink', () => {
       })
     })
 
-    it('strips reserved/colliding keys from the payload', () => {
+    it('keeps colliding keys off the entry root but preserves their values under a prefix', () => {
       const log = fakeLogger()
       makeDebugLogSink(log)(
         emit('poll_summary', { message: 'x', level: 'error', timestamp: 'y', context: 'z', keep: 1 })
@@ -117,7 +117,43 @@ describe('makeDebugLogSink', () => {
       expect(meta).not.toHaveProperty('timestamp')
       expect(meta).not.toHaveProperty('context')
       expect(meta).not.toHaveProperty('level')
+      expect(meta.detail_message).toBe('x')
+      expect(meta.detail_timestamp).toBe('y')
+      expect(meta.detail_context).toBe('z')
       expect(meta.keep).toBe(1)
+    })
+
+    it('preserves the error text scripts emit under a message key', () => {
+      // Nine call sites across the live bank scripts do exactly this — e.g.
+      // debug("login_or_account_selection_failed", { message: e.message }) — and the
+      // text was previously discarded, leaving only the event name to debug from.
+      const log = fakeLogger()
+      makeDebugLogSink(log)(
+        emit('login_or_account_selection_failed', { message: 'locator timeout on #submit' })
+      )
+      const meta = log.warn.mock.calls[0][1] as Record<string, unknown>
+      expect(meta.detail_message).toBe('locator timeout on #submit')
+      expect(log.warn).toHaveBeenCalledWith('login_or_account_selection_failed', expect.any(Object))
+    })
+
+    it('consumes at and level rather than prefixing them', () => {
+      const log = fakeLogger()
+      makeDebugLogSink(log)(emit('poll_summary', { level: 'info' }))
+      const meta = log.info.mock.calls[0][1] as Record<string, unknown>
+      // `at` stays under its own name (the script's emit time, distinct from Winston's
+      // write timestamp); `level` is consumed as the level hint and never forwarded.
+      expect(meta.at).toBe('2026-06-09T00:00:00.000Z')
+      expect(meta).not.toHaveProperty('detail_at')
+      expect(meta).not.toHaveProperty('detail_level')
+      expect(meta).not.toHaveProperty('level')
+    })
+
+    it('redacts a colliding key by its original name, not its prefixed one', () => {
+      const log = fakeLogger()
+      makeDebugLogSink(log)(emit('poll_summary', { message: 'x', password: 'hunter2' }))
+      const meta = log.info.mock.calls[0][1] as Record<string, unknown>
+      expect(meta.detail_message).toBe('x')
+      expect(meta.password).toBe('[REDACTED]')
     })
 
     it('redacts credential-like keys', () => {
