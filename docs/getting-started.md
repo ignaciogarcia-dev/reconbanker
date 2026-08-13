@@ -109,6 +109,8 @@ If you need to override the frontend API base URL, define `VITE_API_BASE_URL` in
 | `NODE_ENV` | No | `development` | Set to `production` to disable stack traces in error responses |
 | `POLLING_INTERVAL_SECONDS` | No | `600` | Interval for polling customer order endpoints |
 | `SCRAPE_INTERVAL_SECONDS` | No | `1200` | Interval for running bank scraping jobs |
+| `SCRAPE_RUN_RETENTION_DAYS` | No | `90` | Age at which `bank_scrape_runs` rows are pruned (step rows cascade) |
+| `SCRAPE_RUN_PRUNE_INTERVAL_SECONDS` | No | `86400` | How often the prune job runs |
 | `EXPIRE_STALE_REQUESTS_INTERVAL_SECONDS` | No | `3600` | Interval for expiring stale conciliation requests |
 | `BANK_SCRAPE_CONCURRENCY` | No | `2` | Maximum number of bank scraping jobs, and Playwright browsers, to run at the same time |
 | `PLAYWRIGHT_PROFILES_DIR` | No | `./playwright-profiles` | Directory where persistent bank sessions store per-account browser profiles (gitignored) |

@@ -21,19 +21,20 @@ export class Scheduler {
     const expireInterval  = Number(process.env.EXPIRE_STALE_REQUESTS_INTERVAL_SECONDS ?? 3600) * 1000
     const sessionCheckInterval = Number(process.env.SESSION_HEALTHCHECK_SECONDS ?? 75) * 1000
     const pruneInterval = Number(process.env.SCRAPE_RUN_PRUNE_INTERVAL_SECONDS ?? 86400) * 1000
+    const retentionDays = Number(process.env.SCRAPE_RUN_RETENTION_DAYS ?? 90)
 
     await this.enqueuePolling()
     await this.enqueueScraping()
     await this.ensurePersistentSessions()
     await this.expireStaleRequests()
-    await this.pruneScrapeRuns()
+    await this.pruneScrapeRuns(retentionDays)
 
     this.timers.push(
       setInterval(() => this.runSafely('enqueuePolling', () => this.enqueuePolling()),  pollingInterval),
       setInterval(() => this.runSafely('enqueueScraping', () => this.enqueueScraping()), scrapeInterval),
       setInterval(() => this.runSafely('ensurePersistentSessions', () => this.ensurePersistentSessions()), sessionCheckInterval),
       setInterval(() => this.runSafely('expireStaleRequests', () => this.expireStaleRequests()), expireInterval),
-      setInterval(() => this.runSafely('pruneScrapeRuns', () => this.pruneScrapeRuns()), pruneInterval),
+      setInterval(() => this.runSafely('pruneScrapeRuns', () => this.pruneScrapeRuns(retentionDays)), pruneInterval),
     )
 
     this.log.info('started', {
@@ -116,8 +117,7 @@ export class Scheduler {
   // Neither bank_scrape_runs nor bank_scrape_steps was ever pruned — rows only ever
   // disappeared when an account was deleted. Survivable while almost nothing was
   // written; unbounded now that every execution records a run and its failing stages.
-  private async pruneScrapeRuns(): Promise<void> {
-    const days = Number(process.env.SCRAPE_RUN_RETENTION_DAYS ?? 90)
+  private async pruneScrapeRuns(days: number): Promise<void> {
     const deleted = await this.container.banking.scrapeRunRepo.pruneOlderThan(days)
     if (deleted > 0) this.log.info('pruned old scrape runs', { deleted, retentionDays: days })
   }
