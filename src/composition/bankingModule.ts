@@ -7,6 +7,7 @@ import type { IWebhookDeadLetterStore } from '../shared/infrastructure/webhooks/
 import { executorFromPool } from '../contexts/banking/infrastructure/Executor.js'
 import { BankTransactionRepository } from '../contexts/banking/infrastructure/BankTransactionRepository.js'
 import { ScrapeRunRepository } from '../contexts/banking/infrastructure/ScrapeRunRepository.js'
+import { ScrapeStepRepository } from '../contexts/banking/infrastructure/ScrapeStepRepository.js'
 import { BankMovementReadModel } from '../contexts/banking/infrastructure/BankMovementReadModel.js'
 import { ScriptEngineAdapter } from '../contexts/banking/infrastructure/ScriptEngineAdapter.js'
 import { AccountForBankingReaderAdapter } from '../contexts/banking/infrastructure/adapters/AccountForBankingReaderAdapter.js'
@@ -66,6 +67,7 @@ export function buildBankingModule(container: ContainerBase): BankingModule {
 
   const bankTxRepo = new BankTransactionRepository(exec)
   const scrapeRunRepo = new ScrapeRunRepository(exec)
+  const scrapeStepRepo = new ScrapeStepRepository(exec)
   const readModel = new BankMovementReadModel(container.pool)
 
   const accountRepo = container.account.accountRepository
@@ -167,7 +169,7 @@ export function buildBankingModule(container: ContainerBase): BankingModule {
 
   return {
     runBankScrape: new RunBankScrapeUseCase({
-      accountReader, txRepo: bankTxRepo, scrapeRunRepo, scriptEngine, ingest,
+      accountReader, txRepo: bankTxRepo, scrapeRunRepo, stepRepo: scrapeStepRepo, scriptEngine, ingest,
       logger: container.logger.child('[run-bank-scrape]'),
       ensureSession: (accountId) => sessionManager.ensureRunning(accountId),
       runTimeoutMs: Number(process.env.BANK_SCRAPE_RUN_TIMEOUT_MS ?? 13 * 60_000),
