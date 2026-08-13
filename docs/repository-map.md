@@ -32,11 +32,11 @@ reconbanker/
 │   │   ├── account/                          # Account & Bank bounded context
 │   │   │   ├── domain/                       # Account, Bank, AccountConfig, credentials, repository ports
 │   │   │   ├── infrastructure/               # PostgreSQL repositories, mappers, executor, reader adapters
-│   │   │   └── application/                  # Account/bank/config use cases, ClearScrapeBlockUseCase (restart)
+│   │   │   └── application/                  # Account/bank/config use cases
 │   │   ├── banking/                          # Bank scraping, persistent sessions, movement notification
-│   │   │   ├── domain/                       # BankTransaction, repo & session ports, isFatalScrapeError, scrape blocker port
-│   │   │   ├── infrastructure/               # Repos, read model, SessionManager, BankSessionRepository, script & blocker adapters
-│   │   │   └── application/                  # RunBankScrape, IngestTransactions, list movements, notify/re-notify use cases
+│   │   │   ├── domain/                       # BankTransaction, repo & session ports, failure categories & stage vocabulary
+│   │   │   ├── infrastructure/               # Repos, read models, SessionManager, BankSessionRepository, script adapter
+│   │   │   └── application/                  # RunBankScrape, IngestTransactions, ScrapeRunRecorder, session lifecycle, notify use cases
 │   │   ├── conciliation/                     # Reconciliation bounded context
 │   │   │   ├── domain/                       # ConciliationRequest, engine, match result, rules/heuristics, repositories
 │   │   │   ├── infrastructure/               # Repositories, read model, executor, reader adapters
@@ -91,24 +91,41 @@ reconbanker/
 └── .env.example                              # Environment variable template
 ```
 
-## Persistent sessions & skip-on-fatal — key files
+## Persistent sessions — key files
 
 ```text
-src/contexts/banking/domain/isFatalScrapeError.ts            # Classifies fatal (no-retry) vs transient scrape errors
-src/contexts/banking/domain/ports/IAccountScrapeBlocker.ts   # Port to block an account after a fatal failure
 src/contexts/banking/domain/IBankSessionRepository.ts        # Port for persistent bank_sessions state
 src/contexts/banking/infrastructure/SessionManager.ts        # In-process registry of live persistent monitor sessions
-src/contexts/banking/infrastructure/BankSessionRepository.ts # bank_sessions running/stopped persistence
-src/contexts/banking/infrastructure/adapters/AccountScrapeBlockerAdapter.ts # Sets accounts.scrape_blocked_reason
-src/contexts/banking/application/RunBankScrapeUseCase.ts     # One-shot scrape; blocks account on fatal error
+src/contexts/banking/infrastructure/BankSessionRepository.ts # bank_sessions running/stopped/needs_attention persistence
+src/contexts/banking/application/RecordedSessionLauncher.ts  # Opens/closes the run record for a session lifetime
+src/contexts/banking/application/RunBankScrapeUseCase.ts     # One-shot scrape; delegates persistent accounts to SessionManager
 src/contexts/banking/application/IngestTransactionsUseCase.ts # Dedup + persist + publish (shared by one-shot and monitor)
-src/contexts/account/application/ClearScrapeBlockUseCase.ts  # Clears scrape block (restart endpoint)
+src/contexts/banking/application/ReactivateSessionUseCase.ts # Manual relaunch of a session parked in needs_attention
+src/contexts/banking/application/KillSessionUseCase.ts       # Force-terminates a live session's browser
 src/contexts/script-engine/infrastructure/runMonitor.ts      # Long-lived login/poll/keepAlive monitor loop
 src/contexts/script-engine/infrastructure/PersistentPlaywrightRunner.ts # Persistent-context runner driving runMonitor
-src/contexts/script-engine/infrastructure/scripts/bancopichincha/extract_transactions.v1.0.0.js # Pichincha hook script
-src/shared/infrastructure/queues/schedulerQueries.ts         # Scrape-eligibility SQL (filters scrape_blocked_reason)
+src/contexts/script-engine/infrastructure/scripts/bancopichincha/extract_transactions.v1.0.2.js # Pichincha hook script (active)
+src/shared/infrastructure/queues/schedulerQueries.ts         # Scrape-eligibility SQL (active + session_type)
 src/shared/infrastructure/db/migrations/028_account_config_session_settings.sql
 src/shared/infrastructure/db/migrations/029_create_bank_sessions.sql
 src/shared/infrastructure/db/migrations/030_seed_pichincha_script.sql
-src/shared/infrastructure/db/migrations/031_accounts_scrape_blocked.sql
+src/shared/infrastructure/db/migrations/048_bank_sessions_needs_attention.sql
+```
+
+## Failure diagnostics — key files
+
+```text
+src/shared/domain/scrapeStage.ts                             # The eleven-stage vocabulary + the harness-facing recorder port
+src/shared/domain/failureTrail.ts                            # Trail ports and the shared log-line size limit
+src/contexts/banking/application/ScrapeRunRecorder.ts        # Records one execution: stages, outcome, trail flush
+src/contexts/banking/application/TrailBuffer.ts              # Pinned head + rolling tail of pre-failure events
+src/contexts/banking/domain/scrapeFailure.ts                 # Failure categories parsed from a thrown message prefix
+src/contexts/banking/domain/scrapeStage.ts                   # Category-to-stage derivation for legacy scripts
+src/contexts/banking/domain/monitorStopOutcome.ts            # Monitor stop reason -> run status / category
+src/contexts/banking/infrastructure/ScrapeRunRepository.ts   # bank_scrape_runs writes, orphan reconciliation, pruning
+src/contexts/banking/infrastructure/ScrapeStepRepository.ts  # bank_scrape_steps writes
+src/contexts/banking/infrastructure/ScrapeFailureReadModel.ts # Read side behind the failures CLI
+src/contexts/script-engine/infrastructure/debugLogSink.ts    # Parses/redacts script log lines and fills the trail
+src/shared/infrastructure/cli/failures.ts                    # `pnpm failures` list + detail
+src/shared/infrastructure/db/migrations/052_scrape_step_diagnostics.sql
 ```

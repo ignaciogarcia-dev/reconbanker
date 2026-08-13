@@ -43,8 +43,8 @@ ReconBanker is a self-hosted reconciliation engine that scrapes bank transaction
 
 - **One-shot scrapes** (open → scrape → close, run periodically) or long-lived **persistent sessions** (a browser monitor kept open per account), selectable per account via `session_type`
 - **Login mode** per account (`login_mode`): `simple` logs in unattended, `assisted` waits for a human to complete 2FA
-- **Skip-on-fatal**: a fatal failure (e.g. bad credentials / login failure) blocks the account from all automatic scrape/session triggers — instead of retrying and risking a bank lockout
-- **Manual restart**: a blocked account surfaces a "needs attention" badge in the UI and stays blocked until an operator restarts it
+- **Needs attention**: an assisted persistent session that cannot keep itself authenticated (auth timeout, lost session, watchdog, crash) is parked in `needs_attention`, surfacing a badge in the UI and an alert, until an operator reactivates it
+- **Failure diagnostics**: every execution records its stages, failure category and stop reason, with the pre-failure event trail written to the logs — searchable via `pnpm failures` (see [architecture](docs/architecture.md#failure-diagnostics))
 
 ### Async job processing
 

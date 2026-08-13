@@ -10,20 +10,19 @@ The backend is organized into five bounded contexts under `src/contexts/`:
 
 Manages accounts and banks.
 
-- **Account** - links a customer to a bank, holds status and a fatal-block state (`scrape_blocked_at` / `scrape_blocked_reason`)
+- **Account** - links a customer to a bank, holds status
 - **Bank** - defines a supported bank (code, name, login URL)
 - **AccountConfig** - per-account webhook URL, polling endpoint, auth settings, and bank-session behaviour (`session_type`, `login_mode`)
-- `ClearScrapeBlockUseCase` - clears an account's fatal block (ownership-checked) so automatic triggers resume
 
 ### `banking`
 
 Handles bank scraping and transaction ingestion.
 
 - **BankTransaction** - a transaction scraped from a bank account
-- **ScrapeRun / ScrapeStep** - audit trail of each scraping execution
+- **ScrapeRunRecorder** - records one execution: its stages, its outcome, and the pre-failure event trail (see [Failure diagnostics](#failure-diagnostics))
 - **ScriptEnginePort** - port abstraction; `PlaywrightRunner` is the adapter (one-shot scraping)
 - **SessionManager** - in-process registry of long-lived persistent monitor sessions (see [Persistent bank sessions](#persistent-bank-sessions))
-- **isFatalScrapeError** - classifies a failure message as fatal (e.g. bad credentials) so it is never auto-retried; drives the skip-on-fatal block
+- **categorizeFailure** - derives a failure category from a thrown message's prefix, which also recovers the stage a legacy script failed at
 
 ### `conciliation`
 
@@ -103,20 +102,26 @@ Each account chooses how its bank is scraped via two `account_config` columns ad
 
 ### Script contract
 
-Hook-based scripts return `{ login, isAuthenticated, poll, keepAlive? }`; legacy scripts return a transaction array. `PersistentPlaywrightRunner` detects a hook object by checking for a `poll` function, while `PlaywrightRunner` consumes the array return. Banco Pichincha (seeded by migration `030_seed_pichincha_script.sql`, code in `scripts/bancopichincha/extract_transactions.v1.0.0.js`) is the first hook-based, persistent bank.
+Hook-based scripts return `{ login, isAuthenticated, poll, keepAlive? }`; legacy scripts return a transaction array. `PersistentPlaywrightRunner` detects a hook object by checking for a `poll` function, while `PlaywrightRunner` consumes the array return. Banco Pichincha is the first hook-based, persistent bank: seeded at v1.0.0 by migration `030_seed_pichincha_script.sql`, with **v1.0.2 the active version** (seeded by `042`, promoted by `045_activate_pichincha_script_v1_0_2.sql`, code in `scripts/bancopichincha/extract_transactions.v1.0.2.js`).
+
+Neither runner requires a script to report its own stages: the harness records them, so a script that logs nothing is still diagnosable. See [Failure diagnostics](#failure-diagnostics).
 
 ### Lifecycle
 
 - The Scheduler's `ensurePersistentSessions` health-check (every ~75s) re-enqueues a bank-scrape job for each eligible persistent account not already running, which flows through `RunBankScrapeUseCase` → `ensureRunning` to relaunch crashed sessions.
 - On `SIGTERM`, `src/index.ts` calls `sessionManager.stopAll()` before closing workers.
 
-### Skip-on-fatal and restart
+### Accounts that need a human
 
-A fatal failure (matched by `isFatalScrapeError` in `src/contexts/banking/domain/isFatalScrapeError.ts`, e.g. `login_failed` or "No valid credentials") must never be auto-retried, as repeated bad logins risk a bank lockout.
+Per-account session health lives in `bank_sessions`, and only there.
 
-- When a one-shot scrape or a persistent session fails fatally, the account is blocked via `AccountScrapeBlockerAdapter`, which sets `scrape_blocked_at` / `scrape_blocked_reason` (columns from migration `031_accounts_scrape_blocked.sql`). The write is idempotent — only the first (root-cause) reason is recorded.
-- Both Scheduler queries (`schedulerQueries.ts`) gate on `scrape_blocked_reason IS NULL`, so blocked accounts are excluded from one-shot scraping and persistent-session relaunch alike.
-- An operator clears the block via `POST /accounts/:id/restart`, which runs `ClearScrapeBlockUseCase` (ownership-checked) and re-enqueues a scrape. Works for both one-shot and persistent accounts.
+- An **assisted persistent** session that ends non-cleanly — `auth_timeout`, `logged_out`, `watchdog_timeout`, or a crash — is parked in `needs_attention` by `SessionManager.handleEnd` (status added in migration `048_bank_sessions_needs_attention.sql`). It drives the dashboard light and, except for an operator-initiated kill, a Slack alert. Simple persistent accounts are stopped instead, since they can log in unattended.
+- An operator clears it by `POST /accounts/:accountId/reactivate` → `ReactivateSessionUseCase`, which is ownership-checked in the route and rejects anything that is not assisted-persistent. Recovery is announced only once the session actually re-authenticates, not at launch. `KillSessionUseCase` parks an account the same way but suppresses the alarm, the operator having initiated it.
+- The per-execution record in `bank_scrape_runs` deliberately does **not** duplicate this state — see [Failure diagnostics](#failure-diagnostics). Two records that could disagree about whether an account needs a human are worse than one.
+
+> **No account-level scrape block exists.** An earlier design matched fatal failures with `isFatalScrapeError`, blocked the account through `AccountScrapeBlockerAdapter`, and gated both Scheduler queries on `accounts.scrape_blocked_reason IS NULL`. Migration `036_drop_accounts_scrape_blocked.sql` dropped those columns and the modules are gone.
+>
+> Note the consequence, since nothing replaced that gating: `PERSISTENT_SESSION_CANDIDATES_SQL` selects on `status = 'active'` and `session_type = 'persistent'` only, so the ~75s health-check re-enqueues a parked assisted account and `ensureRunning` relaunches it — re-submitting credentials roughly every auth-timeout window. `needs_attention` today is an alerting and dashboard state, not a gate.
 
 ## Domain event bus
 
@@ -129,7 +134,6 @@ An in-memory pub/sub bus (`EventBus`) connects contexts without direct coupling:
 | `ConciliationMatched` | `RunConciliationUseCase` | Enqueues webhook notification |
 | `ConciliationFailed` | `RunConciliationUseCase` | - |
 | `ConciliationExpired` | `ExpireStaleRequestsUseCase` | - |
-| `ScrapeRunFailed` | `RunBankScrapeUseCase` | - |
 | `OperationModeChanged` | `ChangeOperationModeUseCase` | - |
 | `ScriptPromoted` | `PromoteScriptUseCase` | - |
 
@@ -151,24 +155,97 @@ Key tables:
 |---|---|
 | `users` | Authentication |
 | `banks` | Supported bank definitions (`pending`, `onboarding`, `ready`, `failed`) |
-| `accounts` | Customer bank accounts, including fatal scrape-block state (`scrape_blocked_at`, `scrape_blocked_reason`) |
+| `accounts` | Customer bank accounts |
 | `account_config` | Per-account webhook, polling, expiry-notification, extra-field, silent-ingestion, and bank-session (`session_type`, `login_mode`) config |
-| `bank_sessions` | Latest state of each account's persistent monitor session (`running`/`stopped`) |
+| `bank_sessions` | Latest state of each account's persistent monitor session (`running`/`stopped`/`needs_attention` + `stop_reason`) |
 | `bank_credentials` | Encrypted login credentials per account |
 | `bank_transactions` | Scraped transactions, including exclusion and notification timestamps |
 | `bank_scripts` | Playwright scripts (versioned) |
-| `bank_scrape_runs` | Scraping execution history |
-| `bank_scrape_steps` | Step-level audit trail |
+| `bank_scrape_runs` | One row per script execution — a one-shot scrape, or a whole persistent session lifetime — with its outcome, `stop_reason`, `failure_type` and duration |
+| `bank_scrape_steps` | The stages of a run: which ran, which is still in progress, and which failed, with the stack and the URL at the point of failure |
 | `conciliation_requests` | Orders pending reconciliation, including expired and cancelled states |
 | `conciliation_attempts` | Attempt history with reasons |
 | `conciliated_transactions` | Confirmed matches |
 
-## Reading bank script failures
+## Failure diagnostics
 
-Bank script failures are recorded in two places that already existed: the **database**, for
-structured records you can search, and the **log files**, for the full pre-failure event
-trail. The run's own id (`bank_scrape_runs.id`) is the only identifier tying them together —
-no separate tracking number is issued.
+When a bank script fails — by throwing, or by hanging until a timeout cuts it off — the
+system records enough to diagnose it without reproducing it. Two audiences: an engineer at a
+`psql` prompt or a log file, and a future agent that reads a failure and proposes a fix.
+
+The amount captured does **not** depend on what the script author remembered to log. The
+harness records the checkpoints, so a script that emits nothing is still diagnosable; a
+script's own events add detail on top.
+
+### Stage vocabulary
+
+`bank_scrape_steps.step` is a closed set of eleven values, constrained by the database and
+emitted only by the harness. Script event names stay free-form and never reach this column —
+requiring authors to adopt a taxonomy is the same dependency on author diligence that the
+automatic baseline exists to remove.
+
+| Stage | Where it comes from |
+|---|---|
+| `launch` | Browser launch and page setup, both runners |
+| `load_script` | Evaluating the script body; for a hook script, checking it returned a `poll()` |
+| `credentials` | Resolving and decrypting the account's login credentials |
+| `login` | `hooks.login`, or a `login_failed:` prefix from a legacy script |
+| `auth_wait` | Waiting for authentication. Opened on entry and closed on exit only — an assisted login polls up to 200 times |
+| `poll` | A poll cycle of a persistent monitor, including its liveness check |
+| `keep_alive` | The optional `keepAlive` hook |
+| `navigate`, `movements_fetch`, `detail_extraction` | Inside a legacy one-shot script, derived at failure time from the category prefix the script throws |
+| `close` | Browser close, one-shot runner |
+
+The harness cannot see inside a legacy script's single opaque call, so those three in-script
+stages are recovered from the existing convention whereby a script encodes its category as
+the prefix of the thrown message. This needs no script edits — which matters, because
+editing a published script means a new version, a republish, and a promotion.
+
+**Rows are written for failures and transitions only.** A steady-state poll writes nothing:
+an eight-hour session at a 60-second interval would otherwise leave ~480 rows, nearly all of
+them "nothing new". The once-per-session stages write a `started` row and update it on exit,
+so a hang in any of them is visible as a row that never closed.
+
+### Stop reason to run status
+
+Run status stays three-valued so it remains a clean answer to "did this work". The nuance
+lives in `stop_reason`, mirroring `bank_sessions`.
+
+| Monitor outcome | `status` | `stop_reason` | `failure_type` |
+|---|---|---|---|
+| `stop_requested` (operator, SIGTERM) | `success` | `stop_requested` | — |
+| `max_runtime` | `success` | `max_runtime` | — |
+| `auth_timeout` / `logged_out` / `watchdog_timeout` | `failed` | same | same |
+| `browser_closed` / `session_killed` | `failed` | same | same |
+| harness failure before the script ran | `failed` | — | `launch_failed` / `script_load_failed` / `credentials_failed` |
+| unrecognised crash | `failed` | — | derived from the thrown message |
+| process died mid-run | `failed` | — | `orphaned` |
+
+A clean stop is a success, so restarts and shutdowns stay out of the failure list. In-flight
+runs are reconciled to `orphaned` **at boot only**: sessions live in an in-process registry,
+so a restart genuinely invalidates every `running` row. Age proves nothing for a session that
+legitimately runs for days.
+
+Old runs are pruned on the scheduler's interval (`SCRAPE_RUN_RETENTION_DAYS`, default 90);
+step rows follow via `ON DELETE CASCADE`.
+
+### Where it lands
+
+Failures are recorded in two places that already existed: the **database**, for structured
+records you can search, and the **log files**, for the full pre-failure event trail. The
+run's own id (`bank_scrape_runs.id`) is the only identifier tying them together — no separate
+tracking number is issued, and it is stamped on every line a script emits.
+
+The trail is a bounded in-memory buffer — a pinned head plus a rolling tail, so the login
+phase survives hours of polling — flushed as **one** `error` entry when a run fails and
+discarded when it succeeds. It lives in the log files rather than a column because it carries
+counterparty names and account numbers: a rotating exposure beats a permanent one. A hard
+crash loses it, and boot reconciliation can then report only that the run was orphaned.
+
+Not captured, deliberately: screenshots and page content. Only the URL at the point of
+failure is kept.
+
+### Reading a failure
 
 Querying directly is the intended access method: there is no API endpoint and no UI. The
 `pnpm failures` CLI wraps the two common questions.
