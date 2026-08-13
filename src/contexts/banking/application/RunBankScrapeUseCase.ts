@@ -51,7 +51,7 @@ export class RunBankScrapeUseCase {
 
     try {
       const transactions = await withTimeout(
-        scriptEngine.runScript(script, { accountId, lastExternalId }),
+        scriptEngine.runScript(script, { accountId, lastExternalId, runId }),
         this.deps.runTimeoutMs ?? DEFAULT_RUN_TIMEOUT_MS,
         `bank scrape ${account.bank}`,
       )

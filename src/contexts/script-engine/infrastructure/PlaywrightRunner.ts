@@ -23,6 +23,9 @@ interface ScrapedTransaction {
 interface RunContext {
   accountId: string
   lastExternalId: string | null
+  // Optional for the same reason `logger` is: the runner can execute a script without
+  // correlation wired up. The scrape use case always supplies it.
+  runId?: string
 }
 
 export class PlaywrightRunner {
@@ -76,7 +79,10 @@ export class PlaywrightRunner {
       password: credentialsCipher().decrypt(creds.encrypted_password),
       lastExternalId: context.lastExternalId,
       debugLog: this.logger
-        ? makeDebugLogSink(this.logger.child('[bank-scrape-script]'), { accountId: context.accountId })
+        ? makeDebugLogSink(this.logger.child('[bank-scrape-script]'), {
+            accountId: context.accountId,
+            ...(context.runId ? { runId: context.runId } : {}),
+          })
         : undefined,
     }
 

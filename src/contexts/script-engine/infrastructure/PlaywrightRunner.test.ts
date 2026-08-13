@@ -202,6 +202,54 @@ describe('PlaywrightRunner', () => {
     }))
   })
 
+  it('stamps the runId on every line a script emits through debugLog', async () => {
+    dbQueryMock.mockResolvedValueOnce({ rows: [{ username: 'u', encrypted_password: 'p' }] })
+    buildBrowserChain('')
+    const child: any = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn() }
+    const logger: any = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn(() => child) }
+
+    const runner = new PlaywrightRunner(logger)
+    await runner.execute(
+      { id: 's', codeSnapshot: 'context.debugLog(JSON.stringify({ event: "poll_summary", incoming: 3 })); return []' } as any,
+      { accountId: 'acc-42', lastExternalId: null, runId: 'run-abc' },
+    )
+    expect(child.info).toHaveBeenCalledWith('poll_summary', expect.objectContaining({
+      accountId: 'acc-42', runId: 'run-abc',
+    }))
+  })
+
+  it('overrides a script-invented runId with the real one', async () => {
+    // mi-dinero builds its own `${Date.now()}-${random}` under this exact key; baseMeta
+    // is spread last so the real UUID wins rather than two values competing.
+    dbQueryMock.mockResolvedValueOnce({ rows: [{ username: 'u', encrypted_password: 'p' }] })
+    buildBrowserChain('')
+    const child: any = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn() }
+    const logger: any = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn(() => child) }
+
+    const runner = new PlaywrightRunner(logger)
+    await runner.execute(
+      { id: 's', codeSnapshot: 'context.debugLog(JSON.stringify({ event: "poll_summary", runId: "1786556926403-behi6e" })); return []' } as any,
+      { accountId: 'acc-42', lastExternalId: null, runId: 'run-abc' },
+    )
+    const meta = child.info.mock.calls[0][1] as Record<string, unknown>
+    expect(meta.runId).toBe('run-abc')
+  })
+
+  it('omits runId from script log lines when the caller supplied none', async () => {
+    dbQueryMock.mockResolvedValueOnce({ rows: [{ username: 'u', encrypted_password: 'p' }] })
+    buildBrowserChain('')
+    const child: any = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn() }
+    const logger: any = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn(() => child) }
+
+    const runner = new PlaywrightRunner(logger)
+    await runner.execute(
+      { id: 's', codeSnapshot: 'context.debugLog(JSON.stringify({ event: "poll_summary" })); return []' } as any,
+      { accountId: 'acc-42', lastExternalId: null },
+    )
+    const meta = child.info.mock.calls[0][1] as Record<string, unknown>
+    expect(meta).not.toHaveProperty('runId')
+  })
+
   it('rejects when the script takes longer than the configured timeout', async () => {
     vi.useFakeTimers()
     dbQueryMock.mockResolvedValueOnce({ rows: [{ username: 'u', encrypted_password: 'p' }] })
