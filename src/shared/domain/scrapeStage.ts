@@ -31,4 +31,9 @@ export type StepStatus = 'started' | 'success' | 'failed'
  */
 export interface IStageRecorder {
   stage<T>(step: ScrapeStage, fn: () => Promise<T>): Promise<T>
+  /**
+   * Reports the page the browser is on. Synchronous and I/O-free — the harness calls
+   * it at the moment of failure, and the recorder decides whether it ends up on a row.
+   */
+  observeUrl(url: string): void
 }

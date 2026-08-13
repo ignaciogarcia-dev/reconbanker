@@ -22,6 +22,14 @@ export interface ScrapeRunRecorderDeps {
   now?: () => number
 }
 
+// A failure in the harness around the script body is not "unknown" — it names its own
+// cause. Applied only when the error carries no category of its own.
+const HARNESS_FAILURE_TYPE: Partial<Record<ScrapeStage, string>> = {
+  launch: 'launch_failed',
+  load_script: 'script_load_failed',
+  credentials: 'credentials_failed',
+}
+
 /**
  * Records one bank script execution: run identity, step ordering, and the terminal
  * outcome. The harness calls this, which is what makes the checkpoint baseline
@@ -34,11 +42,17 @@ export interface ScrapeRunRecorderDeps {
 export class ScrapeRunRecorder {
   private stepIndex = 0
   private closed = false
+  private lastUrl?: string
+  private failedStage?: ScrapeStage
 
   constructor(private readonly deps: ScrapeRunRecorderDeps) {}
 
   get runId(): string {
     return this.deps.runId
+  }
+
+  observeUrl(url: string): void {
+    if (url) this.lastUrl = url
   }
 
   private get clock(): () => number {
@@ -77,9 +91,13 @@ export class ScrapeRunRecorder {
       )
       return result
     } catch (err) {
+      // Remember the harness stage so fail() can name the cause when the error itself
+      // carries no category — a browser that would not launch is not an "unknown" failure.
+      this.failedStage ??= step
       await this.bestEffort(`finish:${step}`, () =>
         this.deps.stepRepo.finish(this.deps.runId, index, 'failed', {
           ...describe(err),
+          url: this.lastUrl,
           durationMs: this.clock() - startedAt,
         })
       )
@@ -113,13 +131,20 @@ export class ScrapeRunRecorder {
     this.closed = true
 
     const category = categorizeFailure(err)
-    const failureType = opts.failureType ?? category
-    const detail = describe(err)
-
     const derived = stageFromFailureCategory(category)
-    const stage = derived ?? opts.stage
-    if (stage) {
-      await this.note(stage, 'failed', { ...detail, failureType, url: opts.url })
+    const stage = derived ?? opts.stage ?? this.failedStage
+    const url = opts.url ?? this.lastUrl
+
+    // Precedence: an explicit override, then the category the script encoded, then the
+    // harness stage that failed. Only the last of those can turn 'unknown' into a cause.
+    const failureType =
+      opts.failureType
+      ?? (category === 'unknown' && stage ? HARNESS_FAILURE_TYPE[stage] ?? category : category)
+
+    const detail = describe(err)
+    // stage() already wrote a row for a stage it wrapped; don't duplicate it.
+    if (stage && stage !== this.failedStage) {
+      await this.note(stage, 'failed', { ...detail, failureType, url })
     }
 
     await this.bestEffort('markFailed', () =>

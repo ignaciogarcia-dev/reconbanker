@@ -118,7 +118,14 @@ export class PlaywrightRunner {
       return new Function('page', 'context', wrappedCode)
     })
 
-    const transactions: ScrapedTransaction[] = await fn(page, scriptContext)
-    return transactions ?? []
+    try {
+      const transactions: ScrapedTransaction[] = await fn(page, scriptContext)
+      return transactions ?? []
+    } catch (err) {
+      // The one piece of page state worth keeping: where the browser was when it broke.
+      // Reading it can itself throw on a closed page, so it must never mask the failure.
+      try { context.recorder?.observeUrl(page.url()) } catch { /* page already gone */ }
+      throw err
+    }
   }
 }

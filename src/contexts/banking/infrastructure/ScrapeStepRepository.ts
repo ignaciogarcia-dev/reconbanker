@@ -7,10 +7,6 @@ type TerminalStatus = Exclude<StepStatus, 'started'>
 export class ScrapeStepRepository implements IScrapeStepRepository {
   constructor(private readonly executor: Executor) {}
 
-  withTx(tx: Executor): ScrapeStepRepository {
-    return new ScrapeStepRepository(tx)
-  }
-
   async start(runId: string, stepIndex: number, step: ScrapeStage): Promise<void> {
     await this.executor.query(
       `INSERT INTO bank_scrape_steps (run_id, step_index, step, status)

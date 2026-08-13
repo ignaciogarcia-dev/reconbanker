@@ -1,6 +1,10 @@
 import { IScrapeRunRepository } from '../domain/IScrapeRunRepository.js'
 import { Executor } from './Executor.js'
 
+// started_at is already on the row, so the database is the only thing that needs a
+// clock. Shared by every statement that closes a run.
+const DURATION_MS = `GREATEST(0, (EXTRACT(EPOCH FROM (now() - started_at)) * 1000)::int)`
+
 export class ScrapeRunRepository implements IScrapeRunRepository {
   constructor(private readonly executor: Executor) {}
 
@@ -16,14 +20,12 @@ export class ScrapeRunRepository implements IScrapeRunRepository {
     )
   }
 
-  // duration_ms is derived here rather than passed in: started_at is already on the
-  // row, so the database is the only place that needs a clock. The column existed
-  // since 009 and was null on every row ever written.
+  // duration_ms existed since 009 and was null on every row ever written.
   async markSuccess(runId: string, transactionCount: number, stopReason?: string): Promise<void> {
     await this.executor.query(
       `UPDATE bank_scrape_runs
           SET status='success', transactions_found=$1, stop_reason=$2, finished_at=now(),
-              duration_ms=GREATEST(0, (EXTRACT(EPOCH FROM (now() - started_at)) * 1000)::int)
+              duration_ms=${DURATION_MS}
         WHERE id=$3`,
       [transactionCount, stopReason ?? null, runId]
     )
@@ -38,7 +40,7 @@ export class ScrapeRunRepository implements IScrapeRunRepository {
     await this.executor.query(
       `UPDATE bank_scrape_runs
           SET status='failed', failure_type=$1, error_message=$2, stop_reason=$3, finished_at=now(),
-              duration_ms=GREATEST(0, (EXTRACT(EPOCH FROM (now() - started_at)) * 1000)::int)
+              duration_ms=${DURATION_MS}
         WHERE id=$4`,
       [failureType, errorMessage, stopReason ?? null, runId]
     )

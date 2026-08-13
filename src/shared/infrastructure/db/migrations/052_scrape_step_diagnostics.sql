@@ -19,6 +19,14 @@ ALTER TABLE bank_scrape_steps ADD COLUMN IF NOT EXISTS url TEXT;
 -- The eleven stages the harness can actually observe. navigate / movements_fetch /
 -- detail_extraction mirror the failure_type values of the same names so a stage and
 -- its failure describe the same event.
+--
+-- This NARROWS the old set: 'extract' is gone, split into the two phases that
+-- actually exist (movements_fetch, detail_extraction). ADD CONSTRAINT validates
+-- existing rows, so a narrowing change would normally abort the file mid-way — safe
+-- here only because this table has never been written to. It was created in 010 with
+-- no repository, entity, or type, and the only runtime SQL that has ever named it is
+-- the test-suite TRUNCATE. Every environment's copy is empty, so there is nothing to
+-- validate. Do not copy this pattern onto a table that holds rows.
 ALTER TABLE bank_scrape_steps DROP CONSTRAINT IF EXISTS bank_scrape_steps_step_check;
 ALTER TABLE bank_scrape_steps ADD CONSTRAINT bank_scrape_steps_step_check
   CHECK (step IN (

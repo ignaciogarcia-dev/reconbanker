@@ -221,6 +221,59 @@ describe('ScrapeRunRecorder (integration)', () => {
     })
   })
 
+  describe('page state and harness causes', () => {
+    it('puts the last observed url on the failing step without the caller passing one', async () => {
+      const runId = await newRun()
+      const rec = build(runId)
+      rec.observeUrl('https://bank.example/movements?accountNumber=1')
+
+      await expect(
+        rec.stage('poll', async () => { throw new Error('movements_fetch_failed: gone') })
+      ).rejects.toThrow()
+
+      const [row] = await steps(runId)
+      expect(row.url).toBe('https://bank.example/movements?accountNumber=1')
+    })
+
+    it('ignores an empty url rather than blanking a known one', async () => {
+      const runId = await newRun()
+      const rec = build(runId)
+      rec.observeUrl('https://bank.example/login')
+      rec.observeUrl('')
+      await rec.fail(new Error('boom'), { stage: 'login' })
+      expect((await steps(runId))[0].url).toBe('https://bank.example/login')
+    })
+
+    it('names the harness cause instead of unknown when a pre-script stage fails', async () => {
+      for (const [stage, expected] of [
+        ['launch', 'launch_failed'],
+        ['load_script', 'script_load_failed'],
+        ['credentials', 'credentials_failed'],
+      ] as const) {
+        const runId = await newRun()
+        const rec = build(runId)
+        const err = new Error('chromium refused to start')
+        await expect(rec.stage(stage, async () => { throw err })).rejects.toThrow()
+        await rec.fail(err)
+
+        expect((await run(runId)).failure_type).toBe(expected)
+        // stage() already wrote the row; fail() must not add a duplicate.
+        const rows = await steps(runId)
+        expect(rows).toHaveLength(1)
+        expect(rows[0].step).toBe(stage)
+      }
+    })
+
+    it('leaves a categorised script failure alone rather than relabelling it', async () => {
+      const runId = await newRun()
+      const rec = build(runId)
+      const err = new Error('login_failed: rejected')
+      await expect(rec.stage('load_script', async () => { throw err })).rejects.toThrow()
+      await rec.fail(err)
+      expect((await run(runId)).failure_type).toBe('login_failed')
+    })
+  })
+
   describe('best-effort writes', () => {
     it('never propagates a diagnostics write failure out of stage()', async () => {
       const runId = await newRun()
