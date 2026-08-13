@@ -41,6 +41,33 @@ const sample = (externalId: string): ScrapedTransaction => ({
 })
 
 describe('RunBankScrapeUseCase', () => {
+  it('hands the script engine the same runId it recorded, so log lines correlate to the run row', async () => {
+    const txRepo = new InMemoryBankTransactionRepository()
+    const scrapeRunRepo = new InMemoryScrapeRunRepository()
+    const eventBus = new InMemoryEventBus()
+    const runScript = vi.fn().mockResolvedValue([])
+    const useCase = new RunBankScrapeUseCase({
+      accountReader: {
+        findById: async (accountId: string) => ({
+          id: accountId, userId: 'user-1', bank: 'test-bank',
+          sessionType: 'one-shot' as const, loginMode: 'simple' as const,
+        }),
+      },
+      txRepo,
+      scrapeRunRepo,
+      scriptEngine: { loadActiveScript: async () => ({ id: 's1', codeSnapshot: '' }), runScript },
+      ingest: new IngestTransactionsUseCase({ txRepo, eventBus }),
+    })
+
+    await useCase.execute({ accountId: 'acc-1' })
+
+    expect(scrapeRunRepo.runs).toHaveLength(1)
+    expect(runScript).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ runId: scrapeRunRepo.runs[0].runId }),
+    )
+  })
+
   it('persists new transactions and publishes ingested events', async () => {
     const { useCase, txRepo, scrapeRunRepo, eventBus } = buildSut([sample('ext-1'), sample('ext-2')])
     const handler = vi.fn().mockResolvedValue(undefined)

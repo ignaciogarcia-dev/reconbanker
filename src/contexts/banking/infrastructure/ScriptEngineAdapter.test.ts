@@ -62,12 +62,12 @@ describe('ScriptEngineAdapter', () => {
       const adapter = new ScriptEngineAdapter()
       const result = await adapter.runScript(
         { id: 'script-1', codeSnapshot: 'return []' },
-        { accountId: 'acc-1', lastExternalId: null },
+        { accountId: 'acc-1', lastExternalId: null, runId: 'run-1' },
       )
       expect(result).toBe(txs)
       expect(executeMock).toHaveBeenCalledWith(
         { id: 'script-1', codeSnapshot: 'return []' },
-        { accountId: 'acc-1', lastExternalId: null },
+        { accountId: 'acc-1', lastExternalId: null, runId: 'run-1' },
       )
     })
 
@@ -75,7 +75,7 @@ describe('ScriptEngineAdapter', () => {
       executeMock.mockResolvedValue([])
       const logger = { debug() {}, info() {}, warn() {}, error() {}, child() { return logger } } as any
       const adapter = new ScriptEngineAdapter(logger)
-      await adapter.runScript({ id: 's', codeSnapshot: 'return []' }, { accountId: 'a', lastExternalId: null })
+      await adapter.runScript({ id: 's', codeSnapshot: 'return []' }, { accountId: 'a', lastExternalId: null, runId: 'run-1' })
       expect(ctorArgs).toHaveLength(1)
       expect(ctorArgs[0][0]).toBe(logger)
     })
@@ -83,7 +83,7 @@ describe('ScriptEngineAdapter', () => {
     it('constructs the runner with undefined when no logger is provided', async () => {
       executeMock.mockResolvedValue([])
       const adapter = new ScriptEngineAdapter()
-      await adapter.runScript({ id: 's', codeSnapshot: 'return []' }, { accountId: 'a', lastExternalId: null })
+      await adapter.runScript({ id: 's', codeSnapshot: 'return []' }, { accountId: 'a', lastExternalId: null, runId: 'run-1' })
       expect(ctorArgs[0][0]).toBeUndefined()
     })
 
@@ -93,7 +93,7 @@ describe('ScriptEngineAdapter', () => {
       await expect(
         adapter.runScript(
           { id: 'script-1', codeSnapshot: 'return []' },
-          { accountId: 'acc-1', lastExternalId: 'x' },
+          { accountId: 'acc-1', lastExternalId: 'x', runId: 'run-1' },
         ),
       ).rejects.toThrow('runner exploded')
     })
