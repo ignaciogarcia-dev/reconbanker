@@ -342,6 +342,241 @@ describe('runMonitor', () => {
   })
 })
 
+// The recorder is a collaborator boundary — a port the harness calls — so asserting
+// which stages the monitor reports through it is asserting a contract, not an
+// implementation detail. A fake records the calls in order.
+function fakeRecorder() {
+  const calls: string[] = []
+  const notes: Array<{ step: string; status: string; outcome?: Record<string, unknown> }> = []
+  const open: Array<{ step: string; status?: string; outcome?: Record<string, unknown> }> = []
+  const recorder = {
+    stage: async <T,>(step: string, fn: () => Promise<T>) => {
+      calls.push(`stage:${step}`)
+      return fn()
+    },
+    beginStage: (step: string) => {
+      calls.push(`begin:${step}`)
+      const entry: { step: string; status?: string; outcome?: Record<string, unknown> } = { step }
+      open.push(entry)
+      return {
+        finish: async (status: string, outcome?: Record<string, unknown>) => {
+          calls.push(`finish:${step}:${status}`)
+          entry.status = status
+          entry.outcome = outcome
+        },
+      }
+    },
+    note: async (step: string, status: string, outcome?: Record<string, unknown>) => {
+      calls.push(`note:${step}:${status}`)
+      notes.push({ step, status, outcome })
+    },
+    observeUrl: vi.fn(),
+    event: vi.fn(),
+  }
+  return { recorder, calls, notes, open }
+}
+
+describe('runMonitor stage recording', () => {
+  it('reports login, then the auth wait, then the first poll that worked', async () => {
+    const { recorder, calls } = fakeRecorder()
+    const h = hooks({ poll: vi.fn().mockResolvedValue([]) })
+    let n = 0
+    const reason = await runMonitor({
+      hooks: h, page: {}, context: baseContext, sleep: noSleep, recorder: recorder as any,
+      onTransactions: async () => {},
+      shouldStop: () => { n += 1; return n > 2 },
+    })
+
+    expect(reason).toBe('stop_requested')
+    expect(calls).toEqual([
+      'stage:login', 'begin:auth_wait', 'finish:auth_wait:success', 'note:poll:success',
+    ])
+  })
+
+  it('reports the auth wait on entry and exit only, however many times it polls', async () => {
+    // An assisted login polls up to 200 times; a checkpoint per iteration would flood
+    // the trail with nothing.
+    const { recorder, calls } = fakeRecorder()
+    let checks = 0
+    const h = hooks({
+      isAuthenticated: vi.fn().mockImplementation(async () => { checks += 1; return checks > 5 }),
+    })
+    let n = 0
+    await runMonitor({
+      hooks: h, page: {}, context: baseContext, sleep: noSleep, recorder: recorder as any,
+      onTransactions: async () => {},
+      shouldStop: () => { n += 1; return n > 1 },
+    })
+
+    expect(checks).toBeGreaterThan(5)
+    expect(calls.filter((c) => c.includes('auth_wait'))).toEqual([
+      'begin:auth_wait', 'finish:auth_wait:success',
+    ])
+  })
+
+  it('closes the auth wait as failed when authentication never arrives', async () => {
+    const { recorder, open } = fakeRecorder()
+    const h = hooks({ isAuthenticated: vi.fn().mockResolvedValue(false) })
+    const reason = await runMonitor({
+      hooks: h, page: {}, context: baseContext, sleep: noSleep, authTimeoutMs: 5,
+      recorder: recorder as any, onTransactions: async () => {},
+    })
+
+    expect(reason).toBe('auth_timeout')
+    expect(open).toEqual([{
+      step: 'auth_wait',
+      status: 'failed',
+      outcome: { failureType: 'auth_timeout', errorMessage: 'not authenticated within 5ms' },
+    }])
+  })
+
+  it('closes the auth wait rather than leaving it open when the auth check throws fatally', async () => {
+    // Left open, the row would read as a hang in the wait rather than an abort.
+    const { recorder, open } = fakeRecorder()
+    const h = hooks({ isAuthenticated: vi.fn().mockRejectedValue(new Error('fatal auth')) })
+
+    await expect(runMonitor({
+      hooks: h, page: {}, context: baseContext, sleep: noSleep,
+      recorder: recorder as any, onTransactions: async () => {},
+    })).rejects.toThrow('fatal auth')
+
+    expect(open[0]).toMatchObject({ step: 'auth_wait', status: 'failed' })
+  })
+
+  it('reports a failing login as a failed stage and does not reach the wait', async () => {
+    const { recorder, calls } = fakeRecorder()
+    const h = hooks({ login: vi.fn().mockRejectedValue(new Error('login_failed: bad password')) })
+
+    await expect(runMonitor({
+      hooks: h, page: {}, context: baseContext, sleep: noSleep,
+      recorder: recorder as any, onTransactions: async () => {},
+    })).rejects.toThrow('login_failed')
+
+    expect(calls).toEqual(['stage:login'])
+  })
+
+  it('writes no step rows for steady-state polls, so a long session does not bury the table', async () => {
+    const { recorder, notes } = fakeRecorder()
+    const h = hooks({ poll: vi.fn().mockResolvedValue([]) })
+    let n = 0
+    await runMonitor({
+      hooks: h, page: {}, context: baseContext, sleep: noSleep, recorder: recorder as any,
+      onTransactions: async () => {},
+      shouldStop: () => { n += 1; return n > 20 },
+    })
+
+    expect(h.poll).toHaveBeenCalledTimes(20)
+    expect(notes).toEqual([{ step: 'poll', status: 'success', outcome: undefined }])
+  })
+
+  it('records a recovered poll failure once, however often it repeats', async () => {
+    // A script failing every poll for hours would otherwise write a row a minute; the
+    // repetition is visible in the trail, which is bounded by design.
+    const { recorder, notes } = fakeRecorder()
+    const h = hooks({ poll: vi.fn().mockRejectedValue(new Error('selector not found')) })
+    let n = 0
+    await runMonitor({
+      hooks: h, page: {}, context: baseContext, sleep: noSleep, recorder: recorder as any,
+      onTransactions: async () => {},
+      shouldStop: () => { n += 1; return n > 10 },
+    })
+
+    expect(h.poll).toHaveBeenCalledTimes(10)
+    expect(notes).toEqual([
+      { step: 'poll', status: 'failed', outcome: { errorMessage: 'selector not found' } },
+    ])
+  })
+
+  it('records a failed poll step when the watchdog cuts off a hung poll', async () => {
+    const { recorder, notes } = fakeRecorder()
+    const h = hooks({ poll: vi.fn().mockReturnValue(new Promise<never>(() => {})) })
+    const reason = await runMonitor({
+      hooks: h, page: {}, context: baseContext, sleep: noSleep, pollIntervalMs: 10,
+      recorder: recorder as any, onTransactions: async () => {},
+    })
+
+    expect(reason).toBe('watchdog_timeout')
+    expect(notes).toEqual([
+      { step: 'poll', status: 'failed', outcome: expect.objectContaining({ failureType: 'watchdog_timeout' }) },
+    ])
+  })
+
+  it('attributes a hung keepAlive to the keep_alive stage, not the poll', async () => {
+    const { recorder, notes } = fakeRecorder()
+    const h = hooks({
+      poll: vi.fn().mockResolvedValue([]),
+      keepAlive: vi.fn().mockReturnValue(new Promise<never>(() => {})),
+    })
+    const reason = await runMonitor({
+      hooks: h, page: {}, context: baseContext, sleep: noSleep, pollIntervalMs: 10,
+      recorder: recorder as any, onTransactions: async () => {},
+    })
+
+    expect(reason).toBe('watchdog_timeout')
+    expect(notes.at(-1)).toMatchObject({
+      step: 'keep_alive', status: 'failed', outcome: { failureType: 'watchdog_timeout' },
+    })
+  })
+
+  it('records a lost session as a failed poll step', async () => {
+    const { recorder, notes } = fakeRecorder()
+    let auth = 0
+    const h = hooks({
+      isAuthenticated: vi.fn().mockImplementation(async () => { auth += 1; return auth <= 1 }),
+    })
+    const reason = await runMonitor({
+      hooks: h, page: {}, context: baseContext, sleep: noSleep,
+      recorder: recorder as any, onTransactions: async () => {},
+    })
+
+    expect(reason).toBe('logged_out')
+    expect(notes).toEqual([
+      { step: 'poll', status: 'failed', outcome: expect.objectContaining({ failureType: 'logged_out' }) },
+    ])
+  })
+
+  it('captures the page url at the moment a stage fails', async () => {
+    const { recorder } = fakeRecorder()
+    const page = { url: () => 'https://bank.example/movements' }
+    const h = hooks({ poll: vi.fn().mockRejectedValue(new Error('boom')) })
+    let n = 0
+    await runMonitor({
+      hooks: h, page, context: baseContext, sleep: noSleep, recorder: recorder as any,
+      onTransactions: async () => {},
+      shouldStop: () => { n += 1; return n > 1 },
+    })
+
+    expect(recorder.observeUrl).toHaveBeenCalledWith('https://bank.example/movements')
+  })
+
+  it('survives a page that cannot report its url', async () => {
+    // `page` is `any` here, and a closed page throws on url().
+    const { recorder, notes } = fakeRecorder()
+    const page = { url: () => { throw new Error('page closed') } }
+    const h = hooks({ poll: vi.fn().mockRejectedValue(new Error('boom')) })
+    let n = 0
+    const reason = await runMonitor({
+      hooks: h, page, context: baseContext, sleep: noSleep, recorder: recorder as any,
+      onTransactions: async () => {},
+      shouldStop: () => { n += 1; return n > 1 },
+    })
+
+    expect(reason).toBe('stop_requested')
+    expect(notes).toHaveLength(1)
+  })
+
+  it('behaves identically with no recorder wired', async () => {
+    const h = hooks({ poll: vi.fn().mockResolvedValue([]) })
+    let n = 0
+    const reason = await runMonitor({
+      hooks: h, page: {}, context: baseContext, sleep: noSleep,
+      onTransactions: async () => {},
+      shouldStop: () => { n += 1; return n > 1 },
+    })
+    expect(reason).toBe('stop_requested')
+  })
+})
+
 // The monitor loop bounds each isAuthenticated / poll / keepAlive call with
 // withTimeout(2 * pollIntervalMs). reconbanker's withTimeout REJECTS with a
 // TimeoutError (no sentinel), which runMonitor catches and converts into a

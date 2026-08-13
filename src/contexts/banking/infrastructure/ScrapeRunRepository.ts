@@ -21,7 +21,7 @@ export class ScrapeRunRepository implements IScrapeRunRepository {
   }
 
   // duration_ms existed since 009 and was null on every row ever written.
-  async markSuccess(runId: string, transactionCount: number, stopReason?: string): Promise<void> {
+  async markSuccess(runId: string, transactionCount: number | null, stopReason?: string): Promise<void> {
     await this.executor.query(
       `UPDATE bank_scrape_runs
           SET status='success', transactions_found=$1, stop_reason=$2, finished_at=now(),

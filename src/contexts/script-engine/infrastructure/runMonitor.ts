@@ -1,5 +1,6 @@
 import { withTimeout } from '../../../shared/util/withTimeout.js'
 import { TimeoutError } from '../../../shared/errors/index.js'
+import type { IStageRecorder } from '../../../shared/domain/scrapeStage.js'
 
 // Local copy of banking's ScrapedTransaction so script-engine never depends on the banking context
 export interface MonitorTransaction {
@@ -59,6 +60,9 @@ export interface RunMonitorOptions {
   // Called once immediately after authentication succeeds (before the monitor loop). Used to
   // signal a session that came back from needs_attention has actually re-authenticated.
   onAuthenticated?(): void
+  // Records this session's stages. Optional: the monitor behaves identically without it,
+  // and supplying it is what makes the checkpoint baseline independent of the script author.
+  recorder?: IStageRecorder
 }
 
 export type MonitorStopReason =
@@ -78,32 +82,73 @@ export async function runMonitor(opts: RunMonitorOptions): Promise<MonitorStopRe
     authTimeoutMs = 300_000,
     sleep = (ms: number) => new Promise((r) => setTimeout(r, ms)),
     onAuthenticated,
+    recorder,
   } = opts
 
   const log = (event: string, data?: Record<string, unknown>) =>
     context.debugLog?.(JSON.stringify({ at: new Date().toISOString(), event, ...data }))
 
+  // Reading the URL can throw on a closed page, and a page is `any` here, so this must
+  // never be the thing that breaks a session it was only trying to describe.
+  const observeUrl = () => {
+    try {
+      if (typeof page?.url === 'function') recorder?.observeUrl(page.url())
+    } catch { /* page already gone */ }
+  }
+  // Records a stage only when a recorder was supplied, keeping the happy path identical.
+  const note = async (step: 'poll' | 'keep_alive', status: 'success' | 'failed', outcome?: {
+    failureType?: string; errorMessage?: string
+  }) => {
+    if (!recorder) return
+    observeUrl()
+    await recorder.note(step, status, outcome)
+  }
+
   // Login then wait for authentication with a long timeout for assisted human 2FA
-  await hooks.login(page, context)
+  if (recorder) await recorder.stage('login', () => hooks.login(page, context))
+  else await hooks.login(page, context)
+
+  // The wait is opened rather than wrapped: it ends by falling out of the loop on
+  // timeout, which stage() would record as a success. Reported on entry and exit only —
+  // an assisted login polls up to 200 times, and a checkpoint per iteration would flood
+  // the trail with nothing.
+  const authWait = recorder?.beginStage('auth_wait')
   const authDeadline = Date.now() + authTimeoutMs
   let authed = false
-  while (Date.now() < authDeadline) {
-    // Bound each check by the remaining auth budget so a hang *inside* isAuthenticated can't block
-    // past the deadline. A fatal throw still propagates (rejects the monitor); the void-catch only
-    // guards the losing race arm. A timeout here is just the auth budget running out -> auth_timeout.
-    const check = hooks.isAuthenticated(page)
-    void check.catch(() => {})
-    let res: boolean
-    try {
-      res = await withTimeout(check, Math.max(0, authDeadline - Date.now()), 'auth check')
-    } catch (err) {
-      if (err instanceof TimeoutError) break
-      throw err
+  try {
+    while (Date.now() < authDeadline) {
+      // Bound each check by the remaining auth budget so a hang *inside* isAuthenticated can't block
+      // past the deadline. A fatal throw still propagates (rejects the monitor); the void-catch only
+      // guards the losing race arm. A timeout here is just the auth budget running out -> auth_timeout.
+      const check = hooks.isAuthenticated(page)
+      void check.catch(() => {})
+      let res: boolean
+      try {
+        res = await withTimeout(check, Math.max(0, authDeadline - Date.now()), 'auth check')
+      } catch (err) {
+        if (err instanceof TimeoutError) break
+        throw err
+      }
+      if (res) { authed = true; break }
+      await sleep(1_500)
     }
-    if (res) { authed = true; break }
-    await sleep(1_500)
+  } catch (err) {
+    // A fatal isAuthenticated throw aborts the session; close the wait before it leaves,
+    // or the row would stay `started` and read as a hang.
+    observeUrl()
+    await authWait?.finish('failed', { errorMessage: err instanceof Error ? err.message : String(err) })
+    throw err
   }
-  if (!authed) { log('auth_timeout'); return 'auth_timeout' }
+  if (!authed) {
+    log('auth_timeout')
+    observeUrl()
+    await authWait?.finish('failed', {
+      failureType: 'auth_timeout',
+      errorMessage: `not authenticated within ${authTimeoutMs}ms`,
+    })
+    return 'auth_timeout'
+  }
+  await authWait?.finish('success')
   log('authenticated')
   onAuthenticated?.()
 
@@ -112,6 +157,14 @@ export async function runMonitor(opts: RunMonitorOptions): Promise<MonitorStopRe
   if (context.lastExternalId) seen.add(String(context.lastExternalId))
   let currentDay = getBankDay()
   const runDeadline = maxRuntimeMs > 0 ? Date.now() + maxRuntimeMs : null
+
+  // Transitions only, and only the first of each. A steady-state poll writes no row —
+  // an eight-hour session at a 60s interval would otherwise leave ~480 of them, nearly
+  // all "nothing new", burying the rows worth searching for. A script that fails every
+  // poll for hours would do the same, so a recovered failure is recorded once too; the
+  // repetition is visible in the trail, which is bounded by design.
+  let recordedFirstPollSuccess = false
+  let recordedFirstPollFailure = false
 
   while (true) {
     if (await Promise.resolve(shouldStop())) { log('stop_requested'); return 'stop_requested' }
@@ -128,27 +181,56 @@ export async function runMonitor(opts: RunMonitorOptions): Promise<MonitorStopRe
     try {
       authRes = await withTimeout(authCall, 2 * pollIntervalMs, 'auth check')
     } catch (err) {
-      if (err instanceof TimeoutError) { log('watchdog_timeout'); return 'watchdog_timeout' }
+      if (err instanceof TimeoutError) {
+        log('watchdog_timeout')
+        // Attributed to `poll`: the liveness check is part of the poll cycle, and the
+        // stage vocabulary has no separate session-check stage.
+        await note('poll', 'failed', { failureType: 'watchdog_timeout', errorMessage: err.message })
+        return 'watchdog_timeout'
+      }
       throw err
     }
-    if (!authRes) { log('logged_out'); return 'logged_out' }
+    if (!authRes) {
+      log('logged_out')
+      await note('poll', 'failed', { failureType: 'logged_out', errorMessage: 'session was no longer authenticated' })
+      return 'logged_out'
+    }
 
     let batch: MonitorTransaction[]
     try {
       batch = await withTimeout(hooks.poll(page, context), 2 * pollIntervalMs, 'poll')
     } catch (err) {
-      if (err instanceof TimeoutError) { log('watchdog_timeout'); return 'watchdog_timeout' }
+      if (err instanceof TimeoutError) {
+        log('watchdog_timeout')
+        await note('poll', 'failed', { failureType: 'watchdog_timeout', errorMessage: err.message })
+        return 'watchdog_timeout'
+      }
       log('poll_failed', { error: err instanceof Error ? err.message : String(err) })
+      if (!recordedFirstPollFailure) {
+        recordedFirstPollFailure = true
+        await note('poll', 'failed', { errorMessage: err instanceof Error ? err.message : String(err) })
+      }
       if (hooks.keepAlive) {
         // The inner .catch makes a keepAlive *error* non-fatal (resolves undefined); only a *hang* trips the watchdog.
         try {
           await withTimeout(hooks.keepAlive(page).catch(() => {}), 2 * pollIntervalMs, 'keepAlive')
         } catch (kaErr) {
-          if (kaErr instanceof TimeoutError) { log('watchdog_timeout'); return 'watchdog_timeout' }
+          if (kaErr instanceof TimeoutError) {
+            log('watchdog_timeout')
+            await note('keep_alive', 'failed', { failureType: 'watchdog_timeout', errorMessage: kaErr.message })
+            return 'watchdog_timeout'
+          }
         }
       }
       await sleep(pollIntervalMs)
       continue
+    }
+
+    // One row for the first poll that worked: it is the transition that says the session
+    // reached steady state, which distinguishes "polling normally" from "never got there".
+    if (!recordedFirstPollSuccess) {
+      recordedFirstPollSuccess = true
+      await note('poll', 'success')
     }
 
     const fresh = batch.filter((t) => !seen.has(String(t.externalId)))
@@ -159,7 +241,11 @@ export async function runMonitor(opts: RunMonitorOptions): Promise<MonitorStopRe
       try {
         await withTimeout(hooks.keepAlive(page).catch(() => {}), 2 * pollIntervalMs, 'keepAlive')
       } catch (kaErr) {
-        if (kaErr instanceof TimeoutError) { log('watchdog_timeout'); return 'watchdog_timeout' }
+        if (kaErr instanceof TimeoutError) {
+          log('watchdog_timeout')
+          await note('keep_alive', 'failed', { failureType: 'watchdog_timeout', errorMessage: kaErr.message })
+          return 'watchdog_timeout'
+        }
       }
     }
 

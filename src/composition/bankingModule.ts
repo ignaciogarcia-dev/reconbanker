@@ -16,6 +16,7 @@ import { UserOperationModeReaderAdapter } from '../contexts/banking/infrastructu
 import type { AccountModule } from './accountModule.js'
 import type { UserModule } from './userModule.js'
 import { RunBankScrapeUseCase } from '../contexts/banking/application/RunBankScrapeUseCase.js'
+import { RecordedSessionLauncher } from '../contexts/banking/application/RecordedSessionLauncher.js'
 import { IngestTransactionsUseCase } from '../contexts/banking/application/IngestTransactionsUseCase.js'
 import { BankSessionRepository } from '../contexts/banking/infrastructure/BankSessionRepository.js'
 import { AssistanceRequestRepository } from '../contexts/banking/infrastructure/AssistanceRequestRepository.js'
@@ -102,55 +103,83 @@ export function buildBankingModule(container: ContainerBase): BankingModule {
 
   const monitorLog = container.logger.child('[bank-monitor]')
 
+  // Owns run identity for a persistent session: opens the row on launch and closes it from
+  // the monitor's stop reason. Invoked from inside startFn, which SessionManager calls only
+  // on a real launch — creating the row any further upstream would orphan one every time
+  // the ~75s health-check called the idempotent ensureRunning.
+  const recordedLauncher = new RecordedSessionLauncher({
+    runRepo: scrapeRunRepo,
+    stepRepo: scrapeStepRepo,
+    logger: container.logger.child('[session-run]'),
+  })
+
   const startFn = async (accountId: string) => {
     const account = await accountReader.findById(accountId)
     if (!account) throw new Error(`Account ${accountId} not found`)
 
-    const { rows: [creds] } = await db.query(
-      `SELECT username, encrypted_password FROM bank_credentials
-       WHERE account_id = $1 AND status = 'valid'`,
-      [accountId]
-    )
-    if (!creds) throw new Error(`No valid credentials for account ${accountId}`)
-
+    // Resolved before the run row exists, and deliberately so: a missing active script is
+    // misconfiguration rather than a failed execution, and the row needs its id. This
+    // mirrors the one-shot use case, which throws NotFoundError before create().
     const script = await ScriptLoader.loadActive(account.bank, 'extract_transactions', accountId, account.userId)
     if (!script || !script.codeSnapshot) throw new Error(`No active script for ${account.bank}`)
+    const scriptCode = script.codeSnapshot
 
-    const lastExternalId = await bankTxRepo.findLatestExternalId(accountId)
+    return recordedLauncher.launch({ accountId, scriptId: script.id }, async (recorder) => {
+      // Credential resolution is a recorded stage: a bad decryption key or a revoked
+      // credential is a specific, actionable cause, not an "unknown" failure.
+      const creds = await recorder.stage('credentials', async () => {
+        const { rows: [row] } = await db.query(
+          `SELECT username, encrypted_password FROM bank_credentials
+           WHERE account_id = $1 AND status = 'valid'`,
+          [accountId]
+        )
+        if (!row) throw new Error(`No valid credentials for account ${accountId}`)
+        return { username: row.username as string, password: credentialsCipher().decrypt(row.encrypted_password) }
+      })
 
-    const requestOtp = otpCoordinator.forSession({ accountId, userId: account.userId })
+      const lastExternalId = await bankTxRepo.findLatestExternalId(accountId)
 
-    const handle = await persistentRunner.start({
-      scriptCode: script.codeSnapshot,
-      loginMode: account.loginMode,
-      pollIntervalMs: Number(process.env.PERSISTENT_POLL_INTERVAL_MS ?? 60_000),
-      context: {
-        accountId,
-        username: creds.username,
-        password: credentialsCipher().decrypt(creds.encrypted_password),
-        lastExternalId,
-        debugLog: makeDebugLogSink(monitorLog, { accountId, bank: account.bank }),
-        requestOtp,
-      },
-      onTransactions: async (batch) => { await ingest.execute(accountId, script.id, batch) },
-      shouldStop: () => false,
-      // Bank-local day key whose change clears runMonitor's dedup set so it stays bounded over multi-day sessions
-      getBankDay: () =>
-        new Intl.DateTimeFormat('en-GB', {
-          timeZone: 'America/Guayaquil', year: 'numeric', month: '2-digit', day: '2-digit',
-        }).format(new Date()),
+      const requestOtp = otpCoordinator.forSession({ accountId, userId: account.userId })
+
+      const handle = await persistentRunner.start({
+        scriptCode,
+        loginMode: account.loginMode,
+        pollIntervalMs: Number(process.env.PERSISTENT_POLL_INTERVAL_MS ?? 60_000),
+        recorder,
+        context: {
+          accountId,
+          username: creds.username,
+          password: creds.password,
+          lastExternalId,
+          // The recorder doubles as the trail: it buffers everything the script reports and
+          // writes it out only if the session fails. runId ties those lines to the run row.
+          debugLog: makeDebugLogSink(
+            monitorLog,
+            { accountId, bank: account.bank, runId: recorder.runId },
+            recorder,
+          ),
+          requestOtp,
+        },
+        onTransactions: async (batch) => { await ingest.execute(accountId, script.id, batch) },
+        shouldStop: () => false,
+        // Bank-local day key whose change clears runMonitor's dedup set so it stays bounded over multi-day sessions
+        getBankDay: () =>
+          new Intl.DateTimeFormat('en-GB', {
+            timeZone: 'America/Guayaquil', year: 'numeric', month: '2-digit', day: '2-digit',
+          }).format(new Date()),
+      })
+
+      // Clear the pending assistance request on session end so the dashboard alert never dangles
+      void handle.done.catch(() => {}).finally(() => {
+        void otpCoordinator.cancel(accountId, account.userId).catch(() => {})
+      })
+
+      // Stamp lifecycle metadata so SessionManager can emit the dashboard light events and
+      // route an assisted-persistent login loss to needs_attention instead of a silent relaunch.
+      // Object.assign (not a fresh literal) preserves handle.stop's binding to the runner.
+      const assistedPersistent = account.loginMode === 'assisted' && account.sessionType === 'persistent'
+      return Object.assign(handle, { userId: account.userId, assistedPersistent })
     })
-
-    // Clear the pending assistance request on session end so the dashboard alert never dangles
-    void handle.done.catch(() => {}).finally(() => {
-      void otpCoordinator.cancel(accountId, account.userId).catch(() => {})
-    })
-
-    // Stamp lifecycle metadata so SessionManager can emit the dashboard light events and
-    // route an assisted-persistent login loss to needs_attention instead of a silent relaunch.
-    // Object.assign (not a fresh literal) preserves handle.stop's binding to the runner.
-    const assistedPersistent = account.loginMode === 'assisted' && account.sessionType === 'persistent'
-    return Object.assign(handle, { userId: account.userId, assistedPersistent })
   }
 
   const sessionManager = new SessionManager(

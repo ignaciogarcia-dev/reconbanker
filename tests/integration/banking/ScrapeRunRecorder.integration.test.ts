@@ -450,6 +450,62 @@ describe('ScrapeRunRecorder (integration)', () => {
     })
   })
 
+  describe('beginStage()', () => {
+    it('closes the row the caller opened, in place, with the outcome the caller decided', async () => {
+      // The monitor's authentication wait times out by falling out of a loop rather than
+      // by throwing, so stage() would record it as a success.
+      const runId = await newRun()
+      const rec = build(runId)
+
+      // beginStage returns synchronously — the caller is entering a wait, not awaiting a
+      // write — so poll for the in-progress row rather than assuming it has landed.
+      const wait = rec.beginStage('auth_wait')
+      for (let i = 0; i < 50 && (await steps(runId)).length === 0; i++) {
+        await new Promise((r) => setTimeout(r, 10))
+      }
+      expect((await steps(runId))[0]).toMatchObject({ step: 'auth_wait', status: 'started' })
+
+      await wait.finish('failed', { failureType: 'auth_timeout', errorMessage: 'not authenticated within 300000ms' })
+
+      const rows = await steps(runId)
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toMatchObject({
+        step: 'auth_wait', status: 'failed', failure_type: 'auth_timeout',
+        error_message: 'not authenticated within 300000ms',
+      })
+      expect(rows[0].duration_ms).not.toBeNull()
+    })
+
+    it('does not add a second row for a stage the caller already closed as failed', async () => {
+      // How a persistent session's authentication failure actually lands: the wait writes
+      // its own failed row, then the stop reason closes the run.
+      const runId = await newRun()
+      const rec = build(runId)
+      await rec.beginStage('auth_wait').finish('failed', { failureType: 'auth_timeout' })
+      await rec.fail(new Error('auth_timeout'), { failureType: 'auth_timeout', stopReason: 'auth_timeout' })
+
+      expect(await steps(runId)).toHaveLength(1)
+      const r = await run(runId)
+      expect(r.failure_type).toBe('auth_timeout')
+      expect(r.stop_reason).toBe('auth_timeout')
+    })
+  })
+
+  describe('a persistent session lifetime', () => {
+    it('records a clean stop as an uncounted success rather than zero transactions', async () => {
+      // A persistent session ingests continuously over a lifetime that can span days, so
+      // any single count would be a lie; NULL reads as "not counted", which is the truth.
+      const runId = await newRun()
+      await build(runId).succeed(null, 'stop_requested')
+
+      const r = await run(runId)
+      expect(r.status).toBe('success')
+      expect(r.transactions_found).toBeNull()
+      expect(r.stop_reason).toBe('stop_requested')
+      expect(r.duration_ms).not.toBeNull()
+    })
+  })
+
   describe('best-effort writes', () => {
     it('never propagates a diagnostics write failure out of stage()', async () => {
       const runId = await newRun()

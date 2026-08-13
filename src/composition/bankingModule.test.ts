@@ -70,6 +70,24 @@ function makeContainer() {
   }
 }
 
+// The run row is written through the pool executor, unlike credentials which go through
+// the shared db client — so the two are separable in assertions.
+const runInserts = (c: ReturnType<typeof makeContainer>) =>
+  (c.pool.query as ReturnType<typeof vi.fn>).mock.calls
+    .filter(([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO bank_scrape_runs'))
+
+// A persistent account whose launch reaches the runner.
+function persistentAccount(c: ReturnType<typeof makeContainer>) {
+  c.account.accountRepository.findById.mockResolvedValue({
+    id: 'acc-1', userId: 'owner-1', bank: 'TEST',
+  })
+  c.account.accountConfigRepository.findByAccountId.mockResolvedValue({
+    sessionType: 'persistent', loginMode: 'simple',
+  })
+  scriptLoaderMock.loadActive.mockResolvedValue({ id: 'script-7', codeSnapshot: 'return {}' })
+  dbMock.query.mockResolvedValue({ rows: [{ username: 'u', encrypted_password: 'p' }] })
+}
+
 describe('buildBankingModule', () => {
   beforeEach(() => {
     dbMock.query.mockReset()
@@ -134,6 +152,9 @@ describe('buildBankingModule', () => {
       c.account.accountConfigRepository.findByAccountId.mockResolvedValue({
         sessionType: 'persistent', loginMode: 'simple',
       })
+      // The script is resolved first now — it identifies the run row that the recorded
+      // credentials stage writes to — so a credentials test has to get past it.
+      scriptLoaderMock.loadActive.mockResolvedValue({ id: 's', codeSnapshot: 'return {}' })
       dbMock.query.mockResolvedValueOnce({ rows: [] })
       const mod = buildBankingModule(c)
       await expect(mod.sessionManager.ensureRunning('acc-1')).rejects.toThrow('No valid credentials for account acc-1')
@@ -147,10 +168,27 @@ describe('buildBankingModule', () => {
       c.account.accountConfigRepository.findByAccountId.mockResolvedValue({
         sessionType: 'persistent', loginMode: 'simple',
       })
-      dbMock.query.mockResolvedValueOnce({ rows: [{ username: 'u', encrypted_password: 'p' }] })
       scriptLoaderMock.loadActive.mockResolvedValue(null)
       const mod = buildBankingModule(c)
       await expect(mod.sessionManager.ensureRunning('acc-1')).rejects.toThrow('No active script for TEST')
+    })
+
+    it('opens no run row when there is no script to attribute it to', async () => {
+      // A missing active script is misconfiguration rather than a failed execution, and
+      // the row needs the script id — so this throws before any row exists, exactly as
+      // the one-shot use case throws NotFoundError before create().
+      const c = makeContainer()
+      c.account.accountRepository.findById.mockResolvedValue({
+        id: 'acc-1', userId: 'u', bank: 'TEST',
+      })
+      c.account.accountConfigRepository.findByAccountId.mockResolvedValue({
+        sessionType: 'persistent', loginMode: 'simple',
+      })
+      scriptLoaderMock.loadActive.mockResolvedValue(null)
+      const mod = buildBankingModule(c)
+      await expect(mod.sessionManager.ensureRunning('acc-1')).rejects.toThrow()
+
+      expect(runInserts(c)).toHaveLength(0)
     })
 
     it('throws when the active script has no codeSnapshot', async () => {
@@ -161,10 +199,59 @@ describe('buildBankingModule', () => {
       c.account.accountConfigRepository.findByAccountId.mockResolvedValue({
         sessionType: 'persistent', loginMode: 'simple',
       })
-      dbMock.query.mockResolvedValueOnce({ rows: [{ username: 'u', encrypted_password: 'p' }] })
       scriptLoaderMock.loadActive.mockResolvedValue({ id: 's', codeSnapshot: '' })
       const mod = buildBankingModule(c)
       await expect(mod.sessionManager.ensureRunning('acc-1')).rejects.toThrow('No active script for TEST')
+    })
+
+    it('opens exactly one run row per session lifetime, attributed to the active script', async () => {
+      const c = makeContainer()
+      persistentAccount(c)
+      runnerStartMock.mockResolvedValue({ stop: vi.fn(), done: new Promise(() => {}) })
+      const mod = buildBankingModule(c)
+
+      await mod.sessionManager.ensureRunning('acc-1')
+      // Stand in for the ~75s persistent-session health-check, which calls the idempotent
+      // ensureRunning on every tick for the lifetime of the session.
+      for (let tick = 0; tick < 5; tick++) await mod.sessionManager.ensureRunning('acc-1')
+
+      const inserts = runInserts(c)
+      expect(inserts).toHaveLength(1)
+      const [, params] = inserts[0]
+      expect(params[1]).toBe('acc-1')
+      expect(params[2]).toBe('script-7')
+    })
+
+    it('ties the lines a persistent script emits to its run row', async () => {
+      // Correlation is the whole point of reusing the run id rather than inventing a
+      // tracking number: one identifier moves you between the log file and the database.
+      const c = makeContainer()
+      persistentAccount(c)
+      runnerStartMock.mockResolvedValue({ stop: vi.fn(), done: new Promise(() => {}) })
+      const mod = buildBankingModule(c)
+      await mod.sessionManager.ensureRunning('acc-1')
+
+      const runId = runInserts(c)[0][1][0]
+      const monitorLog = (c.logger.child as ReturnType<typeof vi.fn>).mock.results[0].value
+
+      runnerStartMock.mock.calls[0][0].context.debugLog(
+        JSON.stringify({ event: 'poll_summary', incoming: 2 }),
+      )
+
+      expect(monitorLog.info).toHaveBeenCalledWith('poll_summary', expect.objectContaining({
+        accountId: 'acc-1', bank: 'TEST', runId,
+      }))
+    })
+
+    it('hands the runner the same recorder that owns the run row', async () => {
+      const c = makeContainer()
+      persistentAccount(c)
+      runnerStartMock.mockResolvedValue({ stop: vi.fn(), done: new Promise(() => {}) })
+      const mod = buildBankingModule(c)
+      await mod.sessionManager.ensureRunning('acc-1')
+
+      const runId = runInserts(c)[0][1][0]
+      expect(runnerStartMock.mock.calls[0][0].recorder.runId).toBe(runId)
     })
 
     it('resolves the active script scoped to the account and its owning user', async () => {

@@ -248,6 +248,96 @@ describe('PersistentPlaywrightRunner', () => {
     await expect(handle.done).rejects.toThrow('browser_closed')
   })
 
+  describe('harness stage recording', () => {
+    // Records which stages the runner reports, so a failure before the script body ever
+    // runs is attributable rather than landing as "unknown".
+    function fakeRecorder() {
+      const stages: string[] = []
+      const failed: string[] = []
+      return {
+        stages,
+        failed,
+        recorder: {
+          stage: async <T,>(step: string, fn: () => Promise<T>) => {
+            stages.push(step)
+            try {
+              return await fn()
+            } catch (err) {
+              failed.push(step)
+              throw err
+            }
+          },
+          beginStage: () => ({ finish: async () => {} }),
+          note: async () => {},
+          observeUrl: vi.fn(),
+          event: vi.fn(),
+        },
+      }
+    }
+
+    it('reports the browser launch and the script load, and forwards the recorder to the monitor', async () => {
+      buildContext()
+      runMonitorMock.mockResolvedValue('stop_requested')
+      const { recorder, stages } = fakeRecorder()
+
+      await (await new PersistentPlaywrightRunner().start({ ...baseInput(), recorder: recorder as any })).done
+
+      expect(stages).toEqual(['launch', 'load_script'])
+      expect(runMonitorMock).toHaveBeenCalledWith(expect.objectContaining({ recorder }))
+    })
+
+    it('attributes a browser that will not start to the launch stage', async () => {
+      launchPersistentContextMock.mockRejectedValue(new Error('chromium refused to start'))
+      const { recorder, failed } = fakeRecorder()
+
+      await expect(
+        new PersistentPlaywrightRunner().start({ ...baseInput(), recorder: recorder as any }),
+      ).rejects.toThrow('chromium refused to start')
+      expect(failed).toEqual(['launch'])
+    })
+
+    it('attributes a script body that throws to the script-load stage, and still closes the context', async () => {
+      const { close } = buildContext()
+      const { recorder, failed } = fakeRecorder()
+
+      await expect(
+        new PersistentPlaywrightRunner().start({
+          ...baseInput(), scriptCode: 'throw new Error("script boom")', recorder: recorder as any,
+        }),
+      ).rejects.toThrow('script boom')
+      expect(failed).toEqual(['load_script'])
+      expect(close).toHaveBeenCalled()
+    })
+
+    it('attributes a script returning the wrong shape to the script-load stage', async () => {
+      buildContext()
+      const { recorder, failed } = fakeRecorder()
+
+      await expect(
+        new PersistentPlaywrightRunner().start({
+          ...baseInput(), scriptCode: 'return null', recorder: recorder as any,
+        }),
+      ).rejects.toThrow(/hooks object/i)
+      expect(failed).toEqual(['load_script'])
+    })
+
+    it('closes the browser context when page setup fails inside the launch stage', async () => {
+      // The outer cleanup does not cover this scope, so the launch stage owns it.
+      const close = vi.fn().mockResolvedValue(undefined)
+      const page = { addInitScript: vi.fn().mockRejectedValue(new Error('page setup failed')) }
+      launchPersistentContextMock.mockResolvedValue({
+        pages: () => [page], newPage: vi.fn(), close, on: vi.fn(), browser: () => ({ on: vi.fn() }),
+      })
+      const { recorder, failed } = fakeRecorder()
+
+      await expect(
+        new PersistentPlaywrightRunner().start({ ...baseInput(), recorder: recorder as any }),
+      ).rejects.toThrow('page setup failed')
+      expect(failed).toEqual(['launch'])
+      expect(close).toHaveBeenCalled()
+    })
+  })
+
   it('exercises the addInitScript navigator.webdriver guard', async () => {
     const { page } = buildContext()
     runMonitorMock.mockResolvedValue('stop_requested')
