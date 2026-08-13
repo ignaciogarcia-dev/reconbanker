@@ -13,7 +13,8 @@
     "build": "tsc && cp -r src/contexts/script-engine/infrastructure/scripts dist/contexts/script-engine/infrastructure/scripts && pnpm --dir client build",
     "start": "node dist/index.js",
     "migrate": "tsx --tsconfig tsconfig.json src/shared/infrastructure/db/migrate.ts",
-    "publish-script": "tsx --tsconfig tsconfig.json src/shared/infrastructure/cli/publishScript.ts"
+    "publish-script": "tsx --tsconfig tsconfig.json src/shared/infrastructure/cli/publishScript.ts",
+    "failures": "tsx --tsconfig tsconfig.json src/shared/infrastructure/cli/failures.ts"
   },
   "keywords": [],
   "author": "",
