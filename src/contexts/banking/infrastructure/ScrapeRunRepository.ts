@@ -59,4 +59,14 @@ export class ScrapeRunRepository implements IScrapeRunRepository {
     )
     return rowCount ?? 0
   }
+
+  // Step rows go with them via the ON DELETE CASCADE that has been on
+  // bank_scrape_steps.run_id since 010, so this stays a single statement.
+  async pruneOlderThan(days: number): Promise<number> {
+    const { rowCount } = await this.executor.query(
+      `DELETE FROM bank_scrape_runs WHERE started_at < now() - make_interval(days => $1)`,
+      [days]
+    )
+    return rowCount ?? 0
+  }
 }

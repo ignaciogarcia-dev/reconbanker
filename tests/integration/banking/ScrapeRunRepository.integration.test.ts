@@ -74,6 +74,27 @@ describe('ScrapeRunRepository (integration)', () => {
     expect(byId[alreadyDone].status).toBe('success')
   })
 
+  it('pruneOlderThan deletes aged runs and cascades to their step rows', async () => {
+    const old = crypto.randomUUID()
+    const recent = crypto.randomUUID()
+    await repo.create(old, account.id, scriptId)
+    await repo.create(recent, account.id, scriptId)
+    await getTestPool().query(
+      `INSERT INTO bank_scrape_steps (run_id, step_index, step, status) VALUES ($1,0,'login','failed')`, [old]
+    )
+    await getTestPool().query(
+      `UPDATE bank_scrape_runs SET started_at = now() - interval '120 days' WHERE id=$1`, [old]
+    )
+
+    expect(await repo.pruneOlderThan(90)).toBe(1)
+
+    const runs = await getTestPool().query('SELECT id FROM bank_scrape_runs')
+    expect(runs.rows.map((r) => r.id)).toEqual([recent])
+    // The FK cascade from 010 is what keeps this a single statement.
+    const steps = await getTestPool().query('SELECT id FROM bank_scrape_steps WHERE run_id=$1', [old])
+    expect(steps.rows).toHaveLength(0)
+  })
+
   it('markOrphaned reports zero when nothing was in progress', async () => {
     expect(await repo.markOrphaned()).toBe(0)
   })
