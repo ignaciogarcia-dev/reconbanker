@@ -8,8 +8,18 @@ const LEVELS = new Set<Level>(['debug', 'info', 'warn', 'error'])
 // in-memory state; refuse to JSON.parse a multi-MB line (OOM risk) and surface it.
 const MAX_LINE_SIZE = 1_000_000
 
-// Winston/printf reserve these; `context` would override the child-logger context.
-const RESERVED_KEYS = ['message', 'level', 'timestamp', 'context', 'at']
+// Keys the sink consumes itself: `level` is destructured out as the level hint, and
+// `at` is re-attached below as the script's emit time. Forwarding either from the
+// payload loop would duplicate them.
+const CONSUMED_KEYS = ['level', 'at']
+
+// Keys that collide with Winston's own entry fields (`context` would override the
+// child-logger context). These used to be dropped outright, which silently discarded
+// the error text from `debug("...", { message: e.message })` — the single most useful
+// field a failing script emits, and the shape nine live call sites use. Keep them off
+// the entry root, but preserve the value under a prefix so nothing is lost.
+const COLLIDING_KEYS = ['message', 'timestamp', 'context']
+const COLLIDING_PREFIX = 'detail_'
 
 // Defensive masking in case a script ever logs a credential-bearing field
 // (e.g. the full `raw` movement or the context). Scripts don't today, but the
@@ -91,8 +101,10 @@ export function makeDebugLogSink(
 
     const cleaned: Record<string, unknown> = {}
     for (const [k, v] of Object.entries(rest)) {
-      if (RESERVED_KEYS.includes(k)) continue
-      cleaned[k] = isSecretKey(k) ? '[REDACTED]' : v
+      if (CONSUMED_KEYS.includes(k)) continue
+      // Secrecy is decided by the name the script used, before any prefixing.
+      const value = isSecretKey(k) ? '[REDACTED]' : v
+      cleaned[COLLIDING_KEYS.includes(k) ? `${COLLIDING_PREFIX}${k}` : k] = value
     }
 
     const lvl = classify(typeof event === 'string' ? event : '', level)
