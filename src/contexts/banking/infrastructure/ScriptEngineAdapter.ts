@@ -1,6 +1,6 @@
 import { ScriptLoader } from '../../script-engine/infrastructure/ScriptLoader.js'
 import { PlaywrightRunner } from '../../script-engine/infrastructure/PlaywrightRunner.js'
-import { ActiveScript, IScriptEnginePort, ScrapedTransaction } from '../domain/IScriptEnginePort.js'
+import { ActiveScript, IScriptEnginePort, RunScriptContext, ScrapedTransaction } from '../domain/IScriptEnginePort.js'
 import type { ILogger } from '../../../shared/logger/ILogger.js'
 
 export class ScriptEngineAdapter implements IScriptEnginePort {
@@ -14,7 +14,7 @@ export class ScriptEngineAdapter implements IScriptEnginePort {
 
   async runScript(
     script: ActiveScript,
-    context: { accountId: string; lastExternalId: string | null }
+    context: RunScriptContext
   ): Promise<ScrapedTransaction[]> {
     // PlaywrightRunner expects a BankScript-like object with codeSnapshot and id
     const runner = new PlaywrightRunner(this.logger)
