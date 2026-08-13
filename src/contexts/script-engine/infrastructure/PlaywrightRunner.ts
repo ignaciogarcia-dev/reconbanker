@@ -100,10 +100,16 @@ export class PlaywrightRunner {
       password: credentialsCipher().decrypt(creds.encrypted_password),
       lastExternalId: context.lastExternalId,
       debugLog: this.logger
-        ? makeDebugLogSink(this.logger.child('[bank-scrape-script]'), {
-            accountId: context.accountId,
-            ...(context.runId ? { runId: context.runId } : {}),
-          })
+        ? makeDebugLogSink(
+            this.logger.child('[bank-scrape-script]'),
+            {
+              accountId: context.accountId,
+              ...(context.runId ? { runId: context.runId } : {}),
+            },
+            // The recorder is the trail's owner: it buffers what the script reports and
+            // writes it out only if the run fails.
+            context.recorder,
+          )
         : undefined,
     }
 

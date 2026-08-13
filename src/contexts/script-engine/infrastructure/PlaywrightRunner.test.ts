@@ -218,6 +218,33 @@ describe('PlaywrightRunner', () => {
     }))
   })
 
+  it('feeds every line a script emits into the recorder, which owns the failure trail', async () => {
+    // The two halves are tested separately — the sink pushes to whatever trail it is given,
+    // and the recorder buffers and flushes — so this asserts the one thing neither can:
+    // that the runner actually connects them.
+    dbQueryMock.mockResolvedValueOnce({ rows: [{ username: 'u', encrypted_password: 'p' }] })
+    buildBrowserChain('')
+    const child: any = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn() }
+    const logger: any = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn(() => child) }
+
+    const buffered: Array<Record<string, unknown>> = []
+    const recorder = {
+      stage: <T,>(_step: string, fn: () => Promise<T>) => fn(),
+      observeUrl: vi.fn(),
+      event: (entry: Record<string, unknown>) => { buffered.push(entry) },
+    }
+
+    const runner = new PlaywrightRunner(logger)
+    await runner.execute(
+      { id: 's', codeSnapshot: 'context.debugLog(JSON.stringify({ event: "login_submit_start" })); return []' } as any,
+      { accountId: 'acc-42', lastExternalId: null, runId: 'run-abc', recorder: recorder as any },
+    )
+
+    // Classified debug, so it never reaches a file — and is exactly what the trail is for.
+    expect(child.debug).toHaveBeenCalledWith('login_submit_start', expect.any(Object))
+    expect(buffered).toEqual([{ event: 'login_submit_start', level: 'debug' }])
+  })
+
   it('overrides a script-invented runId with the real one', async () => {
     // mi-dinero builds its own `${Date.now()}-${random}` under this exact key; baseMeta
     // is spread last so the real UUID wins rather than two values competing.

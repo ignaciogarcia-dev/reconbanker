@@ -237,6 +237,81 @@ describe('makeDebugLogSink', () => {
     })
   })
 
+  describe('failure trail', () => {
+    const fakeTrail = () => {
+      const entries: Array<Record<string, unknown>> = []
+      return { entries, event: (e: Record<string, unknown>) => { entries.push(e) }, names: () => entries.map((e) => e.event) }
+    }
+
+    it('captures debug-classified events, which are exactly the ones the log level drops', () => {
+      // LOG_LEVEL is unset in production => 'info', so these three never reach a file.
+      // They are also the entire happy-path story of how far a run got.
+      const log = fakeLogger()
+      const trail = fakeTrail()
+      const sink = makeDebugLogSink(log, { accountId: 'a' }, trail)
+
+      sink(emit('login_submit_start'))
+      sink(emit('pagination_done'))
+      sink(emit('movements_table_visible'))
+
+      expect(log.debug).toHaveBeenCalledTimes(3)
+      expect(trail.names()).toEqual(['login_submit_start', 'pagination_done', 'movements_table_visible'])
+      expect(trail.entries[0]).toMatchObject({ level: 'debug', at: '2026-06-09T00:00:00.000Z' })
+    })
+
+    it('captures the cleaned entry, so redaction and the collision prefix apply to the trail too', () => {
+      const log = fakeLogger()
+      const trail = fakeTrail()
+      makeDebugLogSink(log, {}, trail)(
+        emit('login_failed', { message: 'locator timeout', password: 'hunter2' })
+      )
+
+      expect(trail.entries[0]).toMatchObject({
+        event: 'login_failed',
+        detail_message: 'locator timeout',
+        password: '[REDACTED]',
+      })
+      expect(trail.entries[0]).not.toHaveProperty('message')
+    })
+
+    it('leaves baseMeta off trail entries — the flush line carries it once', () => {
+      const log = fakeLogger()
+      const trail = fakeTrail()
+      makeDebugLogSink(log, { accountId: 'acc-1', runId: 'run-1', bank: 'mi-dinero' }, trail)(
+        emit('poll_summary', { incoming: 2 })
+      )
+
+      expect(trail.entries[0]).toEqual({
+        at: '2026-06-09T00:00:00.000Z', event: 'poll_summary', level: 'info', incoming: 2,
+      })
+    })
+
+    it('captures lines it could not parse, and oversized ones, rather than losing them', () => {
+      const log = fakeLogger()
+      const trail = fakeTrail()
+      const sink = makeDebugLogSink(log, {}, trail)
+
+      sink('not json at all')
+      sink('[1,2,3]')
+      sink('x'.repeat(1_000_001))
+
+      expect(trail.names()).toEqual(['unparsed_log_line', 'unparsed_log_line', 'oversized_log_entry'])
+      expect(trail.entries[2]).toMatchObject({ size: 1_000_001 })
+    })
+
+    it('ignores non-string input without touching the trail', () => {
+      const trail = fakeTrail()
+      makeDebugLogSink(fakeLogger(), {}, trail)(undefined as unknown as string)
+      expect(trail.entries).toHaveLength(0)
+    })
+
+    it('works with no trail supplied, since the runner can execute without diagnostics wired', () => {
+      const log = fakeLogger()
+      expect(() => makeDebugLogSink(log)(emit('poll_summary'))).not.toThrow()
+      expect(log.info).toHaveBeenCalled()
+    })
+  })
+
   describe('guards', () => {
     it('falls back to debug for non-JSON lines', () => {
       const log = fakeLogger()

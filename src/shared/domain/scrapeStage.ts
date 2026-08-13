@@ -1,3 +1,5 @@
+import type { ITrailSink } from './failureTrail.js'
+
 /**
  * The stages a bank script run can be recorded at, mirroring the CHECK constraint on
  * bank_scrape_steps.step.
@@ -28,8 +30,11 @@ export type StepStatus = 'started' | 'success' | 'failed'
  * What the harness needs in order to record a stage, expressed as the narrowest
  * possible surface so `script-engine` depends on a capability rather than on
  * `banking`'s recorder. ScrapeRunRecorder satisfies this.
+ *
+ * Extends ITrailSink because the harness owns the debug-log sink: the sink is where
+ * every event a script emits passes through, so that is where the trail is filled.
  */
-export interface IStageRecorder {
+export interface IStageRecorder extends ITrailSink {
   stage<T>(step: ScrapeStage, fn: () => Promise<T>): Promise<T>
   /**
    * Reports the page the browser is on. Synchronous and I/O-free — the harness calls

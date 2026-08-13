@@ -6,6 +6,8 @@ import { ScrapeRunRepository } from '../../../src/contexts/banking/infrastructur
 import { ScrapeStepRepository } from '../../../src/contexts/banking/infrastructure/ScrapeStepRepository.js'
 import { executorFromPool } from '../../../src/contexts/banking/infrastructure/Executor.js'
 import { ScrapeRunRecorder } from '../../../src/contexts/banking/application/ScrapeRunRecorder.js'
+import { TrailBuffer } from '../../../src/contexts/banking/application/TrailBuffer.js'
+import { MAX_LOG_LINE_CHARS } from '../../../src/shared/domain/failureTrail.js'
 import { SCRAPE_STAGES } from '../../../src/contexts/banking/domain/scrapeStage.js'
 import { TimeoutError } from '../../../src/shared/errors/index.js'
 
@@ -271,6 +273,180 @@ describe('ScrapeRunRecorder (integration)', () => {
       await expect(rec.stage('load_script', async () => { throw err })).rejects.toThrow()
       await rec.fail(err)
       expect((await run(runId)).failure_type).toBe('login_failed')
+    })
+  })
+
+  describe('the failure trail', () => {
+    // A logger that keeps what it was handed, so the flushed entry can be inspected as
+    // the shape that actually lands in logs/error-*.log.
+    function capturingLogger() {
+      const errors: Array<{ message: string; meta: Record<string, unknown> }> = []
+      const logger: any = {
+        debug() {}, info() {}, warn() {},
+        error(message: string, meta: Record<string, unknown>) { errors.push({ message, meta }) },
+        child() { return logger },
+      }
+      return { logger, errors, trails: () => errors.filter((e) => e.message === 'failure_trail') }
+    }
+
+    it('flushes exactly one entry, carrying the run id and the events in order', async () => {
+      const runId = await newRun()
+      const { logger, errors, trails } = capturingLogger()
+      const rec = build(runId, logger)
+
+      rec.event({ event: 'login_submit_start', level: 'debug' })
+      rec.event({ event: 'authenticated', level: 'info' })
+      rec.event({ event: 'movements_fetch_failed', detail_message: 'table never rendered' })
+
+      await rec.fail(new Error('movements_fetch_failed: table never rendered'))
+
+      expect(trails()).toHaveLength(1)
+      const { meta } = trails()[0]
+      expect(meta.runId).toBe(runId)
+      expect(meta.stage).toBe('movements_fetch')
+      expect(meta.failureType).toBe('movements_fetch_failed')
+      const trail = meta.trail as Array<Record<string, unknown>>
+      expect(trail.map((e) => e.event)).toEqual([
+        'login_submit_start', 'authenticated', 'movements_fetch_failed',
+      ])
+      // One line, so it cannot interleave with a concurrent account's output.
+      expect(errors).toHaveLength(1)
+    })
+
+    it('keeps the earliest events alongside the most recent when the window overflows', async () => {
+      const runId = await newRun()
+      const { logger, trails } = capturingLogger()
+      const rec = build(runId, logger)
+
+      // Well past 50 pinned + 150 rolling: an eight-hour session at a 60s poll interval
+      // emits roughly this many events.
+      for (let i = 0; i < 1_000; i++) rec.event({ event: `checkpoint_${i}` })
+      await rec.fail(new Error('login_failed: session lost at hour six'))
+
+      const trail = (trails()[0].meta.trail as Array<Record<string, unknown>>)
+      const names = trail.map((e) => e.event)
+
+      // The login phase survives — that is what explains an auth failure hours later.
+      expect(names.slice(0, 3)).toEqual(['checkpoint_0', 'checkpoint_1', 'checkpoint_2'])
+      // ...and so does the run-up to the failure.
+      expect(names.at(-1)).toBe('checkpoint_999')
+      // The gap between them is declared rather than left to look continuous.
+      expect(trail.find((e) => e.event === 'trail_truncated')).toMatchObject({ dropped: 800 })
+      expect(trail).toHaveLength(50 + 1 + 150)
+    })
+
+    it('stays inside the sink line-size cap even when every event is oversized', async () => {
+      const runId = await newRun()
+      const { logger, trails } = capturingLogger()
+      const rec = build(runId, logger)
+
+      // A script is free to log a whole page of text as an error message.
+      for (let i = 0; i < 400; i++) rec.event({ event: `dump_${i}`, blob: 'x'.repeat(20_000) })
+      await rec.fail(new Error('boom'))
+
+      const trail = trails()[0].meta.trail as Array<Record<string, unknown>>
+      expect(JSON.stringify(trail).length).toBeLessThan(MAX_LOG_LINE_CHARS)
+      // Truncated, not dropped: which fields an event carried is itself a clue.
+      expect(trail[0]).toMatchObject({ event: 'dump_0', trail_entry_truncated: true })
+      expect(String(trail[0].blob)).toHaveLength(121) // 120 chars + the ellipsis
+    })
+
+    it('keeps only the identity of an event with too many fields to trim', async () => {
+      const runId = await newRun()
+      const { logger, trails } = capturingLogger()
+      const rec = build(runId, logger)
+
+      // Truncating values cannot shrink this one — there are simply too many of them —
+      // so the entry falls back to when it happened and what it was.
+      const wide: Record<string, unknown> = { at: '2026-08-13T00:00:00.000Z', event: 'wide' }
+      for (let i = 0; i < 2_000; i++) wide[`field_${i}`] = i
+      rec.event(wide)
+      await rec.fail(new Error('boom'))
+
+      const trail = trails()[0].meta.trail as Array<Record<string, unknown>>
+      expect(trail[0]).toEqual({
+        at: '2026-08-13T00:00:00.000Z', event: 'wide', trail_entry_truncated: true,
+      })
+    })
+
+    it('stays inside the cap when the field it falls back to is not a scalar', async () => {
+      // The sink copies `at` verbatim from a script's JSON without checking its type, so
+      // the last-resort clamp cannot assume the fields it keeps are small.
+      const runId = await newRun()
+      const { logger, trails } = capturingLogger()
+      const rec = build(runId, logger)
+
+      for (let i = 0; i < 250; i++) {
+        const wide: Record<string, unknown> = { at: { nested: 'y'.repeat(10_000) }, event: `wide_${i}` }
+        for (let f = 0; f < 2_000; f++) wide[`field_${f}`] = f
+        rec.event(wide)
+      }
+      await rec.fail(new Error('boom'))
+
+      const trail = trails()[0].meta.trail as Array<Record<string, unknown>>
+      expect(JSON.stringify(trail).length).toBeLessThan(MAX_LOG_LINE_CHARS)
+      expect(trail[0].at).toBe('[dropped: not a scalar]')
+    })
+
+    it('still marks the run failed when writing the trail throws', async () => {
+      // flushTrail runs before markFailed, so an unguarded throw here would lose the
+      // failure record in order to report a logging problem.
+      const runId = await newRun()
+      const exploding: any = {
+        debug() {}, info() {}, warn() {},
+        error() { throw new Error('log transport down') },
+        child() { return exploding },
+      }
+      const rec = build(runId, exploding)
+      rec.event({ event: 'something_happened' })
+
+      await expect(rec.fail(new Error('login_failed: rejected'))).resolves.toBeUndefined()
+
+      const r = await run(runId)
+      expect(r.status).toBe('failed')
+      expect(r.failure_type).toBe('login_failed')
+    })
+
+    it('does not let an unserializable event break the run it was diagnosing', async () => {
+      const runId = await newRun()
+      const { logger, trails } = capturingLogger()
+      const rec = build(runId, logger)
+
+      // Entries come from JSON.parse today, so this cannot arise from a script — but the
+      // trail must never be the thing that breaks a scrape.
+      const circular: Record<string, unknown> = { event: 'self_referential' }
+      circular.self = circular
+
+      expect(() => rec.event(circular)).not.toThrow()
+      rec.event({ event: 'after' })
+      await rec.fail(new Error('boom'))
+
+      const trail = trails()[0].meta.trail as Array<Record<string, unknown>>
+      expect(trail.map((e) => e.event)).toEqual(['self_referential', 'after'])
+      expect(trail[0]).toMatchObject({ trail_entry_truncated: true })
+      expect(() => JSON.stringify(trail)).not.toThrow()
+    })
+
+    it('emits no trail for a run that succeeded, and keeps nothing buffered', async () => {
+      const runId = await newRun()
+      const { logger, trails } = capturingLogger()
+      const trail = new TrailBuffer()
+      const rec = new ScrapeRunRecorder({ runId, runRepo, stepRepo, logger, trail })
+
+      rec.event({ event: 'poll_summary', incoming: 3 })
+      await rec.succeed(3)
+
+      expect(trails()).toHaveLength(0)
+      // Emptied, not merely left unwritten — the buffer holds counterparty names and
+      // account numbers, so a successful run should not leave them in memory.
+      expect(trail.drain()).toEqual([])
+    })
+
+    it('writes no trail entry when there was nothing to report', async () => {
+      const runId = await newRun()
+      const { logger, errors } = capturingLogger()
+      await new ScrapeRunRecorder({ runId, runRepo, stepRepo, logger }).fail(new Error('boom'))
+      expect(errors).toHaveLength(0)
     })
   })
 
