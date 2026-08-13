@@ -42,15 +42,17 @@ export class InMemoryBankTransactionRepository implements IBankTransactionReposi
 }
 
 export class InMemoryScrapeRunRepository implements IScrapeRunRepository {
-  runs: Array<{ runId: string; accountId: string; scriptId: string; status: string; count?: number; error?: string; failureType?: string }> = []
+  runs: Array<{ runId: string; accountId: string; scriptId: string; status: string; count?: number; error?: string; failureType?: string; stopReason?: string }> = []
   withTx() { return this }
   async create(runId: string, accountId: string, scriptId: string) {
     this.runs.push({ runId, accountId, scriptId, status: 'running' })
   }
-  async markSuccess(runId: string, count: number) {
-    const r = this.runs.find((x) => x.runId === runId); if (r) { r.status = 'success'; r.count = count }
+  async markSuccess(runId: string, count: number, stopReason?: string) {
+    const r = this.runs.find((x) => x.runId === runId)
+    if (r) { r.status = 'success'; r.count = count; r.stopReason = stopReason }
   }
-  async markFailed(runId: string, error: string, failureType: string = 'unknown') {
-    const r = this.runs.find((x) => x.runId === runId); if (r) { r.status = 'failed'; r.error = error; r.failureType = failureType }
+  async markFailed(runId: string, error: string, failureType: string = 'unknown', stopReason?: string) {
+    const r = this.runs.find((x) => x.runId === runId)
+    if (r) { r.status = 'failed'; r.error = error; r.failureType = failureType; r.stopReason = stopReason }
   }
 }

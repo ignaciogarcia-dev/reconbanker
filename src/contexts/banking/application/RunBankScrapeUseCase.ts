@@ -5,6 +5,8 @@ import { ILogger } from '../../../shared/logger/ILogger.js'
 import { IBankTransactionRepository } from '../domain/IBankTransactionRepository.js'
 import { IScriptEnginePort } from '../domain/IScriptEnginePort.js'
 import { IScrapeRunRepository } from '../domain/IScrapeRunRepository.js'
+import { IScrapeStepRepository } from '../domain/IScrapeStepRepository.js'
+import { ScrapeRunRecorder } from './ScrapeRunRecorder.js'
 import { IAccountForBankingReader } from '../domain/ports/IAccountForBankingReader.js'
 import { IScrapeFailureNotifier } from '../domain/ports/IScrapeFailureNotifier.js'
 import { categorizeFailure } from '../domain/scrapeFailure.js'
@@ -19,6 +21,7 @@ export interface RunBankScrapeDeps {
   accountReader: IAccountForBankingReader
   txRepo: IBankTransactionRepository
   scrapeRunRepo: IScrapeRunRepository
+  stepRepo?: IScrapeStepRepository
   scriptEngine: IScriptEnginePort
   ingest: IngestTransactionsUseCase
   logger?: ILogger
@@ -49,14 +52,21 @@ export class RunBankScrapeUseCase {
     const runId = crypto.randomUUID()
     await scrapeRunRepo.create(runId, accountId, script.id)
 
+    // Falls back to a no-op-ish recorder when no step repository is wired, so the
+    // use case behaves identically in setups that don't record steps.
+    const recorder = this.deps.stepRepo
+      ? new ScrapeRunRecorder({ runId, runRepo: scrapeRunRepo, stepRepo: this.deps.stepRepo, logger })
+      : undefined
+
     try {
       const transactions = await withTimeout(
-        scriptEngine.runScript(script, { accountId, lastExternalId, runId }),
+        scriptEngine.runScript(script, { accountId, lastExternalId, runId, recorder }),
         this.deps.runTimeoutMs ?? DEFAULT_RUN_TIMEOUT_MS,
         `bank scrape ${account.bank}`,
       )
       const saved = await ingest.execute(accountId, script.id, transactions)
-      await scrapeRunRepo.markSuccess(runId, saved)
+      if (recorder) await recorder.succeed(saved)
+      else await scrapeRunRepo.markSuccess(runId, saved)
       await this.deps.notifier?.recordSuccess({ userId: account.userId, accountId })
     } catch (err) {
       // Expected scrape failures (login, missing selector, timeout) are recorded in
@@ -65,7 +75,8 @@ export class RunBankScrapeUseCase {
       // throws — those happen before this try and surface as a failed job.
       const message = err instanceof Error ? err.message : String(err)
       const category = categorizeFailure(err)
-      await scrapeRunRepo.markFailed(runId, message, category)
+      if (recorder) await recorder.fail(err)
+      else await scrapeRunRepo.markFailed(runId, message, category)
       await this.deps.notifier?.recordFailure({ userId: account.userId, accountId, category })
       logger?.warn('bank scrape run failed', { accountId, runId, scriptId: script.id, category, error: message })
     }

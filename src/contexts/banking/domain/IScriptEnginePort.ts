@@ -1,3 +1,5 @@
+import type { IStageRecorder } from '../../../shared/domain/scrapeStage.js'
+
 export interface ScrapedTransaction {
   externalId: string
   referenceHash: string
@@ -20,6 +22,9 @@ export interface RunScriptContext {
   accountId: string
   lastExternalId: string | null
   runId: string
+  // Lets the harness record the stages around the script body (launch, load_script,
+  // credentials, close) — the failures that happen before a script ever runs.
+  recorder?: IStageRecorder
 }
 
 export interface IScriptEnginePort {
