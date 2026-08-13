@@ -27,6 +27,27 @@ export type ScrapeStage = (typeof SCRAPE_STAGES)[number]
 export type StepStatus = 'started' | 'success' | 'failed'
 
 /**
+ * A stage that has been opened and not yet closed. Returned by `beginStage` for the one
+ * shape `stage()` cannot express: a stage whose outcome is a *return value* rather than a
+ * thrown error. The monitor's authentication wait is exactly that — it times out by
+ * falling out of a loop, which `stage()` would record as a success.
+ */
+export interface OpenStage {
+  finish(status: Exclude<StepStatus, 'started'>, outcome?: StageOutcome): Promise<void>
+}
+
+/**
+ * The failure detail a harness can attach to a stage it closes itself. Deliberately
+ * narrower than banking's StepOutcome: the harness has no stack for a failure nobody
+ * threw, and the recorder owns the timing.
+ */
+export interface StageOutcome {
+  failureType?: string
+  errorMessage?: string
+  url?: string
+}
+
+/**
  * What the harness needs in order to record a stage, expressed as the narrowest
  * possible surface so `script-engine` depends on a capability rather than on
  * `banking`'s recorder. ScrapeRunRecorder satisfies this.
@@ -36,6 +57,15 @@ export type StepStatus = 'started' | 'success' | 'failed'
  */
 export interface IStageRecorder extends ITrailSink {
   stage<T>(step: ScrapeStage, fn: () => Promise<T>): Promise<T>
+  /** Opens a stage the caller will close itself. See OpenStage. */
+  beginStage(step: ScrapeStage): OpenStage
+  /**
+   * Records a stage with no in-progress phase worth a row — a poll that failed, say.
+   * A poll writes no `started` row because a hung poll already trips the monitor's
+   * watchdog, which writes the failed row itself; two rows a minute per account would
+   * buy nothing.
+   */
+  note(step: ScrapeStage, status: Exclude<StepStatus, 'started'>, outcome?: StageOutcome): Promise<void>
   /**
    * Reports the page the browser is on. Synchronous and I/O-free — the harness calls
    * it at the moment of failure, and the recorder decides whether it ends up on a row.

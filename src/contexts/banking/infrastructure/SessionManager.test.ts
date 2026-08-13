@@ -31,6 +31,31 @@ describe('SessionManager', () => {
     expect(mgr.isRunning('acc-1')).toBe(true)
   })
 
+  it('opens no further run rows while a session is alive, however often the health-check fires', async () => {
+    // The run row is opened inside startFn, which is reached only on a real launch. The
+    // persistent-session health-check calls ensureRunning roughly every 75 seconds, so a
+    // row created anywhere upstream of this guard would orphan a row a minute.
+    const repo = sessionRepo()
+    const d = deferred<string>()
+    let rowsOpened = 0
+    const startFn = vi.fn().mockImplementation(async () => {
+      rowsOpened += 1
+      return { stop: vi.fn(), done: d.promise } as SessionHandle
+    })
+    const mgr = new SessionManager(startFn, repo)
+
+    await mgr.ensureRunning('acc-1')
+    for (let tick = 0; tick < 10; tick++) await mgr.ensureRunning('acc-1')
+
+    expect(rowsOpened).toBe(1)
+
+    // ...and once the session really ends, the next launch opens a new one.
+    d.resolve('logged_out')
+    await new Promise((r) => setTimeout(r, 0))
+    await mgr.ensureRunning('acc-1')
+    expect(rowsOpened).toBe(2)
+  })
+
   it('marks stopped and frees the slot when the session ends', async () => {
     const repo = sessionRepo()
     const d = deferred<string>()

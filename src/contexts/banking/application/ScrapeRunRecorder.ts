@@ -1,5 +1,6 @@
 import type { ILogger } from '../../../shared/logger/ILogger.js'
 import type { IFailureTrail, TrailEntry } from '../../../shared/domain/failureTrail.js'
+import type { OpenStage } from '../../../shared/domain/scrapeStage.js'
 import { IScrapeRunRepository } from '../domain/IScrapeRunRepository.js'
 import { IScrapeStepRepository, StepOutcome } from '../domain/IScrapeStepRepository.js'
 import { categorizeFailure } from '../domain/scrapeFailure.js'
@@ -103,28 +104,53 @@ export class ScrapeRunRecorder {
    * `fn`, the row stays `started` and names the stage it died in.
    */
   async stage<T>(step: ScrapeStage, fn: () => Promise<T>): Promise<T> {
-    const index = this.stepIndex++
-    const startedAt = this.clock()
-    await this.bestEffort(`start:${step}`, () => this.deps.stepRepo.start(this.deps.runId, index, step))
+    const open = this.open(step)
+    await open.opened
 
     try {
       const result = await fn()
-      await this.bestEffort(`finish:${step}`, () =>
-        this.deps.stepRepo.finish(this.deps.runId, index, 'success', { durationMs: this.clock() - startedAt })
-      )
+      await open.finish('success')
       return result
     } catch (err) {
-      // Remember the harness stage so fail() can name the cause when the error itself
-      // carries no category — a browser that would not launch is not an "unknown" failure.
-      this.failedStage ??= step
-      await this.bestEffort(`finish:${step}`, () =>
-        this.deps.stepRepo.finish(this.deps.runId, index, 'failed', {
-          ...describe(err),
-          url: this.lastUrl,
-          durationMs: this.clock() - startedAt,
-        })
-      )
+      await open.finish('failed', describe(err))
       throw err
+    }
+  }
+
+  /**
+   * Opens a stage for a caller that will close it itself — the monitor's authentication
+   * wait, whose failure is a timed-out loop rather than a thrown error.
+   *
+   * Returns synchronously: the caller is about to enter a wait, not await a write. The
+   * insert is awaited inside `finish` instead, since the in-place update is keyed by
+   * (runId, stepIndex) and would otherwise update nothing.
+   */
+  beginStage(step: ScrapeStage): OpenStage {
+    return this.open(step)
+  }
+
+  private open(step: ScrapeStage): OpenStage & { opened: Promise<void> } {
+    const index = this.stepIndex++
+    const startedAt = this.clock()
+    const opened = this.bestEffort(`start:${step}`, () =>
+      this.deps.stepRepo.start(this.deps.runId, index, step)
+    )
+
+    return {
+      opened,
+      finish: async (status, outcome: StepOutcome = {}) => {
+        await opened
+        // Remember the harness stage so fail() can name the cause when the error itself
+        // carries no category — a browser that would not launch is not an "unknown" failure.
+        if (status === 'failed') this.failedStage ??= step
+        await this.bestEffort(`finish:${step}`, () =>
+          this.deps.stepRepo.finish(this.deps.runId, index, status, {
+            ...outcome,
+            url: outcome.url ?? this.lastUrl,
+            durationMs: this.clock() - startedAt,
+          })
+        )
+      },
     }
   }
 
@@ -132,11 +158,18 @@ export class ScrapeRunRecorder {
   async note(step: ScrapeStage, status: 'success' | 'failed', outcome: StepOutcome = {}): Promise<void> {
     const index = this.stepIndex++
     await this.bestEffort(`record:${step}`, () =>
-      this.deps.stepRepo.record(this.deps.runId, index, step, status, outcome)
+      this.deps.stepRepo.record(this.deps.runId, index, step, status, {
+        ...outcome,
+        url: outcome.url ?? this.lastUrl,
+      })
     )
   }
 
-  async succeed(transactionsFound: number, stopReason?: string): Promise<void> {
+  /**
+   * `transactionsFound` is null for a persistent session: it ingests continuously over a
+   * lifetime that can span days, so no single number describes the run.
+   */
+  async succeed(transactionsFound: number | null, stopReason?: string): Promise<void> {
     if (this.closed) return
     this.closed = true
     // A run that worked explains nothing, so the trail is dropped rather than written.
