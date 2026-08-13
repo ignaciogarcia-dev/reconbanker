@@ -37,15 +37,17 @@ function makeContainer(overrides: { isRunning?: (id: string) => boolean; expire?
   const { child: log } = makeLogger()
   const expireExecute = vi.fn(overrides.expire ?? (async () => {}))
   const isRunning = vi.fn(overrides.isRunning ?? (() => false))
+  const pruneRuns = vi.fn(async () => 0)
   return {
     container: {
       logger: { child: vi.fn(() => log) },
-      banking: { sessionManager: { isRunning } },
+      banking: { sessionManager: { isRunning }, scrapeRunRepo: { pruneOlderThan: pruneRuns } },
       conciliation: { expireStaleRequests: { execute: expireExecute } },
     } as never,
     log,
     expireExecute,
     isRunning,
+    pruneRuns,
   }
 }
 
@@ -60,6 +62,30 @@ describe('Scheduler', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.unstubAllEnvs()
+  })
+
+  it('prunes old scrape runs on start and on its own interval, using the configured retention', async () => {
+    dbQuery.mockResolvedValue({ rows: [] })
+    vi.stubEnv('SCRAPE_RUN_RETENTION_DAYS', '30')
+    vi.stubEnv('SCRAPE_RUN_PRUNE_INTERVAL_SECONDS', '3600')
+    const { container, pruneRuns } = makeContainer()
+    const scheduler = new Scheduler(container)
+
+    await scheduler.start()
+    expect(pruneRuns).toHaveBeenCalledWith(30)
+
+    await vi.advanceTimersByTimeAsync(3600 * 1000)
+    expect(pruneRuns).toHaveBeenCalledTimes(2)
+    scheduler.stop()
+  })
+
+  it('defaults scrape run retention to 90 days', async () => {
+    dbQuery.mockResolvedValue({ rows: [] })
+    const { container, pruneRuns } = makeContainer()
+    const scheduler = new Scheduler(container)
+    await scheduler.start()
+    expect(pruneRuns).toHaveBeenCalledWith(90)
+    scheduler.stop()
   })
 
   it('runs initial pass for polling, scraping, persistent sessions, and expire', async () => {

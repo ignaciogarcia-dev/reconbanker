@@ -20,17 +20,20 @@ export class Scheduler {
     const scrapeInterval  = Number(process.env.SCRAPE_INTERVAL_SECONDS ?? 1200) * 1000
     const expireInterval  = Number(process.env.EXPIRE_STALE_REQUESTS_INTERVAL_SECONDS ?? 3600) * 1000
     const sessionCheckInterval = Number(process.env.SESSION_HEALTHCHECK_SECONDS ?? 75) * 1000
+    const pruneInterval = Number(process.env.SCRAPE_RUN_PRUNE_INTERVAL_SECONDS ?? 86400) * 1000
 
     await this.enqueuePolling()
     await this.enqueueScraping()
     await this.ensurePersistentSessions()
     await this.expireStaleRequests()
+    await this.pruneScrapeRuns()
 
     this.timers.push(
       setInterval(() => this.runSafely('enqueuePolling', () => this.enqueuePolling()),  pollingInterval),
       setInterval(() => this.runSafely('enqueueScraping', () => this.enqueueScraping()), scrapeInterval),
       setInterval(() => this.runSafely('ensurePersistentSessions', () => this.ensurePersistentSessions()), sessionCheckInterval),
       setInterval(() => this.runSafely('expireStaleRequests', () => this.expireStaleRequests()), expireInterval),
+      setInterval(() => this.runSafely('pruneScrapeRuns', () => this.pruneScrapeRuns()), pruneInterval),
     )
 
     this.log.info('started', {
@@ -108,5 +111,14 @@ export class Scheduler {
 
   private async expireStaleRequests(): Promise<void> {
     await this.container.conciliation.expireStaleRequests.execute()
+  }
+
+  // Neither bank_scrape_runs nor bank_scrape_steps was ever pruned — rows only ever
+  // disappeared when an account was deleted. Survivable while almost nothing was
+  // written; unbounded now that every execution records a run and its failing stages.
+  private async pruneScrapeRuns(): Promise<void> {
+    const days = Number(process.env.SCRAPE_RUN_RETENTION_DAYS ?? 90)
+    const deleted = await this.container.banking.scrapeRunRepo.pruneOlderThan(days)
+    if (deleted > 0) this.log.info('pruned old scrape runs', { deleted, retentionDays: days })
   }
 }

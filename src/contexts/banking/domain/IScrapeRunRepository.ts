@@ -10,4 +10,6 @@ export interface IScrapeRunRepository {
    * definition. Returns how many were reconciled.
    */
   markOrphaned(): Promise<number>
+  /** Deletes runs older than `days`; step rows follow via cascade. Returns the count. */
+  pruneOlderThan(days: number): Promise<number>
 }

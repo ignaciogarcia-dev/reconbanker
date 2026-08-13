@@ -55,6 +55,9 @@ export class InMemoryScrapeRunRepository implements IScrapeRunRepository {
     const r = this.runs.find((x) => x.runId === runId)
     if (r) { r.status = 'failed'; r.error = error; r.failureType = failureType; r.stopReason = stopReason }
   }
+  async pruneOlderThan(_days: number): Promise<number> {
+    return 0 // no clock in the fake; retention is covered by the integration test
+  }
   async markOrphaned(): Promise<number> {
     const stuck = this.runs.filter((x) => x.status === 'running')
     for (const r of stuck) { r.status = 'failed'; r.failureType = 'orphaned' }
