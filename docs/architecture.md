@@ -163,6 +163,79 @@ Key tables:
 | `conciliation_attempts` | Attempt history with reasons |
 | `conciliated_transactions` | Confirmed matches |
 
+## Reading bank script failures
+
+Bank script failures are recorded in two places that already existed: the **database**, for
+structured records you can search, and the **log files**, for the full pre-failure event
+trail. The run's own id (`bank_scrape_runs.id`) is the only identifier tying them together —
+no separate tracking number is issued.
+
+Querying directly is the intended access method: there is no API endpoint and no UI. The
+`pnpm failures` CLI wraps the two common questions.
+
+```bash
+# Which runs failed? Filter by account, time window, and failing stage.
+pnpm failures
+pnpm failures --account=<uuid> --since=7d --stage=login --limit=50
+
+# What happened in this one? Prints the run, its stages in order, and its event trail.
+pnpm failures --run=<uuid>
+```
+
+The detail view retrieves the trail from `logs/error-*.log` itself, and prints the
+equivalent `grep`/`jq` command so the database-to-log-file link is explicit rather than
+folklore. A trail older than the 14-day log rotation is gone; the run and step rows remain.
+
+### Canonical queries
+
+These are what the CLI runs. All were checked with `EXPLAIN (ANALYZE)` against a seeded
+20k-run table — none falls back to a sequential scan on either failure table.
+
+```sql
+-- Recent failures, most recent first.        -> idx_bank_scrape_runs_failed
+SELECT r.started_at, r.duration_ms, r.account_id, r.failure_type, r.stop_reason, r.id
+  FROM bank_scrape_runs r
+ WHERE r.status = 'failed'
+ ORDER BY r.started_at DESC
+ LIMIT 20;
+
+-- Every run that failed at the login step.   -> + idx_bank_scrape_steps_failed
+SELECT r.started_at, r.account_id, r.failure_type, r.id
+  FROM bank_scrape_runs r
+ WHERE r.status = 'failed'
+   AND EXISTS (SELECT 1 FROM bank_scrape_steps st
+                WHERE st.run_id = r.id AND st.status = 'failed' AND st.step = 'login')
+ ORDER BY r.started_at DESC
+ LIMIT 20;
+
+-- One run's stages, in the order they happened.   -> idx_bank_scrape_steps_run
+SELECT step_index, step, status, failure_type, duration_ms, url, error_message
+  FROM bank_scrape_steps
+ WHERE run_id = '<uuid>'
+ ORDER BY step_index;
+
+-- Which stage fails most often, over the last week.
+SELECT step, count(*) AS failures
+  FROM bank_scrape_steps
+ WHERE status = 'failed' AND created_at > now() - interval '7 days'
+ GROUP BY step
+ ORDER BY failures DESC;
+
+-- Runs still in progress. Outside a live session these are orphans awaiting the next
+-- boot reconciliation, which closes them as failure_type='orphaned'.
+SELECT id, account_id, started_at FROM bank_scrape_runs WHERE status = 'running';
+```
+
+Use an EXISTS rather than a join for the stage filter: a join returns one row per matching
+step, so it needs a `DISTINCT` that costs the ordering, and the planner leads with the runs
+table either way.
+
+The trail itself is not in the database — retrieve it by run id:
+
+```bash
+grep -h '<run-uuid>' logs/error-*.log | jq 'select(.message=="failure_trail") | .trail'
+```
+
 ## Frontend
 
 React 19 SPA in `client/`. API routes are mounted under `/api`, and the shared Axios client uses `/api` by default with an optional `VITE_API_BASE_URL` override. The Vite dev server proxies `/api` to the backend.

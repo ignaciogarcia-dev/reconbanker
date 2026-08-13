@@ -15,6 +15,7 @@
 | `pnpm test:coverage` | Run backend tests with coverage |
 | `pnpm test:integration` | Run backend integration tests (separate `vitest.integration.config.ts`, run serially, need a Postgres test DB — see [below](#integration-tests)) |
 | `pnpm typecheck` | Type-check backend source and tests (`tsc --noEmit` + `tsc -p tsconfig.test.json`) |
+| `pnpm failures` | List failed bank script runs, or print one in full with `--run=<uuid>` (see [architecture](architecture.md#reading-bank-script-failures)) |
 
 ### Frontend (run from `client/`)
 
