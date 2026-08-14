@@ -27,21 +27,30 @@ export function parseArgs(argv: string[]): { bank: string; flowType: FlowType; v
   return { bank: opts.bank, flowType: opts.flowType as FlowType, version: opts.version }
 }
 
-async function main() {
-  const { bank, flowType, version } = parseArgs(process.argv.slice(2))
+/** The use-case surface the command needs, narrowed so a test can stand in without a database. */
+export type ScriptPublisher = Pick<PublishOfficialScriptUseCase, 'execute'>
 
-  const repo = new BankScriptRepository(executorFromPool(db))
-  const useCase = new PublishOfficialScriptUseCase(repo, new PgUnitOfWork(db), new InMemoryEventBus(logger))
+// Argv and the use case are parameters rather than things `main` reaches for, so the command
+// is reachable from a test without a database. Constructing them — and the pool teardown —
+// belongs to the bootstrap below, which is the only part that needs a real process.
+export async function main(argv: string[], useCase: ScriptPublisher): Promise<void> {
+  const { bank, flowType, version } = parseArgs(argv)
 
   await useCase.execute({ bank, flowType, version })
   log.info(`published ${bank}:${flowType} v${version} as the new official active script`)
-  await db.end()
 }
 
 const isMain = process.argv[1] && import.meta.url === `file://${process.argv[1]}`
 if (isMain) {
-  main().catch(err => {
-    log.error('publish-script failed', { error: err instanceof Error ? err.message : String(err) })
-    process.exit(1)
-  })
+  const useCase = new PublishOfficialScriptUseCase(
+    new BankScriptRepository(executorFromPool(db)),
+    new PgUnitOfWork(db),
+    new InMemoryEventBus(logger)
+  )
+  main(process.argv.slice(2), useCase)
+    .then(() => db.end())
+    .catch(err => {
+      log.error('publish-script failed', { error: err instanceof Error ? err.message : String(err) })
+      process.exit(1)
+    })
 }
