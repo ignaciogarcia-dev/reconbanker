@@ -160,9 +160,19 @@ export async function readTrail(runId: string, logsDir = LOGS_DIR): Promise<unkn
 export const trailCommand = (runId: string, logsDir = LOGS_DIR): string =>
   `grep -h '${runId}' ${path.join(logsDir, 'error-*.log')} | jq 'select(.message=="failure_trail") | .trail'`
 
-async function main(): Promise<void> {
-  const command = parseArgs(process.argv.slice(2))
-  const reader = new ScrapeFailureReadModel(db)
+/** The read-model surface the command needs, narrowed so a test can stand in without a database. */
+export type FailureReader = Pick<ScrapeFailureReadModel, 'findRun' | 'listSteps' | 'listFailed'>
+
+// Argv, reader, sink and logs directory are parameters rather than things `main` reaches for,
+// so the command itself is reachable from a test without a database, a real argv, or the
+// process's stdout. The bootstrap below supplies the real ones.
+export async function main(
+  argv: string[],
+  reader: FailureReader,
+  out: (line: string) => void,
+  logsDir: string
+): Promise<void> {
+  const command = parseArgs(argv)
 
   if (command.mode === 'detail') {
     const run = await reader.findRun(command.runId)
@@ -172,16 +182,16 @@ async function main(): Promise<void> {
       return
     }
     const steps = await reader.listSteps(command.runId)
-    const trail = await readTrail(command.runId)
+    const trail = await readTrail(command.runId, logsDir)
 
-    console.log(formatRun(run))
-    console.log(`\nstages (${steps.length})`)
-    for (const step of steps) console.log(formatStep(step))
+    out(formatRun(run))
+    out(`\nstages (${steps.length})`)
+    for (const step of steps) out(formatStep(step))
 
-    console.log(`\nevent trail`)
-    if (trail) console.log(JSON.stringify(trail, null, 2))
-    else console.log('  not found in the local log files (rotated out, or this run failed on another host)')
-    console.log(`\nretrieve it directly with:\n  ${trailCommand(command.runId)}`)
+    out(`\nevent trail`)
+    if (trail) out(JSON.stringify(trail, null, 2))
+    else out('  not found in the local log files (rotated out, or this run failed on another host)')
+    out(`\nretrieve it directly with:\n  ${trailCommand(command.runId, logsDir)}`)
     return
   }
 
@@ -193,17 +203,17 @@ async function main(): Promise<void> {
   })
 
   if (!runs.length) {
-    console.log('no failed runs matched')
+    out('no failed runs matched')
     return
   }
-  console.log(LIST_HEADER)
-  for (const run of runs) console.log(formatListLine(run))
-  console.log(`\n${runs.length} run(s). Inspect one with: pnpm failures --run=<uuid>`)
+  out(LIST_HEADER)
+  for (const run of runs) out(formatListLine(run))
+  out(`\n${runs.length} run(s). Inspect one with: pnpm failures --run=<uuid>`)
 }
 
 const isMain = process.argv[1] && import.meta.url === `file://${process.argv[1]}`
 if (isMain) {
-  main()
+  main(process.argv.slice(2), new ScrapeFailureReadModel(db), console.log, LOGS_DIR)
     .then(() => db.end())
     .catch((err) => {
       log.error('failures failed', { error: err instanceof Error ? err.message : String(err) })

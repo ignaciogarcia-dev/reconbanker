@@ -49,6 +49,17 @@ async function insertStep(runId: string, stepIndex: number, step: string, status
   )
 }
 
+/** A run with nothing but the columns the schema demands — every nullable one left unset. */
+async function insertBareRun(): Promise<string> {
+  const runId = crypto.randomUUID()
+  await getTestPool().query(
+    `INSERT INTO bank_scrape_runs (id, account_id, status, started_at)
+     VALUES ($1, $2, 'failed', now())`,
+    [runId, account.id]
+  )
+  return runId
+}
+
 describe('ScrapeFailureReadModel (integration)', () => {
   beforeEach(async () => {
     await truncateAll()
@@ -164,6 +175,20 @@ describe('ScrapeFailureReadModel (integration)', () => {
       expect(runs.map((r) => r.runId)).toEqual([wanted])
     })
 
+    it('lists a run that recorded almost nothing, with nulls in place of the gaps', async () => {
+      const runId = await insertBareRun()
+
+      const [run] = await reader.listFailed({ limit: 10 })
+      expect(run).toMatchObject({
+        runId,
+        durationMs: null,
+        scriptVersion: null,
+        failureType: null,
+        stopReason: null,
+        failingStage: null,
+      })
+    })
+
     it('honours the limit', async () => {
       for (let i = 0; i < 5; i++) await insertRun()
       expect(await reader.listFailed({ limit: 2 })).toHaveLength(2)
@@ -191,6 +216,48 @@ describe('ScrapeFailureReadModel (integration)', () => {
       expect(await reader.findRun(crypto.randomUUID())).toBeNull()
     })
 
+    it('reports every unset column as null rather than undefined', async () => {
+      // An orphaned run: the process died before it wrote a script id, a duration, or an
+      // outcome. The CLI renders each of these as a dash, which it can only do if the read
+      // model hands back null rather than undefined.
+      const runId = await insertBareRun()
+
+      const run = await reader.findRun(runId)
+      expect(run).toMatchObject({
+        runId,
+        accountId: account.id,
+        status: 'failed',
+        scriptVersion: null,
+        transactionsFound: null,
+        failureType: null,
+        stopReason: null,
+        errorMessage: null,
+        finishedAt: null,
+        durationMs: null,
+      })
+    })
+
+    it('carries every column through when the run recorded all of them', async () => {
+      const runId = crypto.randomUUID()
+      await getTestPool().query(
+        `INSERT INTO bank_scrape_runs
+           (id, account_id, script_id, status, transactions_found, failure_type, stop_reason,
+            error_message, started_at, finished_at, duration_ms)
+         VALUES ($1,$2,$3,'failed',17,'timeout','watchdog_timeout','it timed out',
+                 '2026-08-13T10:00:00Z','2026-08-13T10:01:00Z',60000)`,
+        [runId, account.id, scriptId]
+      )
+
+      expect(await reader.findRun(runId)).toMatchObject({
+        transactionsFound: 17,
+        failureType: 'timeout',
+        stopReason: 'watchdog_timeout',
+        errorMessage: 'it timed out',
+        finishedAt: new Date('2026-08-13T10:01:00Z'),
+        durationMs: 60000,
+      })
+    })
+
     it('returns the stages in the order they happened, with their failure detail', async () => {
       const runId = await insertRun()
       await insertStep(runId, 2, 'login', 'failed')
@@ -207,6 +274,24 @@ describe('ScrapeFailureReadModel (integration)', () => {
 
     it('returns an empty list for a run with no recorded stages', async () => {
       expect(await reader.listSteps(await insertRun())).toEqual([])
+    })
+
+    it('carries a stage’s stack and duration through, and nulls what it never wrote', async () => {
+      const runId = await insertRun()
+      await getTestPool().query(
+        `INSERT INTO bank_scrape_steps
+           (run_id, step_index, step, status, failure_type, error_message, stack, url, duration_ms)
+         VALUES ($1, 0, 'login', 'failed', 'login_failed', 'bad credentials',
+                 'Error: bad credentials\n    at submit', 'https://bank.example/login', 1200),
+                ($1, 1, 'close', 'success', NULL, NULL, NULL, NULL, NULL)`,
+        [runId]
+      )
+
+      const [failed, succeeded] = await reader.listSteps(runId)
+      expect(failed).toMatchObject({ stack: expect.stringContaining('at submit'), durationMs: 1200 })
+      expect(succeeded).toMatchObject({
+        failureType: null, errorMessage: null, stack: null, url: null, durationMs: null,
+      })
     })
   })
 })

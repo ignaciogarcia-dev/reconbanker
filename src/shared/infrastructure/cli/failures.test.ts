@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { mkdtemp, rm, writeFile } from 'fs/promises'
+import { mkdtemp, rm, writeFile, symlink } from 'fs/promises'
 import { tmpdir } from 'os'
 import path from 'path'
 
@@ -8,6 +8,7 @@ vi.mock('../db/client.js', () => ({ db: { query: vi.fn(), end: vi.fn() } }))
 
 import {
   parseArgs, parseWindow, formatListLine, formatRun, formatStep, readTrail, trailCommand,
+  main, type FailureReader,
 } from './failures.js'
 
 describe('failures parseArgs', () => {
@@ -182,10 +183,144 @@ describe('retrieving the trail from the log files', () => {
     expect(await readTrail('run-1', dir)).toEqual([{ event: 'real' }])
   })
 
+  it('skips a listed file it cannot open and keeps scanning', async () => {
+    // A rotation can delete a file between the readdir and the open, leaving the name
+    // listed and unopenable. One unreadable file must not hide the rest.
+    await symlink(path.join(dir, 'gone.log'), path.join(dir, 'error-2026-08-14.log'))
+    await writeFile(path.join(dir, 'error-2026-08-13.log'), trailLine('run-1', ['survived']))
+
+    expect(await readTrail('run-1', dir)).toEqual([{ event: 'survived' }])
+  })
+
   it('prints a command that retrieves the same trail by run id alone', () => {
     const command = trailCommand('run-1', '/var/logs')
     expect(command).toContain('run-1')
     expect(command).toContain('error-*.log')
     expect(command).toContain('failure_trail')
+  })
+})
+
+describe('the failures command', () => {
+  let dir: string
+  let out: string[]
+  let printed: (line: string) => void
+  const exitCode = process.exitCode
+
+  beforeEach(async () => {
+    dir = await mkdtemp(path.join(tmpdir(), 'failures-cmd-'))
+    out = []
+    printed = (line) => { out.push(line) }
+  })
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true })
+    process.exitCode = exitCode
+  })
+
+  const run = {
+    runId: 'run-1', accountId: 'acc-1', bank: 'mi-dinero', scriptVersion: '2.0.2',
+    status: 'failed', transactionsFound: null, failureType: 'login_failed',
+    stopReason: null, errorMessage: 'bad credentials',
+    startedAt: new Date('2026-08-13T10:00:00.000Z'), finishedAt: null, durationMs: 4200,
+  }
+
+  const step = {
+    stepIndex: 0, step: 'login', status: 'failed', failureType: 'login_failed',
+    errorMessage: 'bad credentials', stack: null, url: 'https://bank.example/login',
+    durationMs: 1200, createdAt: new Date('2026-08-13T10:00:01.000Z'),
+  }
+
+  const listItem = {
+    runId: 'run-1', startedAt: new Date('2026-08-13T10:00:00.000Z'), durationMs: 4200,
+    accountId: 'acc-1', bank: 'mi-dinero', scriptVersion: '2.0.2',
+    failureType: 'login_failed', stopReason: null, failingStage: 'login',
+  }
+
+  const reader = (over: Partial<FailureReader> = {}): FailureReader => ({
+    findRun: vi.fn(async () => null),
+    listSteps: vi.fn(async () => []),
+    listFailed: vi.fn(async () => []),
+    ...over,
+  })
+
+  describe('the detail view', () => {
+    it('reports the run, its stages and its trail in one pass', async () => {
+      await writeFile(path.join(dir, 'error-2026-08-13.log'), JSON.stringify({
+        message: 'failure_trail', runId: 'run-1', trail: [{ event: 'login_submit_start' }],
+      }))
+
+      await main(['--run=run-1'], reader({
+        findRun: vi.fn(async () => run),
+        listSteps: vi.fn(async () => [step]),
+      }), printed, dir)
+
+      const text = out.join('\n')
+      expect(text).toContain('run          run-1')
+      expect(text).toContain('bad credentials')
+      expect(text).toContain('stages (1)')
+      expect(text).toContain('login')
+      // The trail it retrieved, and the command that retrieves it again without this CLI.
+      expect(text).toContain('login_submit_start')
+      expect(text).toContain('error-*.log')
+      expect(process.exitCode).toBeUndefined()
+    })
+
+    it('says the trail is absent rather than printing an empty one', async () => {
+      await main(['--run=run-1'], reader({ findRun: vi.fn(async () => run) }), printed, dir)
+
+      expect(out.join('\n')).toContain('not found in the local log files')
+    })
+
+    it('fails the command when the run does not exist', async () => {
+      // Exit code 1 rather than an empty report: a typo'd run id must not read as a clean run.
+      const reads = reader()
+      await main(['--run=absent'], reads, printed, dir)
+
+      expect(process.exitCode).toBe(1)
+      expect(out).toEqual([])
+      expect(reads.listSteps).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('the list view', () => {
+    it('prints a header, a line per run, and how to inspect one', async () => {
+      await main([], reader({ listFailed: vi.fn(async () => [listItem]) }), printed, dir)
+
+      const text = out.join('\n')
+      expect(text).toContain('STARTED')
+      expect(text).toContain('run-1')
+      expect(text).toContain('1 run(s)')
+      expect(text).toContain('--run=<uuid>')
+    })
+
+    it('says nothing matched rather than printing a bare header', async () => {
+      await main([], reader(), printed, dir)
+
+      expect(out).toEqual(['no failed runs matched'])
+    })
+
+    it('passes every filter through to the query, with the window resolved to an instant', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-08-13T12:00:00.000Z'))
+      try {
+        const reads = reader()
+        await main(['--account=acc-1', '--since=24h', '--stage=login', '--limit=5'], reads, printed, dir)
+
+        expect(reads.listFailed).toHaveBeenCalledWith({
+          accountId: 'acc-1',
+          since: new Date('2026-08-12T12:00:00.000Z'),
+          stage: 'login',
+          limit: 5,
+        })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('omits the filters that were not asked for, rather than sending nulls', async () => {
+      const reads = reader()
+      await main([], reads, printed, dir)
+
+      expect(reads.listFailed).toHaveBeenCalledWith({ limit: 20 })
+    })
   })
 })
